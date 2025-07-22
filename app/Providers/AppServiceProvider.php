@@ -5,6 +5,10 @@ namespace App\Providers;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\URL;
+use App\Observers\CotioInstanciaObserver;
+use App\Models\CotioInstancia;  
+use App\Models\CotioValorVariable;
+use App\Observers\CotioValorVariableObserver;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -27,5 +31,8 @@ class AppServiceProvider extends ServiceProvider
         }
     
         Paginator::useBootstrapFive();
+
+        CotioInstancia::observe(CotioInstanciaObserver::class);
+        CotioValorVariable::observe(CotioValorVariableObserver::class);
     }
 }

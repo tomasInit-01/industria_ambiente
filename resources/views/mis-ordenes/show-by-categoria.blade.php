@@ -658,6 +658,55 @@ document.getElementById('guardarHerramientasBtn').addEventListener('click', func
     });
 </script>
 
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Function to calculate the average for a specific modal
+        function calculateAverage(modalId) {
+            const modal = document.getElementById(modalId);
+            if (!modal) return;
+    
+            const resultadoInput = modal.querySelector('input[name="resultado"]');
+            const resultado2Input = modal.querySelector('input[name="resultado_2"]');
+            const resultado3Input = modal.querySelector('input[name="resultado_3"]');
+            const resultadoFinalTextarea = modal.querySelector('textarea[name="resultado_final"]');
+    
+            // Function to compute and update the average
+            function updateAverage() {
+                // Get values and convert to numbers
+                const val1 = parseFloat(resultadoInput.value) || 0;
+                const val2 = parseFloat(resultado2Input.value) || 0;
+                const val3 = parseFloat(resultado3Input.value) || 0;
+    
+                // Count non-empty values
+                const validValues = [val1, val2, val3].filter(val => !isNaN(val) && val !== 0);
+                const count = validValues.length;
+    
+                // Calculate average
+                const sum = validValues.reduce((acc, val) => acc + val, 0);
+                const average = count > 0 ? (sum / count).toFixed(2) : '';
+    
+                // Update resultado_final textarea
+                resultadoFinalTextarea.value = average;
+            }
+    
+            // Add event listeners to input fields
+            [resultadoInput, resultado2Input, resultado3Input].forEach(input => {
+                input.addEventListener('input', updateAverage);
+            });
+    
+            // Initial calculation
+            updateAverage();
+        }
+    
+        // Initialize for each modal
+        @foreach($analisis as $item)
+            calculateAverage('editAnalisisModal{{ $item->cotio_subitem }}');
+        @endforeach
+    });
+</script>
+
+
 @endsection
 
 
