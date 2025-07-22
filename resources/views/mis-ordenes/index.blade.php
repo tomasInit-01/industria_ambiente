@@ -89,6 +89,36 @@
         </div>
     </div>
 
+    {{-- SUGERENCIAS DE ANALITOS POR ESTADO --}}
+    @if(request('estado') && isset($analitosSugeridos) && $analitosSugeridos->count())
+    @php
+        $bagdeClass = match (request('estado')) {
+            'coordinado analisis' => 'warning',
+            'en revision analisis' => 'info',
+            'analizado' => 'success',
+            'suspension' => 'danger',
+        };
+
+    @endphp
+        <div class="card mb-3 shadow-sm border-{{ $bagdeClass }}">
+            <div class="card-body py-2">
+                <div class="mb-2 fw-bold text-dark">
+                    Análisis con estado "{{ ucfirst(request('estado')) }}":
+                </div>
+                <ul class="list-group list-group-flush">
+                    @foreach($analitosSugeridos as $analito)
+                        <li class="list-group-item d-flex justify-content-between align-items-center table-{{ $bagdeClass }}">
+                            <span>
+                                {{ $analito->cotio_descripcion ?? 'Sin descripción' }}
+                                <span class="text-muted small">(Cotización N° {{ $analito->cotio_numcoti }})</span>
+                            </span>
+                            <a href="/ordenes-all/{{ $analito->cotio_numcoti }}/{{ $analito->cotio_item }}/{{ $analito->cotio_subitem }}/{{ $analito->instance_number }}" class="btn bg-{{ $bagdeClass }} text-white btn-sm">Ver análisis</a>
+                        </li>
+                    @endforeach
+                </ul>
+            </div>
+        </div>
+    @endif
 
     @if(session('success'))
     <div class="alert alert-success">

@@ -138,30 +138,17 @@
         <div class="modal fade" id="editHerramientasModal" tabindex="-1" aria-labelledby="editHerramientasModalLabel" aria-hidden="true">
             <div class="modal-dialog modal-lg">
                 <div class="modal-content">
-                    <form action="{{ route('instancias.update-herramientas', $instancia->id) }}" method="POST">
+                    <form id="formEditarHerramientas" method="POST">
                         @csrf
                         @method('PUT')
                         <div class="modal-header">
                             <h5 class="modal-title" id="editHerramientasModalLabel">Editar Herramientas Asignadas</h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                         </div>
-                        <div class="modal-body">
+                        <div class="modal-body" style="max-height: 400px; overflow-y: auto;">
                             <div class="mb-3">
                                 <label class="form-label">Herramientas Disponibles</label>
-                                <select class="form-select select2-herramientas" name="herramientas[]" multiple="multiple" style="width: 100%;">
-                                    @foreach($allHerramientas as $herramienta)
-                                        <option value="{{ $herramienta->id }}" 
-                                            {{ $instancia->herramientasLab->contains($herramienta->id) ? 'selected' : '' }}
-                                            data-cantidad="{{ $instancia->herramientasLab->contains($herramienta->id) ? $instancia->herramientasLab->find($herramienta->id)->pivot->cantidad : 1 }}"
-                                            data-observaciones="{{ $instancia->herramientasLab->contains($herramienta->id) ? $instancia->herramientasLab->find($herramienta->id)->pivot->observaciones : '' }}">
-                                            {{ $herramienta->equipamiento }} ({{ $herramienta->marca_modelo }})
-                                        </option>
-                                    @endforeach
-                                </select>
-                            </div>
-        
-                            <div id="herramientas-detalles" class="mt-3">
-                                <!-- Aquí se mostrarán los detalles de cada herramienta seleccionada -->
+                                <select id="herramientasSelect" class="form-select select2-herramientas" name="herramientas[]" multiple="multiple" style="width: 100%;"></select>
                             </div>
                         </div>
                         <div class="modal-footer">
@@ -233,7 +220,7 @@
             </div>
         @else
             <div class="card-body p-0">
-                <div class="accordion" id="analisisAccordion">
+                <div class="accordion p-2" id="analisisAccordion">
                     @foreach($analisis as $item)
                         <div class="accordion-item border-0 mb-2">
                             <h2 class="accordion-header" id="heading{{ $item->cotio_subitem }}">
@@ -400,326 +387,108 @@
         border: 1px solid #ced4da;
         padding: 0.375rem 0.75rem;
     }
+    #editHerramientasModal .modal-body {
+        max-height: 400px;
+        overflow-y: auto;
+    }
+    #editHerramientasModal .select2-container {
+        width: 100% !important;
+    }
 </style>
 
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+
 <script>
-// Manejo de guardado de resultados editables
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('Script principal cargado');
-    
-    // Función para calcular promedio
-    function calcularPromedio(form) {
-        console.log('Calculando promedio para formulario:', form);
-        
-        const resultado1 = parseFloat(form.querySelector('[name="resultado"]').value) || 0;
-        const resultado2 = parseFloat(form.querySelector('[name="resultado_2"]').value) || 0;
-        const resultado3 = parseFloat(form.querySelector('[name="resultado_3"]').value) || 0;
-        
-        const valores = [resultado1, resultado2, resultado3].filter(v => v > 0);
-        
-        if (valores.length > 0) {
-            const promedio = valores.reduce((a, b) => a + b, 0) / valores.length;
-            form.querySelector('[name="resultado_final"]').value = promedio.toFixed(2);
-            console.log('Promedio calculado:', promedio.toFixed(2));
-        }
-    }
-    
-    // Delegación de eventos para formularios dinámicos
-    document.addEventListener('input', function(e) {
-        const input = e.target;
-        if (input.matches('[name="resultado"], [name="resultado_2"], [name="resultado_3"]')) {
-            const form = input.closest('form');
-            if (form) calcularPromedio(form);
-        }
-    });
-    
-    // Inicializar formularios existentes
-    document.querySelectorAll('form').forEach(form => {
-        if (form.action.includes('updateResultado')) {
-            form.querySelectorAll('[name="resultado"], [name="resultado_2"], [name="resultado_3"]')
-                .forEach(input => {
-                    input.addEventListener('input', () => calcularPromedio(form));
-                });
-            calcularPromedio(form); // Calcular inicialmente
-        }
-    });
-    
-    // Manejar modales dinámicos
-    document.addEventListener('shown.bs.modal', function(e) {
-        const modal = e.target;
-        const forms = modal.querySelectorAll('form');
-        forms.forEach(form => {
-            if (form.action.includes('updateResultado')) {
-                form.querySelectorAll('[name="resultado"], [name="resultado_2"], [name="resultado_3"]')
-                    .forEach(input => {
-                        input.addEventListener('input', () => calcularPromedio(form));
-                    });
-                calcularPromedio(form);
-            }
-        });
-    });
-    
-    // Función para inicializar los eventos de un formulario
-    function inicializarFormulario(form) {
-        console.log('Inicializando formulario:', form);
-        
-        // Buscar todos los inputs de resultado en el formulario
-        const inputs = form.querySelectorAll('input[name="resultado"], input[name="resultado_2"], input[name="resultado_3"]');
-        
-        console.log('Inputs de resultado encontrados:', inputs.length);
-        
-        // Función para validar entrada numérica
-        function validarNumerico(input) {
-            if (input.value && isNaN(input.value)) {
-                input.value = input.value.replace(/[^0-9.]/g, '');
-                if (isNaN(input.value)) {
-                    input.value = '';
-                }
-            }
-        }
-        
-        // Agregar event listeners a cada input
-        inputs.forEach(input => {
-            console.log('Agregando event listeners a:', input.name, 'valor actual:', input.value);
-            
-            // Función que se ejecuta cuando cambia el input
-            function onInputChange() {
-                console.log('Input cambiado:', input.name, 'nuevo valor:', input.value);
-                validarNumerico(input);
-                calcularPromedio(form);
-            }
-            
-            // Remover listeners existentes
-            input.removeEventListener('input', onInputChange);
-            input.removeEventListener('blur', onInputChange);
-            input.removeEventListener('change', onInputChange);
-            
-            // Agregar nuevos listeners
-            input.addEventListener('input', onInputChange);
-            input.addEventListener('blur', onInputChange);
-            input.addEventListener('change', onInputChange);
-            
-            // Agregar un listener de prueba para verificar que funciona
-            input.addEventListener('keyup', function() {
-                console.log('Keyup detectado en:', input.name, 'valor:', input.value);
-            });
-        });
-        
-        // Calcular promedio inicial si hay valores
-        console.log('Calculando promedio inicial...');
-        calcularPromedio(form);
-        
-        // Manejar el envío del formulario
-        form.addEventListener('submit', function(e) {
-            e.preventDefault();
-            console.log('Formulario enviado');
-            
-            // Recalcular por si acaso hay cambios no detectados
-            calcularPromedio(form);
-            
-            // Obtener datos del formulario desde la URL del action
-            const actionUrl = this.action;
-            const urlParts = actionUrl.split('/');
-            const cotioNumcoti = urlParts[urlParts.length - 5];
-            const cotioItem = urlParts[urlParts.length - 4];
-            const cotioSubitem = urlParts[urlParts.length - 3];
-            const instance = urlParts[urlParts.length - 2];
-            
-            console.log('Datos del formulario:', {
-                cotioNumcoti,
-                cotioItem,
-                cotioSubitem,
-                instance
-            });
-            
-            // Recopilar todos los datos del formulario
-            const formData = new FormData();
-            formData.append('_token', '{{ csrf_token() }}');
-            formData.append('_method', 'PUT');
-            
-            // Agregar todos los campos de resultado y observación
-            const allInputs = this.querySelectorAll('input, textarea');
-            allInputs.forEach(input => {
-                if (input.name && input.value !== undefined) {
-                    formData.append(input.name, input.value);
-                    console.log('Agregando campo:', input.name, 'valor:', input.value);
-                }
-            });
-            
-            const submitBtn = this.querySelector('button[type="submit"]');
-            
-            // Mostrar loader
-            if (submitBtn) {
-                const originalBtnText = submitBtn.innerHTML;
-                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Guardando...';
-                submitBtn.disabled = true;
-            }
-            
-            // Construir la URL correcta
-            const url = `{{ route('tareas.updateResultado', ['cotio_numcoti' => ':cotio_numcoti', 'cotio_item' => ':cotio_item', 'cotio_subitem' => ':cotio_subitem', 'instance' => ':instance']) }}`
-                .replace(':cotio_numcoti', cotioNumcoti)
-                .replace(':cotio_item', cotioItem)
-                .replace(':cotio_subitem', cotioSubitem)
-                .replace(':instance', instance);
-            
-            console.log('URL de envío:', url);
-            
-            fetch(url, {
-                method: 'POST', // Usar POST porque Laravel maneja PUT internamente
-                body: formData,
-                headers: {
-                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                    'Accept': 'application/json'
-                }
-            })
-            .then(response => {
-                console.log('Respuesta recibida:', response);
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                return response.json();
-            })
-            .then(data => {
-                console.log('Datos de respuesta:', data);
-                showAlert('success', 'Resultados guardados correctamente');
-                
-                // Cerrar el modal después de guardar exitosamente
-                const modal = form.closest('.modal');
-                if (modal) {
-                    const modalInstance = bootstrap.Modal.getInstance(modal);
-                    if (modalInstance) {
-                        modalInstance.hide();
+    var herramientasModal = document.getElementById('editHerramientasModal');
+    var instanciaId = {{ $instancia->id }};
+    if (herramientasModal) {
+        herramientasModal.addEventListener('show.bs.modal', function () {
+            var modalInputs = document.getElementById('herramientasSelect');
+            var form = document.getElementById('formEditarHerramientas');
+            form.action = '/instancias/' + instanciaId + '/herramientas';
+
+            // Loader
+            $(modalInputs).html('').append('<option>Cargando...</option>');
+
+            // Cargar herramientas actuales por AJAX
+            fetch('/api/instancias/' + instanciaId + '/herramientas')
+                .then(response => response.json())
+                .then(data => {
+                    $(modalInputs).empty();
+                    if (data && data.herramientas && data.herramientas.length > 0) {
+                        data.herramientas.forEach(h => {
+                            const option = new Option(h.nombre, h.id, h.asignada, h.asignada);
+                            option.dataset.cantidad = h.cantidad || 1;
+                            option.dataset.observaciones = h.observaciones || '';
+                            $(modalInputs).append(option);
+                        });
                     }
-                }
-                
-                // Recargar la página después de un breve delay
-                setTimeout(() => {
-                    window.location.reload();
-                }, 1500);
+                    $(modalInputs).select2({
+                        dropdownParent: $('#editHerramientasModal'),
+                        width: '100%',
+                        placeholder: 'Seleccione herramientas',
+                        allowClear: true
+                    });
+                    // Disparar evento para mostrar detalles de seleccionadas
+                    $(modalInputs).trigger('change');
+                })
+                .catch(() => {
+                    $(modalInputs).html('<option>Error al cargar</option>');
+                });
+        });
+
+        // Enviar formulario por AJAX
+        document.getElementById('formEditarHerramientas').addEventListener('submit', function(e) {
+            e.preventDefault();
+            var form = this;
+            var formData = new FormData(form);
+            var action = form.action;
+            // Agregar los valores seleccionados manualmente (por select2)
+            var herramientas = $('#herramientasSelect').val() || [];
+            formData.delete('herramientas[]');
+            herramientas.forEach(id => formData.append('herramientas[]', id));
+
+            fetch(action, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': form.querySelector('[name=_token]').value,
+                    'Accept': 'application/json',
+                },
+                body: formData
             })
-            .catch(error => {
-                console.error('Error:', error);
-                showAlert('danger', 'Error al guardar los resultados: ' + error.message);
-            })
-            .finally(() => {
-                if (submitBtn) {
-                    submitBtn.innerHTML = originalBtnText;
-                    submitBtn.disabled = false;
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: '¡Guardado!',
+                        text: 'Herramientas actualizadas correctamente',
+                        timer: 1500,
+                        showConfirmButton: false
+                    });
+                    setTimeout(() => { var modal = bootstrap.Modal.getInstance(herramientasModal); modal.hide(); location.reload(); }, 1500);
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: data.message || 'Ocurrió un error al guardar.'
+                    });
                 }
+            })
+            .catch(() => {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'Error al guardar.'
+                });
             });
-        });
-    }
-    
-    // Función para inicializar formularios cuando se abren los modales
-    function inicializarFormulariosEnModal(modal) {
-        console.log('Modal abierto:', modal.id);
-        const forms = modal.querySelectorAll('form');
-        console.log('Formularios encontrados en modal:', forms.length);
-        
-        forms.forEach(form => {
-            if (form.action && form.action.includes('updateResultado')) {
-                console.log('Inicializando formulario en modal:', form.action);
-                inicializarFormulario(form);
-            }
-        });
-    }
-    
-    // Inicializar formularios cuando se abren los modales
-    document.querySelectorAll('.modal').forEach(modal => {
-        console.log('Agregando event listener a modal:', modal.id);
-        modal.addEventListener('shown.bs.modal', function() {
-            console.log('Modal shown event disparado para:', this.id);
-            inicializarFormulariosEnModal(this);
-        });
-    });
-    
-    // Inicializar todos los formularios de resultados en los modales (por si ya están cargados)
-    console.log('Buscando formularios de resultados existentes...');
-    document.querySelectorAll('.modal form').forEach(form => {
-        console.log('Formulario encontrado:', form.action);
-        if (form.action && form.action.includes('updateResultado')) {
-            console.log('Inicializando formulario de resultados existente:', form.action);
-            inicializarFormulario(form);
-        }
-    });
-    
-    // Función para mostrar alertas
-    function showAlert(type, message) {
-        // Eliminar alertas existentes primero
-        document.querySelectorAll('.custom-alert').forEach(alert => alert.remove());
-        
-        const alertDiv = document.createElement('div');
-        alertDiv.className = `custom-alert alert alert-${type} alert-dismissible fade show fixed-top mx-auto mt-3`;
-        alertDiv.style.maxWidth = '500px';
-        alertDiv.style.zIndex = '1100';
-        alertDiv.role = 'alert';
-        alertDiv.innerHTML = `
-            ${message}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        `;
-        
-        document.body.appendChild(alertDiv);
-        
-        // Auto-eliminar después de 5 segundos
-        setTimeout(() => {
-            alertDiv.remove();
-        }, 5000);
-        
-        // Permitir cerrar manualmente
-        alertDiv.querySelector('.btn-close').addEventListener('click', () => {
-            alertDiv.remove();
         });
     }
 });
-
-async function enviarResultado(event, cotio_numcoti, cotio_item, cotio_subitem) {
-    event.preventDefault();
-    
-    const form = event.target;
-    const formData = new FormData(form);
-    const data = Object.fromEntries(formData);
-    
-    try {
-        const response = await fetch(`/tareas/${cotio_numcoti}/${cotio_item}/${cotio_subitem}/resultado`, {
-            method: 'PUT',
-            headers: {
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-                'Accept': 'application/json',
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(data)
-        });
-
-        const responseData = await response.json();
-
-        if (response.ok) {
-            Swal.fire({
-                icon: 'success',
-                title: '¡Éxito!',
-                text: responseData.message,
-                confirmButtonColor: '#3085d6'
-            }).then(() => {
-                window.location.reload();
-            });
-        } else {
-            Swal.fire({
-                icon: 'error',
-                title: 'Error',
-                text: responseData.message || 'Hubo un error al procesar la solicitud',
-                confirmButtonColor: '#3085d6'
-            });
-        }
-    } catch (error) {
-        Swal.fire({
-            icon: 'error',
-            title: 'Error',
-            text: 'Error al procesar la solicitud',
-            confirmButtonColor: '#3085d6'
-        });
-    }
-}
 </script>
-
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
@@ -823,41 +592,69 @@ async function enviarResultado(event, cotio_numcoti, cotio_item, cotio_subitem) 
             allowClear: true
         });
     
-        // Mostrar detalles de herramientas seleccionadas
-        $('.select2-herramientas').on('change', function() {
-            const selectedIds = $(this).val() || [];
-            const detallesContainer = $('#herramientas-detalles');
-            detallesContainer.empty();
-    
-            selectedIds.forEach(id => {
-                const option = $(this).find(`option[value="${id}"]`);
-                const cantidad = option.data('cantidad') || 1;
-                const observaciones = option.data('observaciones') || '';
-    
-                detallesContainer.append(`
-                    <div class="card mb-2 herramienta-detail" data-id="${id}">
-                        <div class="card-body">
-                            <h6>${option.text()}</h6>
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <label class="form-label">Cantidad</label>
-                                    <input type="number" name="cantidades[${id}]" class="form-control" value="${cantidad}" min="1">
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label">Observaciones</label>
-                                    <input type="text" name="observaciones[${id}]" class="form-control" value="${observaciones}">
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `);
-            });
-        });
+
     
         // Disparar evento change al abrir el modal para mostrar las herramientas ya seleccionadas
-        $('#editHerramientasModal').on('shown.bs.modal', function() {
-            $('.select2-herramientas').trigger('change');
-        });
+$('#editHerramientasModal').on('shown.bs.modal', function() {
+    $('.select2-herramientas').trigger('change');
+});
+
+// Evento para guardar con Fetch
+document.getElementById('guardarHerramientasBtn').addEventListener('click', function() {
+    const instanciaId = {{ $instancia->id }};
+    const selectElement = document.querySelector('.select2-herramientas');
+    const selectedOptions = Array.from(selectElement.selectedOptions);
+    
+    // Preparar los datos para enviar
+    const herramientasData = {
+        herramientas: selectedOptions.map(option => option.value),
+        cantidades: {},
+        observaciones: {}
+    };
+    
+    // Obtener cantidades y observaciones de los inputs generados
+    selectedOptions.forEach(option => {
+        const herramientaId = option.value;
+        herramientasData.cantidades[herramientaId] = document.getElementById(`cantidad-${herramientaId}`).value;
+        herramientasData.observaciones[herramientaId] = document.getElementById(`observaciones-${herramientaId}`).value;
+    });
+    
+    // Configurar el token CSRF
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    
+    // Realizar la petición Fetch
+    fetch(`/instancias/${instanciaId}/herramientas`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': csrfToken,
+            'Accept': 'application/json'
+        },
+        body: JSON.stringify(herramientasData)
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Error en la respuesta del servidor');
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            // Mostrar mensaje de éxito y cerrar el modal
+            alert(data.message);
+            $('#editHerramientasModal').modal('hide');
+            
+            // Opcional: Recargar la página o actualizar la UI según sea necesario
+            // location.reload();
+        } else {
+            throw new Error(data.message || 'Error al guardar los cambios');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Ocurrió un error al guardar los cambios: ' + error.message);
+    });
+});
     });
 </script>
 

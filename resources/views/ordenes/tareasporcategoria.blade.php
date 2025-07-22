@@ -167,9 +167,14 @@
 
             @if($instanciaActual && $instanciaActual->herramientasLab && $instanciaActual->herramientasLab->count())
                 <div class="card shadow-sm border-0 mt-5">
-                    <div class="card-header bg-light d-flex align-items-center">
-                        <x-heroicon-o-wrench-screwdriver class="me-2" style="width: 1rem; height: 1rem;" />
-                        <h6 class="card-title mb-0">Herramientas de Análisis</h6>
+                    <div class="card-header bg-light d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center">
+                            <x-heroicon-o-wrench-screwdriver class="me-2" style="width: 1rem; height: 1rem;" />
+                            <h6 class="card-title mb-0">Herramientas de Análisis</h6>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-link" data-bs-toggle="modal" data-bs-target="#herramientasModal" data-instancia-id="{{ $instanciaActual->id }}" data-descripcion="{{ $instanciaActual->cotio_descripcion }}">
+                            <x-heroicon-o-pencil style="width: 20px; height: 20px;" />
+                        </button>
                     </div>
                     <div class="card-body p-2">
                         <ul class="list-group list-group-flush">
@@ -236,20 +241,23 @@
                             </table>
                         </div>
                         
-                        <div class="mt-4">
-                            <label for="observaciones" class="form-label"><strong>Observaciones del Coordinador:</strong></label>
-                            <textarea class="form-control" id="observaciones" rows="3" 
-                                      readonly>{{ $instanciaActual->observaciones_medicion_coord_muestreo }}</textarea>
-                        </div>
+                        @if($instanciaActual->observaciones_medicion_coord_muestreo)
+                            <div class="mt-4">
+                                <label for="observaciones" class="form-label"><strong>Observaciones del Coordinador:</strong></label>
+                                <textarea class="form-control" id="observaciones" rows="3" 
+                                        readonly>{{ $instanciaActual->observaciones_medicion_coord_muestreo }}</textarea>
+                            </div>
+                        @endif
 
-                        <div class="mt-4">
-                            <label for="observaciones_muestreador" class="form-label"><strong>Observaciones del Muestreador:</strong></label>
-                            <textarea class="form-control" id="observaciones_muestreador" rows="3" readonly
-                                      style="background-color: #fff8e1; border-left: 4px solid #ffc107; padding-left: 12px;">
-                                {{ $instanciaActual->observaciones_medicion_muestreador }}
-                            </textarea>
-                        </div>
-                        
+                        @if($instanciaActual->observaciones_medicion_muestreador)
+                            <div class="mt-4">
+                                <label for="observaciones_muestreador" class="form-label"><strong>Observaciones del Muestreador:</strong></label>
+                                <textarea class="form-control" id="observaciones_muestreador" rows="3" readonly
+                                        style="background-color: #fff8e1; border-left: 4px solid #ffc107; padding-left: 12px;">
+                                    {{ $instanciaActual->observaciones_medicion_muestreador }}
+                                </textarea>
+                            </div>
+                        @endif
                         @if($instanciaActual->cotio_estado != 'muestreado')
                             <div class="mt-3 text-center">
                                 <button class="btn btn-primary btn-lg save-all-data" 
@@ -1425,5 +1433,142 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
+{{-- MODAL DE EDICIÓN DE HERRAMIENTAS --}}
+<div class="modal fade" id="herramientasModal" tabindex="-1" aria-labelledby="herramientasModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form id="formEditarHerramientas" method="POST">
+        @csrf
+        @method('PUT')
+        <div class="modal-header">
+          <h5 class="modal-title" id="herramientasModalLabel">Editar herramientas de la muestra</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+        </div>
+        <div class="modal-body" style="max-height: 400px; overflow-y: auto;">
+          <div id="herramientasModalDescripcion" class="mb-2 text-primary small"></div>
+          <div id="herramientasModalInputs">
+            <div class="text-center text-muted">Cargando herramientas...</div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<style>
+#herramientasModal .modal-body {
+    max-height: 400px;
+    overflow-y: auto;
+}
+#herramientasModalInputs .select2-container {
+    width: 100% !important;
+}
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var herramientasModal = document.getElementById('herramientasModal');
+    if (herramientasModal) {
+        herramientasModal.addEventListener('show.bs.modal', function (event) {
+            var button = event.relatedTarget;
+            var instanciaId = button.getAttribute('data-instancia-id');
+            var descripcion = button.getAttribute('data-descripcion');
+            var modalDescripcion = document.getElementById('herramientasModalDescripcion');
+            var modalInputs = document.getElementById('herramientasModalInputs');
+            var form = document.getElementById('formEditarHerramientas');
+
+            modalDescripcion.textContent = descripcion ? 'Muestra: ' + descripcion : '';
+            form.action = '/instancias/' + instanciaId + '/herramientas';
+
+            // Loader
+            modalInputs.innerHTML = '<div class="text-center text-muted py-4"><span class="spinner-border spinner-border-sm"></span> Cargando herramientas...</div>';
+
+            // Cargar herramientas actuales por AJAX
+            fetch('/api/instancias/' + instanciaId + '/herramientas')
+                .then(response => response.json())
+                .then(data => {
+                    let html = '';
+                    html += `<label for='herramientasSelect' class='form-label'>Herramientas disponibles</label>`;
+                    html += `<select id='herramientasSelect' name='herramientas[]' multiple='multiple' class='form-select'></select>`;
+                    modalInputs.innerHTML = html;
+
+                    // Inicializar Select2
+                    const select = $('#herramientasSelect');
+                    select.empty();
+                    if (data && data.herramientas && data.herramientas.length > 0) {
+                        data.herramientas.forEach(h => {
+                            const option = new Option(h.nombre, h.id, h.asignada, h.asignada);
+                            select.append(option);
+                        });
+                    }
+                    select.select2({
+                        dropdownParent: $('#herramientasModal'),
+                        width: '100%',
+                        placeholder: 'Seleccione herramientas',
+                        allowClear: true
+                    });
+                })
+                .catch(() => {
+                    modalInputs.innerHTML = '<div class="text-danger">Error al cargar herramientas.</div>';
+                });
+        });
+
+        // Enviar formulario por AJAX
+        document.getElementById('formEditarHerramientas').addEventListener('submit', function(e) {
+            e.preventDefault();
+            var form = this;
+            var formData = new FormData(form);
+            var action = form.action;
+            // Agregar los valores seleccionados manualmente (por select2)
+            var herramientas = $('#herramientasSelect').val() || [];
+            formData.delete('herramientas[]');
+            herramientas.forEach(id => formData.append('herramientas[]', id));
+
+            fetch(action, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': form.querySelector('[name=_token]').value,
+                    'Accept': 'application/json',
+                },
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: '¡Guardado!',
+                        text: 'Herramientas actualizadas correctamente',
+                        timer: 1500,
+                        showConfirmButton: false
+                    });
+                    setTimeout(() => { var modal = bootstrap.Modal.getInstance(herramientasModal); modal.hide(); location.reload(); }, 1500);
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: data.message || 'Ocurrió un error al guardar.'
+                    });
+                }
+            })
+            .catch(() => {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'Error al guardar.'
+                });
+            });
+        });
+    }
+});
+</script>
 
 @endsection

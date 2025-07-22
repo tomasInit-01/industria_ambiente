@@ -385,3 +385,6 @@ Route::middleware([CheckAdminOrRole::class])->group(function () {
     Route::post('/notificaciones/leer-todas', [SimpleNotificationController::class, 'marcarTodasComoLeidas'])->name('notificaciones.leer-todas');
     Route::post('/notificaciones/marcar-leidas', [SimpleNotificationController::class, 'marcarLeidas'])->name('notificaciones.marcar-leidas');
 });
+
+// API: Herramientas de una instancia (temporal, aquí en web.php)
+Route::get('/api/instancias/{instancia}/herramientas', [App\Http\Controllers\OrdenController::class, 'apiHerramientasInstancia']);

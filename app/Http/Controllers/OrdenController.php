@@ -453,6 +453,14 @@ public function showOrdenes(Request $request)
         });
     }
 
+    // SUGERENCIAS DE ANALITOS POR ESTADO
+    $analitosSugeridos = collect();
+    if ($estado) {
+        $analitosSugeridos = $todosAnalisis->filter(function($analisis) use ($estado) {
+            return $analisis->cotio_estado_analisis === $estado;
+        });
+    }
+
     // Fetch related quotations
     $cotizacionesIds = $todosAnalisis->pluck('cotio_numcoti')
         ->merge($muestras->pluck('cotio_numcoti'))
@@ -468,7 +476,8 @@ public function showOrdenes(Request $request)
         'viewType' => $viewType,
         'request' => $request,
         'currentMonth' => $currentMonth,
-        'events' => $events
+        'events' => $events,
+        'analitosSugeridos' => $analitosSugeridos,
     ]);
 }
 
@@ -1067,7 +1076,10 @@ public function updateHerramientas(Request $request, $instanciaId)
 
     $instancia->herramientasLab()->sync($herramientasData);
 
-    return redirect()->back()->with('success', 'Herramientas actualizadas correctamente');
+    return response()->json([
+        'success' => true,
+        'message' => 'Estado actualizado correctamente'
+    ]);
 }
 
 
@@ -1826,6 +1838,26 @@ public function actualizarEstado(Request $request)
 
 
 
+public function apiHerramientasInstancia($instanciaId)
+{
+    $instancia = \App\Models\CotioInstancia::findOrFail($instanciaId);
+    $todasHerramientas = \App\Models\InventarioLab::all();
+    $herramientasAsignadas = $instancia->herramientasLab ? $instancia->herramientasLab->pluck('id')->toArray() : [];
+
+    $data = $todasHerramientas->map(function($h) use ($herramientasAsignadas) {
+        return [
+            'id' => $h->id,
+            'nombre' => $h->equipamiento . ($h->marca_modelo ? ' (' . $h->marca_modelo . ')' : ''),
+            'asignada' => in_array($h->id, $herramientasAsignadas),
+        ];
+    });
+
+    return response()->json(['herramientas' => $data]);
+}
+
+
+
+
 
 public function deshacerAsignaciones(Request $request)
 {
@@ -1911,9 +1943,4 @@ public function deshacerAsignaciones(Request $request)
         ]);
     }
 }
-
-
-
-
-
 }
