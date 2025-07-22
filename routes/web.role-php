@@ -1,0 +1,144 @@
+<?php
+
+use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\CotiController;
+use App\Http\Controllers\CotioController;
+use App\Http\Controllers\UserController;
+use App\Http\Controllers\VehiculosController;
+use App\Http\Controllers\InventarioLabController;
+use App\Http\Controllers\AuthController;
+use App\Http\Middleware\CheckAdmin;
+use App\Http\Middleware\CheckAdminOrRole;
+use App\Http\Middleware\CheckAuth;
+use App\Http\Middleware\EnsureSessionActive;
+use App\Http\Controllers\OrdenController;
+use App\Http\Controllers\InventarioMuestreoController;
+use App\Http\Controllers\MuestrasController;
+
+
+// Rutas de autenticación
+Route::middleware([EnsureSessionActive::class])->group(function () {
+    Route::get('/login', [AuthController::class, 'showLoginForm'])->name('login');
+    Route::post('/login', [AuthController::class, 'login'])->name('login.post');
+});
+
+// Rutas accesibles solo para usuarios autenticados (sin importar rol)
+Route::middleware(CheckAuth::class)->group(function () {
+    // Rutas de perfil de usuario
+    Route::get('/auth/{id}', [AuthController::class, 'show'])->name('auth.show');
+    Route::get('/auth/{id}/edit', [AuthController::class, 'edit'])->name('auth.edit');
+    Route::put('/auth/{id}', [AuthController::class, 'update'])->name('auth.update');
+    Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+    
+    // Rutas de tareas
+    Route::get('/mis-tareas', [CotiController::class, 'showTareas'])->name('mis-tareas');
+    Route::get('/tareas-all/{cotio_numcoti}/{cotio_item}/{cotio_subitem}/{instance}', [CotioController::class, 'showTareasAll'])->name('tareas.all.show');
+    Route::get('/tareas/{cotio_numcoti}/{cotio_item}/{cotio_subitem}', [CotioController::class, 'showTarea'])->name('tareas.show');
+    Route::put('/tareas/{cotio_numcoti}/{cotio_item}/{cotio_subitem}/estado', [CotioController::class, 'updateEstado'])->name('tareas.updateEstado');
+    Route::post('/asignar-identificacion-muestra', [CotioController::class, 'asignarIdentificacionMuestra'])->name('asignar.identificacion-muestra');
+    Route::post('/asignar-suspension-muestra', [CotioController::class, 'asignarSuspensionMuestra'])->name('asignar.suspension-muestra');
+    Route::put('/tareas/{cotio_numcoti}/{cotio_item}/{cotio_subitem}/{instance}/resultado', [CotioController::class, 'updateResultado'])->name('tareas.updateResultado');
+
+    // Rutas de ordenes
+    Route::get('/ordenes-all/{cotio_numcoti}/{cotio_item}/{cotio_subitem}/{instance}', [OrdenController::class, 'showOrdenesAll'])->name('ordenes.all.show');
+
+});
+
+// Rutas para usuarios con nivel 900 o más (admin)
+Route::middleware([CheckAdmin::class])->group(function () {
+    Route::get('/users', [UserController::class, 'showUsers'])->name('users.showUsers');
+    Route::get('/users/{usu_codigo}', [UserController::class, 'showUser'])->name('users.showUser');
+    Route::put('/users/{usu_codigo}', [UserController::class, 'update'])->name('users.update');
+});
+
+
+Route::middleware([CheckAdminOrRole::class . ':coordinador_muestreo'])->group(function () {
+
+    Route::get('/', [CotiController::class, 'index'])->name('cotizaciones.index');
+
+    Route::get('/muestras', [MuestrasController::class, 'index'])->name('muestras.index');
+    Route::get('/show/{coti_num}', [MuestrasController::class, 'show']);
+    Route::get('/muestras/{cotizacion}/categoria/{item}/{instance}', [MuestrasController::class, 'verMuestra'])->name('categoria.verMuestra');
+    Route::post('/asignar-detalles-muestra', [MuestrasController::class, 'asignarDetallesMuestra'])->name('asignar.detalles-muestra');
+    Route::get('/muestras/{cotizacion}/categoria/{item}/{instance}/ver', [MuestrasController::class, 'verMuestra'])->name('muestras.ver');
+    Route::post('/muestras/asignacion-masiva', [MuestrasController::class, 'asignacionMasiva'])->name('muestras.asignacion-masiva');
+
+
+    Route::get('/inventarios-muestreo', [InventarioMuestreoController::class, 'index'])->name('inventarios-muestreo.index');
+    Route::get('/inventarios-muestreo/create', [InventarioMuestreoController::class, 'create'])->name('inventarios-muestreo.create');
+    Route::post('/inventarios-muestreo', [InventarioMuestreoController::class, 'store'])->name('inventarios-muestreo.store');
+    Route::get('/inventarios-muestreo/{id}/edit', [InventarioMuestreoController::class, 'show'])->name('inventarios-muestreo.show');
+    Route::put('/inventarios-muestreo/{id}', [InventarioMuestreoController::class, 'update'])->name('inventarios-muestreo.update');
+    Route::delete('/inventarios-muestreo/{id}', [InventarioMuestreoController::class, 'destroy'])->name('inventarios-muestreo.destroy');
+
+    Route::get('/vehiculos', [VehiculosController::class, 'index'])->name('vehiculos.index');
+    Route::get('/vehiculos/create', [VehiculosController::class, 'create'])->name('vehiculos.create');
+    Route::post('/vehiculos', [VehiculosController::class, 'store'])->name('vehiculos.store');
+    Route::get('/vehiculos/{id}/edit', [VehiculosController::class, 'getVehiculo'])->name('vehiculos.show');
+    Route::put('/vehiculos/{id}', [VehiculosController::class, 'update'])->name('vehiculos.update');
+    Route::delete('/vehiculos/{id}', [VehiculosController::class, 'destroy'])->name('vehiculos.destroy');
+
+
+    Route::get('/cotizaciones/{cotizacion}', [CotiController::class, 'showDetalle'])->name('cotizaciones.ver-detalle');
+    Route::get('/cotizaciones/{cotizacion}/pdf', [CotiController::class, 'generateFullPdf'])->name('cotizaciones.full.pdf');
+    Route::get('/cotizaciones/{cotizacion}/qr/all', [CotiController::class, 'printAllQr'])->name('cotizaciones.qr.all');
+    Route::get('/cotizaciones/{cotizacion}/item/{item}/qr', [CotioController::class, 'generateItemQr'])->name('cotizaciones.item.qr');
+    Route::get('/cotizaciones/{cotizacion}/categoria/{item}/{instance}', [CotioController::class, 'verCategoria'])->name('categoria.ver');
+
+
+
+    Route::post('/asignar-fechas', [CotioController::class, 'asignarFechas'])->name('asignar.fechas');
+    Route::post('/tareas/actualizar-estado', [CotioController::class, 'actualizarEstado'])->name('tareas.actualizar-estado');
+    Route::post('/asignar-frecuencia', [CotioController::class, 'asignarFrecuencia'])->name('asignar.frecuencia');
+    Route::post('/asignar-identificacion', [CotioController::class, 'asignarIdentificacion'])->name('asignar.identificacion');
+    Route::post('/tareas/pasar-muestreo', [CotioController::class, 'pasarMuestreo'])->name('tareas.pasar-muestreo');
+    Route::post('/tareas/pasar-analisis', [OrdenController::class, 'pasarAnalisis'])->name('tareas.pasar-analisis');
+    Route::post('/asignar-detalles', [CotioController::class, 'asignarDetalles'])->name('asignar.detalles');
+    Route::post('/asignar-responsable-tarea', [CotioController::class, 'asignarResponsableTareaIndividual'])->name('asignar.responsable.tarea');
+    Route::delete('/tareas/{cotizacion}/{item}/{subitem}/herramientas/{herramienta_id}', [CotioController::class, 'desasignarHerramienta'])->name('tareas.desasignar-herramienta');
+    Route::delete('/tareas/{cotizacion}/{item}/{subitem}/vehiculos/{vehiculo_id}', [CotioController::class, 'desasignarVehiculo'])->name('tareas.desasignar-vehiculo');
+    Route::post('/enable-ot/{cotio_numcoti}/{cotio_item}/{cotio_subitem}/{instance}', [CotioController::class, 'enableOt'])->name('categorias.enable-ot');
+    Route::post('/disable-ot/{cotio_numcoti}/{cotio_item}/{cotio_subitem}/{instance}', [CotioController::class, 'disableOt'])->name('categorias.disable-ot');
+
+});
+
+
+Route::middleware([CheckAdminOrRole::class . ':coordinador_lab'])->group(function () {
+
+    Route::get('/', [CotiController::class, 'index'])->name('cotizaciones.index');
+
+    Route::get('/ordenes', [OrdenController::class, 'index'])->name('ordenes.index');
+    Route::get('/ordenes/{cotizacion}', [OrdenController::class, 'showDetalle'])->name('ordenes.ver-detalle');
+    Route::get('/ordenes/{cotizacion}/categoria/{item}/{instance}', [OrdenController::class, 'verOrden'])->name('categoria.verOrden');
+    Route::post('/asignar-detalles-analisis', [OrdenController::class, 'asignarDetallesAnalisis'])->name('asignar.detalles-analisis');
+    Route::post('/ordenes/{ordenId}/asignacion-masiva', [OrdenController::class, 'asignacionMasiva'])->name('ordenes.asignacionMasiva');
+
+    Route::get('/inventarios', [InventarioLabController::class, 'index'])->name('inventarios.index');
+    Route::get('/inventarios/create', [InventarioLabController::class, 'create'])->name('inventarios.create');
+    Route::post('/inventarios', [InventarioLabController::class, 'store'])->name('inventarios.store');
+    Route::get('/inventarios/{id}/edit', [InventarioLabController::class, 'show'])->name('inventarios.show');
+    Route::put('/inventarios/{id}', [InventarioLabController::class, 'update'])->name('inventarios.update');
+    Route::delete('/inventarios/{id}', [InventarioLabController::class, 'destroy'])->name('inventarios.destroy');
+
+
+    Route::get('/cotizaciones/{cotizacion}', [CotiController::class, 'showDetalle'])->name('cotizaciones.ver-detalle');
+    Route::get('/cotizaciones/{cotizacion}/pdf', [CotiController::class, 'generateFullPdf'])->name('cotizaciones.full.pdf');
+    Route::get('/cotizaciones/{cotizacion}/qr/all', [CotiController::class, 'printAllQr'])->name('cotizaciones.qr.all');
+    Route::get('/cotizaciones/{cotizacion}/item/{item}/qr', [CotioController::class, 'generateItemQr'])->name('cotizaciones.item.qr');
+    Route::get('/cotizaciones/{cotizacion}/categoria/{item}/{instance}', [CotioController::class, 'verCategoria'])->name('categoria.ver');
+
+
+
+    Route::post('/asignar-fechas', [CotioController::class, 'asignarFechas'])->name('asignar.fechas');
+    Route::post('/tareas/actualizar-estado', [CotioController::class, 'actualizarEstado'])->name('tareas.actualizar-estado');
+    Route::post('/asignar-frecuencia', [CotioController::class, 'asignarFrecuencia'])->name('asignar.frecuencia');
+    Route::post('/asignar-identificacion', [CotioController::class, 'asignarIdentificacion'])->name('asignar.identificacion');
+    Route::post('/tareas/pasar-muestreo', [CotioController::class, 'pasarMuestreo'])->name('tareas.pasar-muestreo');
+    Route::post('/tareas/pasar-analisis', [OrdenController::class, 'pasarAnalisis'])->name('tareas.pasar-analisis');
+    Route::post('/asignar-detalles', [CotioController::class, 'asignarDetalles'])->name('asignar.detalles');
+    Route::post('/asignar-responsable-tarea', [CotioController::class, 'asignarResponsableTareaIndividual'])->name('asignar.responsable.tarea');
+    Route::delete('/tareas/{cotizacion}/{item}/{subitem}/herramientas/{herramienta_id}', [CotioController::class, 'desasignarHerramienta'])->name('tareas.desasignar-herramienta');
+    Route::delete('/tareas/{cotizacion}/{item}/{subitem}/vehiculos/{vehiculo_id}', [CotioController::class, 'desasignarVehiculo'])->name('tareas.desasignar-vehiculo');
+    Route::post('/enable-ot/{cotio_numcoti}/{cotio_item}/{cotio_subitem}/{instance}', [CotioController::class, 'enableOt'])->name('categorias.enable-ot');
+    Route::post('/disable-ot/{cotio_numcoti}/{cotio_item}/{cotio_subitem}/{instance}', [CotioController::class, 'disableOt'])->name('categorias.disable-ot');
+});
