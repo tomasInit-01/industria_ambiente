@@ -304,12 +304,12 @@
                                     <div class="d-flex justify-content-between align-items-center p-3" style="background-color: #A6C5E3; border-radius: 0.375rem 0.375rem 0 0;">
                                         <div class="form-check mb-0">
                                             <input class="form-check-input tarea-checkbox" 
-                                                    type="checkbox" 
-                                                    name="tareas_seleccionadas[]" 
-                                                    value="{{ $tarea->cotio_item }}_{{ $tarea->cotio_subitem }}"
-                                                    id="tarea_{{ $tarea->cotio_item }}_{{ $tarea->cotio_subitem }}"
-                                                    data-fecha-inicio="{{ $tarea->instancia && $tarea->instancia->fecha_inicio_ot ? $tarea->instancia->fecha_inicio_ot->format('Y-m-d\TH:i') : '' }}"
-                                                    data-fecha-fin="{{ $tarea->instancia && $tarea->instancia->fecha_fin_ot ? $tarea->instancia->fecha_fin_ot->format('Y-m-d\TH:i') : '' }}">
+                                                type="checkbox" 
+                                                name="tareas_seleccionadas[]" 
+                                                value="{{ $tarea->cotio_item }}_{{ $tarea->cotio_subitem }}"
+                                                id="tarea_{{ $tarea->cotio_item }}_{{ $tarea->cotio_subitem }}"
+                                                data-fecha-inicio="{{ $tarea->instancia && $tarea->instancia->fecha_inicio_ot ? $tarea->instancia->fecha_inicio_ot->format('Y-m-d\TH:i') : '' }}"
+                                                data-fecha-fin="{{ $tarea->instancia && $tarea->instancia->fecha_fin_ot ? $tarea->instancia->fecha_fin_ot->format('Y-m-d\TH:i') : '' }}">
                                             <label class="form-check-label" for="tarea_{{ $tarea->cotio_item }}_{{ $tarea->cotio_subitem }}">
                                                 <h5 class="card-title mb-0 d-flex align-items-center">
                                                     <x-heroicon-o-clipboard-document-list class="me-2" style="width: 1.25rem; height: 1.25rem;" />
@@ -318,15 +318,15 @@
                                             </label>
                                         </div>
                                         <button type="button" class="btn btn-sm btn-outline-dark"
-                                            data-bs-toggle="modal"
-                                            data-bs-target="#estadoModal"
-                                            data-tipo="tarea"
-                                            data-item="{{ $tarea->cotio_item }}"
-                                            data-subitem="{{ $tarea->cotio_subitem }}">
+                                                data-bs-toggle="modal"
+                                                data-bs-target="#estadoModal"
+                                                data-tipo="tarea"
+                                                data-item="{{ $tarea->cotio_item }}"
+                                                data-subitem="{{ $tarea->cotio_subitem }}">
                                             <x-heroicon-o-pencil-square style="width: 1rem; height: 1rem;" />
                                         </button>
                                     </div>
-                        
+                    
                                     <!-- Card Content -->
                                     <div class="p-3">
                                         <!-- Observación Section -->
@@ -339,7 +339,7 @@
                                                 </div>
                                             </div>
                                         @endif
-                        
+                    
                                         <!-- Estado Section -->
                                         <div class="d-flex flex-row flex-column-sm align-items-center justify-content-between mb-3">
                                             <div>
@@ -363,14 +363,14 @@
                                                 @endphp
                                                 <span class="badge bg-{{ $badgeClass }} rounded-pill me-2">{{ $tarea->instancia->cotio_estado_analisis }}</span>
                                             </div>
-
+                    
                                             <div id="fecha_carga_ot_{{ $tarea->instancia->id }}">
                                                 <x-heroicon-o-calendar class="me-2" style="width: 1rem; height: 1rem;" />
                                                 <span class="me-2"><strong>Fecha de carga:</strong></span>
                                                 <span class="badge bg-secondary rounded-pill me-2">{{ $tarea->instancia->fecha_carga_ot ?? 'Faltante' }}</span>
                                             </div>
                                         </div>
-                        
+                    
                                         <!-- Asignado a Section -->
                                         <div class="d-flex align-items-center flex-wrap mb-3">
                                             <x-heroicon-o-user-circle class="me-2" style="width: 1rem; height: 1rem;" />
@@ -385,7 +385,7 @@
                                                 <span class="badge bg-secondary rounded-pill">Sin asignar</span>
                                             @endif
                                         </div>
-                        
+                    
                                         <!-- Fechas Section -->
                                         <div class="d-flex flex-column flex-md-row justify-content-between mb-3 fecha-wrapper" data-fecha-fin="{{ $tarea->instancia && $tarea->instancia->fecha_fin_ot ? $tarea->instancia->fecha_fin_ot->format('Y-m-d\TH:i') : '' }}">
                                             <div class="d-flex align-items-center mb-2 mb-md-0">
@@ -403,7 +403,7 @@
                                                 </span>
                                             </div>
                                         </div>
-                        
+                    
                                         <!-- Resultados Section -->
                                         @php
                                             $accordionId = "resultadosAccordion_{$tarea->cotio_item}_{$tarea->cotio_subitem}";
@@ -415,11 +415,11 @@
                                             <div class="accordion-item">
                                                 <h2 class="accordion-header" id="{{ $headingId }}">
                                                     <button class="accordion-button collapsed"
-                                                        type="button"
-                                                        data-bs-toggle="collapse"
-                                                        data-bs-target="#{{ $collapseId }}"
-                                                        aria-expanded="false"
-                                                        aria-controls="{{ $collapseId }}">
+                                                            type="button"
+                                                            data-bs-toggle="collapse"
+                                                            data-bs-target="#{{ $collapseId }}"
+                                                            aria-expanded="false"
+                                                            aria-controls="{{ $collapseId }}">
                                                         <x-heroicon-o-document-chart-bar class="text-primary me-2" style="width: 1.25rem; height: 1.25rem;" />
                                                         <strong>Resultados de Análisis</strong>
                                                     </button>
@@ -436,8 +436,8 @@
                                                             data-cotio-item="{{ $tarea->cotio_item }}"
                                                             data-cotio-subitem="{{ $tarea->cotio_subitem }}"
                                                             data-instance="{{ $tarea->instancia->instance_number }}">
-                                                        @csrf
-                                                        @method('PUT')
+                                                            @csrf
+                                                            @method('PUT')
                                                             
                                                             @php
                                                                 $resultados = [
@@ -447,39 +447,56 @@
                                                                     ['titulo' => 'Resultado Final', 'valor' => $tarea->instancia->resultado_final ?? '', 'obs' => $tarea->instancia->observacion_resultado_final ?? '', 'badge' => 'dark', 'label' => 'Final', 'field' => 'resultado_final', 'obs_field' => 'observacion_resultado_final']
                                                                 ];
                                                             @endphp
-                                        
-                                                            @foreach ($resultados as $r)
-                                                                <div class="mb-4 p-3 border rounded">
-                                                                    <div class="d-flex align-items-center mb-2">
-                                                                        <span class="badge bg-{{ $r['badge'] }} bg-opacity-10 text-{{ $r['badge'] }} rounded-pill me-2">{{ $r['label'] }}</span>
-                                                                        <strong>{{ $r['titulo'] }}</strong>
-                                                                    </div>
-                                                                    
-                                                                    <div class="row">
-                                                                        <div class="col-md-12">
-                                                                            <label for="{{ $r['field'] }}_{{ $tarea->cotio_item }}_{{ $tarea->cotio_subitem }}" class="form-label">Resultado</label>
-                                                                            <input 
-                                                                                class="form-control resultado-input" 
-                                                                                type="text"
-                                                                                id="{{ $r['field'] }}_{{ $tarea->cotio_item }}_{{ $tarea->cotio_subitem }}"
-                                                                                name="{{ $r['field'] }}"
-                                                                                value="{{ $r['valor'] }}"
-                                                                                placeholder="Ingrese el resultado..."
-                                                                            >
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            @endforeach
-
                                                             
-                                                                <div class="mt-3 text-end">
-                                                                    <button type="submit" 
-                                                                            class="btn btn-success guardar-todos-resultados"
-                                                                            data-form-id="{{ $accordionId }}">
-                                                                        <x-heroicon-o-check-circle style="width: 1rem; height: 1rem;" />
-                                                                        Guardar
-                                                                    </button>
-                                                                </div>
+                                                            <table class="table table-bordered table-hover">
+                                                                <thead class="table-light">
+                                                                    <tr>
+                                                                        <th>Título</th>
+                                                                        <th>Resultado</th>
+                                                                        <th style="width: 100px; text-align: center; white-space: nowrap;">Historial</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody>
+                                                                    @foreach ($resultados as $r)
+                                                                        <tr>
+                                                                            <td>
+                                                                                <span class="badge bg-{{ $r['badge'] }} bg-opacity-10 text-{{ $r['badge'] }} rounded-pill me-2">{{ $r['label'] }}</span>
+                                                                                {{ $r['titulo'] }}
+                                                                            </td>
+                                                                            <td>
+                                                                                <input 
+                                                                                    class="form-control resultado-input" 
+                                                                                    type="text"
+                                                                                    id="{{ $r['field'] }}_{{ $tarea->cotio_item }}_{{ $tarea->cotio_subitem }}"
+                                                                                    name="{{ $r['field'] }}"
+                                                                                    value="{{ $r['valor'] }}"
+                                                                                    placeholder="Ingrese el resultado..."
+                                                                                >
+                                                                            </td>
+                                                                            <td style="display: flex; justify-content: center; align-items: center;">
+                                                                                @if(isset($historialCambios[$tarea->instancia->id]) && $historialCambios[$tarea->instancia->id]->where('campo_modificado', $r['field'])->isNotEmpty())
+                                                                                    <button class="btn btn-sm btn-link btn-historial-resultado" 
+                                                                                            data-instancia-id="{{ $tarea->instancia->id }}"
+                                                                                            data-campo="{{ $r['field'] }}"
+                                                                                            data-bs-toggle="modal" 
+                                                                                            data-bs-target="#historialResultadoModal">
+                                                                                        <x-heroicon-o-clock style="width: 20px; height: 20px;" />
+                                                                                    </button>
+                                                                                @endif
+                                                                            </td>
+                                                                        </tr>
+                                                                    @endforeach
+                                                                </tbody>
+                                                            </table>
+                    
+                                                            <div class="mt-3 text-end">
+                                                                <button type="submit" 
+                                                                        class="btn btn-success guardar-todos-resultados"
+                                                                        data-form-id="{{ $accordionId }}">
+                                                                    <x-heroicon-o-check-circle style="width: 1rem; height: 1rem;" />
+                                                                    Guardar
+                                                                </button>
+                                                            </div>
                                                         </form>
                                                     </div>
                                                 </div>
@@ -498,6 +515,26 @@
             <x-heroicon-o-information-circle style="width: 20px; height: 20px;" /> No hay tareas asignadas a esta muestra.
         </div>
     @endif
+
+
+<div class="modal fade" id="historialResultadoModal" tabindex="-1" aria-labelledby="historialResultadoModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="historialResultadoModalLabel">Historial de Cambios de Resultado</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="historialResultadoContent">
+                    <p>Seleccione un resultado para ver su historial.</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
 
 
 
@@ -1254,86 +1291,91 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Manejar el envío del formulario
         form.addEventListener('submit', function(e) {
-            e.preventDefault();
-            console.log('Formulario enviado');
-            
-            // Recalcular por si acaso hay cambios no detectados
-            calcularPromedio(form);
-            
-            // Obtener datos del formulario
-            const cotioNumcoti = this.dataset.cotioNumcoti;
-            const cotioItem = this.dataset.cotioItem;
-            const cotioSubitem = this.dataset.cotioSubitem;
-            const instance = this.dataset.instance;
-            
-            console.log('Datos del formulario:', {
-                cotioNumcoti,
-                cotioItem,
-                cotioSubitem,
-                instance
-            });
-            
-            // Recopilar todos los datos del formulario
-            const formData = new FormData();
-            formData.append('_token', '{{ csrf_token() }}');
-            formData.append('_method', 'PUT');
-            
-            // Agregar todos los campos de resultado y observación
-            const inputs = this.querySelectorAll('input, textarea');
-            inputs.forEach(input => {
-                if (input.name && input.value !== undefined) {
-                    formData.append(input.name, input.value);
-                    console.log('Agregando campo:', input.name, 'valor:', input.value);
-                }
-            });
-            
-            const submitBtn = this.querySelector('.guardar-todos-resultados');
-            
-            // Mostrar loader
-            if (submitBtn) {
-                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Guardando...';
-                submitBtn.disabled = true;
-            }
-            
-            // Construir la URL correcta
-            const url = `{{ route('tareas.updateResultado', ['cotio_numcoti' => ':cotio_numcoti', 'cotio_item' => ':cotio_item', 'cotio_subitem' => ':cotio_subitem', 'instance' => ':instance']) }}`
-                .replace(':cotio_numcoti', cotioNumcoti)
-                .replace(':cotio_item', cotioItem)
-                .replace(':cotio_subitem', cotioSubitem)
-                .replace(':instance', instance);
-            
-            console.log('URL de envío:', url);
-            
-            fetch(url, {
-                method: 'POST', // Usar POST porque Laravel maneja PUT internamente
-                body: formData,
-                headers: {
-                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                    'Accept': 'application/json'
-                }
-            })
-            .then(response => {
-                console.log('Respuesta recibida:', response);
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                return response.json();
-            })
-            .then(data => {
-                console.log('Datos de respuesta:', data);
-                showAlert('success', 'Resultados guardados correctamente');
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                showAlert('danger', 'Error al guardar los resultados: ' + error.message);
-            })
-            .finally(() => {
-                if (submitBtn) {
-                    submitBtn.innerHTML = originalBtnText;
-                    submitBtn.disabled = false;
-                }
-            });
-        });
+    e.preventDefault();
+    console.log('Formulario enviado');
+    
+    // Recalcular por si acaso hay cambios no detectados
+    calcularPromedio(form);
+    
+    // Obtener datos del formulario
+    const cotioNumcoti = this.dataset.cotioNumcoti;
+    const cotioItem = this.dataset.cotioItem;
+    const cotioSubitem = this.dataset.cotioSubitem;
+    const instance = this.dataset.instance;
+    
+    console.log('Datos del formulario:', {
+        cotioNumcoti,
+        cotioItem,
+        cotioSubitem,
+        instance
+    });
+    
+    // Recopilar todos los datos del formulario
+    const formData = new FormData();
+    formData.append('_token', '{{ csrf_token() }}');
+    formData.append('_method', 'PUT');
+    
+    // Agregar todos los campos de resultado y observación
+    const inputs = this.querySelectorAll('input, textarea');
+    inputs.forEach(input => {
+        if (input.name && input.value !== undefined) {
+            formData.append(input.name, input.value);
+            console.log('Agregando campo:', input.name, 'valor:', input.value);
+        }
+    });
+    
+    const submitBtn = this.querySelector('.guardar-todos-resultados');
+    
+    // Guardar el texto original del botón ANTES de cambiarlo
+    const originalBtnText = submitBtn ? submitBtn.innerHTML : '';
+    
+    // Mostrar loader
+    if (submitBtn) {
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Guardando...';
+        submitBtn.disabled = true;
+    }
+    
+    // Construir la URL correcta
+    const url = `{{ route('tareas.updateResultado', ['cotio_numcoti' => ':cotio_numcoti', 'cotio_item' => ':cotio_item', 'cotio_subitem' => ':cotio_subitem', 'instance' => ':instance']) }}`
+        .replace(':cotio_numcoti', cotioNumcoti)
+        .replace(':cotio_item', cotioItem)
+        .replace(':cotio_subitem', cotioSubitem)
+        .replace(':instance', instance);
+    
+    console.log('URL de envío:', url);
+    
+    fetch(url, {
+        method: 'POST', // Usar POST porque Laravel maneja PUT internamente
+        body: formData,
+        headers: {
+            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+            'Accept': 'application/json'
+        }
+    })
+    .then(response => {
+        console.log('Respuesta recibida:', response);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('Datos de respuesta:', data);
+        showAlert('success', 'Resultados guardados correctamente');
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('danger', 'Error al guardar los resultados: ' + error.message);
+    })
+    .finally(() => {
+        // Restaurar el botón solo si existe
+        if (submitBtn) {
+            submitBtn.innerHTML = originalBtnText;
+            submitBtn.disabled = false;
+        }
+    });
+});
+
     }
     
     // Inicializar todos los formularios de resultados
@@ -1570,5 +1612,55 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 </script>
+
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const modal = new bootstrap.Modal(document.getElementById('historialResultadoModal'));
+    const historial = @json($historialCambios);
+
+    document.querySelectorAll('.btn-historial-resultado').forEach(button => {
+        button.addEventListener('click', function(event) {
+            event.preventDefault(); // Evita comportamiento predeterminado
+            event.stopPropagation(); // Evita propagación del evento al formulario
+
+            const instanciaId = this.dataset.instanciaId;
+            const campo = this.dataset.campo;
+            const cambios = historial[instanciaId] ? historial[instanciaId].filter(c => c.campo_modificado === campo) : [];
+
+            let content = '';
+            if (cambios.length === 0) {
+                content = '<p>No hay historial de cambios para este resultado.</p>';
+            } else {
+                content = '<table class="table table-bordered table-striped">' +
+                          '<thead><tr>' +
+                          '<th>Fecha</th>' +
+                          '<th>Usuario</th>' +
+                          '<th>Acción</th>' +
+                          '<th>Valor Anterior</th>' +
+                          '<th>Valor Nuevo</th>' +
+                          '</tr></thead><tbody>';
+
+                cambios.forEach(cambio => {
+                    content += `<tr>
+                        <td>${new Date(cambio.fecha_cambio).toLocaleString()}</td>
+                        <td>${cambio.usuario ? cambio.usuario.usu_descripcion : 'Desconocido'}</td>
+                        <td>${cambio.accion.charAt(0).toUpperCase() + cambio.accion.slice(1)}</td>
+                        <td>${cambio.valor_anterior || 'N/A'}</td>
+                        <td>${cambio.valor_nuevo || 'N/A'}</td>
+                    </tr>`;
+                });
+
+                content += '</tbody></table>';
+            }
+
+            document.getElementById('historialResultadoContent').innerHTML = content;
+            document.getElementById('historialResultadoModalLabel').textContent = `Historial de Cambios - Resultado: ${campo}`;
+            modal.show();
+        });
+    });
+});
+</script>
+
 
 @endsection

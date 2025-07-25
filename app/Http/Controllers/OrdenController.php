@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Models\InventarioLab;
 use App\Models\Vehiculo;
 use App\Models\CotioInstancia;
+use App\Models\CotioHistorialCambios;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
 use App\Models\InstanciaResponsableAnalisis;
@@ -593,13 +594,14 @@ public function verOrden($cotizacion, $item, $instance = null)
                 ])->first();
 
     $variablesOrdenadas = collect();
-    if ($instanciaMuestra->valoresVariables) {
+    if ($instanciaMuestra && $instanciaMuestra->valoresVariables) {
         $variablesOrdenadas = $instanciaMuestra->valoresVariables
             ->sortBy('variable')
             ->values();
     }
 
     // Obtener herramientas manualmente para la instancia de muestra
+    $herramientasMuestra = collect();
     if ($instanciaMuestra) {
         $herramientasMuestra = DB::table('cotio_inventario_muestreo')
             ->where('cotio_numcoti', $instanciaMuestra->cotio_numcoti)
@@ -617,6 +619,38 @@ public function verOrden($cotizacion, $item, $instance = null)
         $instanciaMuestra->herramientas = $herramientasMuestra;
     }
 
+    // Obtener historial de cambios para los resultados de análisis
+    $historialCambios = collect();
+    if ($instanciaMuestra) {
+        $tareas = Cotio::where('cotio_numcoti', $cotizacion->coti_num)
+            ->where('cotio_item', $item)
+            ->where('cotio_subitem', '!=', 0)
+            ->orderBy('cotio_subitem')
+            ->get();
+
+        $instanciaIds = $tareas->map(function ($tarea) use ($instance) {
+            return CotioInstancia::where([
+                'cotio_numcoti' => $tarea->cotio_numcoti,
+                'cotio_item' => $tarea->cotio_item,
+                'cotio_subitem' => $tarea->cotio_subitem,
+                'instance_number' => $instance,
+                'active_ot' => true
+            ])->first()?->id;
+        })->filter()->values();
+
+        if ($instanciaIds->isNotEmpty()) {
+            $historialCambios = CotioHistorialCambios::where('tabla_afectada', 'cotio_instancias')
+                ->whereIn('registro_id', $instanciaIds)
+                ->whereIn('campo_modificado', ['resultado', 'resultado_2', 'resultado_3', 'resultado_final'])
+                ->with(['usuario' => function ($query) {
+                    $query->select('usu_codigo', 'usu_descripcion');
+                }])
+                ->orderBy('fecha_cambio', 'desc')
+                ->get()
+                ->groupBy('registro_id');
+        }
+    }
+
     if (!$instanciaMuestra) {
         return view('ordenes.tareasporcategoria', [
             'cotizacion' => $cotizacion,
@@ -627,8 +661,8 @@ public function verOrden($cotizacion, $item, $instance = null)
             'instance' => $instance,
             'instanciaActual' => null,
             'variablesMuestra' => $variablesOrdenadas,
-            
-            'instanciasMuestra' => collect()
+            'instanciasMuestra' => collect(),
+            'historialCambios' => collect()
         ]);
     }
 
@@ -648,7 +682,6 @@ public function verOrden($cotizacion, $item, $instance = null)
                 'instance_number' => $instance,
                 'active_ot' => true
             ])->first();
-
 
         if ($instancia) {
             // Obtener herramientas manualmente para cada análisis
@@ -707,8 +740,8 @@ public function verOrden($cotizacion, $item, $instance = null)
         'instanciaActual' => $instanciaMuestra,
         'instanciasMuestra' => $instanciasMuestra,
         'variablesMuestra' => $variablesOrdenadas,
-
-        'todosResponsablesTareas' => $todosResponsablesTareas
+        'todosResponsablesTareas' => $todosResponsablesTareas,
+        'historialCambios' => $historialCambios
     ]);
 }
 
