@@ -255,14 +255,14 @@
                             <div class="mt-4">
                                 <label for="observaciones" class="form-label"><strong>Tu observación:</strong></label>
                                 <textarea class="form-control" id="observaciones" rows="3" 
-                                          @if($instanciaActual->cotio_estado == 'muestreado') readonly @endif>{{ $instanciaActual->observaciones_medicion_coord_muestreo }}</textarea>
+                                          @if($instanciaActual->cotio_estado == 'muestreado') readonly @endif>{{ trim($instanciaActual->observaciones_medicion_coord_muestreo) }}</textarea>
                             </div>
 
                             <div class="mt-4">
                                 <label for="observaciones_muestreador" class="form-label"><strong>Observaciones del Muestreador:</strong></label>
                                 <textarea class="form-control" id="observaciones_muestreador" rows="3" readonly
                                           style="background-color: #fff8e1; border-left: 4px solid #ffc107; padding-left: 12px;">
-                                    {{ $instanciaActual->observaciones_medicion_muestreador }}
+                                    {{ trim($instanciaActual->observaciones_medicion_muestreador) }}
                                 </textarea>
                             </div>
                             
@@ -1247,27 +1247,25 @@ document.addEventListener('DOMContentLoaded', function () {
                 const instanciaId = this.dataset.instanciaId;
                 const button = this;
                 
-                // Recopilar todas las variables (solo las que tienen valores)
+                // Recopilar todas las variables (incluir todas, incluso las vacías)
                 const variables = [];
                 document.querySelectorAll('.variable-value').forEach(input => {
-                    const valor = input.value.trim();
-                    if (valor !== '') { // Solo incluir variables con valores
-                        variables.push({
-                            id: input.dataset.id,
-                            valor: valor
-                        });
-                    }
+                    variables.push({
+                        id: input.dataset.id,
+                        valor: input.value.trim()
+                    });
                 });
                 
                 // Obtener las observaciones
                 const observaciones = document.getElementById('observaciones').value.trim();
                 
-                // Validar que al menos hay una variable
-                if (variables.length === 0) {
+                // Validar que haya al menos una variable con valor o una observación
+                const hasVariablesWithValue = variables.some(v => v.valor !== '');
+                if (!hasVariablesWithValue && observaciones === '') {
                     Swal.fire({
                         icon: 'warning',
                         title: 'Advertencia',
-                        text: 'Debes ingresar al menos un valor de variable antes de guardar.',
+                        text: 'Debes ingresar al menos un valor de variable o una observación antes de guardar.',
                         confirmButtonColor: '#3085d6',
                     });
                     return;
@@ -1275,12 +1273,13 @@ document.addEventListener('DOMContentLoaded', function () {
                 
                 // Mostrar indicador de carga
                 button.disabled = true;
+                const originalHtml = button.innerHTML;
                 button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
                 
                 // Configurar los headers
                 const headers = {
                     'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').content,
                     'Accept': 'application/json'
                 };
                 
@@ -1303,11 +1302,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 .then(response => {
                     if (!response.ok) {
                         return response.json().then(errorData => {
-                            // Si hay errores de validación específicos, mostrarlos
-                            if (errorData.errors) {
-                                const errorMessages = Object.values(errorData.errors).flat().join('\n');
-                                throw new Error('Errores de validación:\n' + errorMessages);
-                            }
                             throw new Error(errorData.message || 'Error en la respuesta del servidor');
                         });
                     }
@@ -1322,7 +1316,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     });
                     button.innerHTML = '<i class="fas fa-check"></i> Guardado';
                     setTimeout(() => {
-                        button.innerHTML = '<i class="fas fa-save"></i> Guardar Variables y Observaciones';
+                        button.innerHTML = originalHtml;
                         button.disabled = false;
                     }, 2000);
                 })
@@ -1330,10 +1324,10 @@ document.addEventListener('DOMContentLoaded', function () {
                     Swal.fire({
                         icon: 'error',
                         title: 'Error',
-                        text: 'Error al actualizar los datos:\n' + error.message,
+                        text: error.message,
                         confirmButtonColor: '#3085d6',
                     });
-                    button.innerHTML = '<i class="fas fa-save"></i> Guardar Variables y Observaciones';
+                    button.innerHTML = originalHtml;
                     button.disabled = false;
                     console.error('Error:', error);
                 });
@@ -1473,6 +1467,20 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         });
     });
+</script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+    const textarea = document.getElementById('observaciones');
+    const textarea2 = document.getElementById('observaciones_muestreador');
+    if (textarea) {
+        textarea.value = textarea.value.trim();
+    }
+    if (textarea2) {
+        textarea2.value = textarea2.value.trim();
+    }
+});
+
 </script>
 
 <style>

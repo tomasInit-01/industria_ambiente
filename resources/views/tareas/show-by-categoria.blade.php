@@ -171,7 +171,7 @@
                             </label>
                             <textarea class="form-control" id="observaciones_muestreador" rows="3" readonly
                                 style="background-color: #fff8e1; border-left: 4px solid #ffc107; padding-left: 12px;">
-                                {{ $instancia->observaciones_medicion_coord_muestreo ?? 'Ninguna' }}
+                                {{ trim($instancia->observaciones_medicion_coord_muestreo) ?? '' }}
                             </textarea>
                         </div>
 
@@ -180,13 +180,12 @@
                                 Observaciones del muestreador:
                             </label>
                             <textarea class="form-control" 
-                                      name="observaciones_medicion_muestreador" 
-                                      id="observaciones_medicion_muestreador" 
-                                      rows="3"
-                                      placeholder="Ingrese las observaciones del muestreador"
-                                      @if($instancia->cotio_estado == 'muestreado') readonly @endif>
-                                {{ $instancia->observaciones_medicion_muestreador ?? '' }}
-                            </textarea>
+                                name="observaciones_medicion_muestreador" 
+                                id="observaciones_medicion_muestreador" 
+                                rows="3"
+                                placeholder="Ingrese las observaciones del muestreador"
+                                @if($instancia->cotio_estado == 'muestreado') readonly @endif
+                            >{{ trim($instancia->observaciones_medicion_muestreador ?? '') }}</textarea>
                         </div>
         
                         @if($instancia->cotio_estado != 'muestreado')
@@ -977,6 +976,18 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 });
+
+document.addEventListener('DOMContentLoaded', function() {
+    const textarea = document.getElementById('observaciones_muestreador');
+    const textarea2 = document.getElementById('observaciones_medicion_muestreador');
+    if (textarea) {
+        textarea.value = textarea.value.trim();
+    }
+    if (textarea2) {
+        textarea2.value = textarea2.value.trim();
+    }
+});
+
 </script>
 
 

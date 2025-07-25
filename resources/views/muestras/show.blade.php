@@ -154,12 +154,14 @@
                                                                 @foreach($responsables as $responsable)
                                                                     <span class="badge bg-info">
                                                                         {{ $responsable->usu_descripcion }}
-                                                                        <button type="button" 
-                                                                            class="btn-close btn-close-white btn-sm ms-1" 
-                                                                            style="font-size: 0.5rem;"
-                                                                            onclick="removerResponsable(event, {{ $instancia->id }}, '{{ $responsable->usu_codigo }}')"
-                                                                            title="Remover muestreador">
-                                                                        </button>
+                                                                        @if($instancia->enable_ot == false)
+                                                                            <button type="button" 
+                                                                                class="btn-close btn-close-white btn-sm ms-1" 
+                                                                                style="font-size: 0.5rem;"
+                                                                                onclick="removerResponsable(event, {{ $instancia->id }}, '{{ $responsable->usu_codigo }}')"
+                                                                                title="Remover muestreador">
+                                                                            </button>
+                                                                        @endif
                                                                     </span>
                                                                 @endforeach
                                                             </div>

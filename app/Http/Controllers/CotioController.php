@@ -1117,7 +1117,7 @@ public function updateMediciones(Request $request, $instanciaId)
         }
 
         $instancia->update([
-            'observaciones_medicion_muestreador' => $request->observaciones_medicion_muestreador,
+            'observaciones_medicion_muestreador' => trim($request->observaciones_medicion_muestreador),
         ]);
 
         DB::commit();

@@ -893,27 +893,36 @@ public function updateAllData(Request $request)
     try {
         $request->validate([
             'instancia_id' => 'required|exists:cotio_instancias,id',
-            'variables' => 'required|array|min:1',
-            'variables.*.id' => 'required|exists:cotio_valores_variables,id',
-            'variables.*.valor' => 'required|string|max:255',
+            'variables' => 'nullable|array', // Hacer variables opcional
+            'variables.*.id' => 'required_if:variables,!=,[]|exists:cotio_valores_variables,id', // ID requerido solo si se envía una variable
+            'variables.*.valor' => 'nullable|string|max:255', // Valor opcional
             'observaciones' => 'nullable|string|max:1000'
         ], [
-            'variables.required' => 'Debe enviar al menos una variable.',
-            'variables.min' => 'Debe enviar al menos una variable.',
-            'variables.*.id.required' => 'El ID de la variable es requerido.',
+            'instancia_id.required' => 'El ID de la instancia es requerido.',
+            'instancia_id.exists' => 'La instancia especificada no existe.',
+            'variables.*.id.required_if' => 'El ID de la variable es requerido.',
             'variables.*.id.exists' => 'La variable especificada no existe.',
-            'variables.*.valor.required' => 'El valor de la variable es requerido.',
             'variables.*.valor.max' => 'El valor de la variable no puede exceder 255 caracteres.',
             'observaciones.max' => 'Las observaciones no pueden exceder 1000 caracteres.'
         ]);
 
+        // Validar que al menos haya una variable con valor o una observación
+        if (empty($request->variables) && empty(trim($request->observaciones ?? ''))) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Debe ingresar al menos un valor de variable o una observación.'
+            ], 422);
+        }
+
         DB::beginTransaction();
 
-        // Actualizar variables
-        foreach ($request->variables as $variableData) {
-            $variable = CotioValorVariable::findOrFail($variableData['id']);
-            $variable->valor = trim($variableData['valor']);
-            $variable->save();
+        // Actualizar variables si se enviaron
+        if (!empty($request->variables)) {
+            foreach ($request->variables as $variableData) {
+                $variable = CotioValorVariable::findOrFail($variableData['id']);
+                $variable->valor = trim($variableData['valor'] ?? '');
+                $variable->save();
+            }
         }
 
         // Actualizar observaciones en la instancia
@@ -924,19 +933,20 @@ public function updateAllData(Request $request)
         DB::commit();
 
         return response()->json([
-            'success' => true, 
+            'success' => true,
             'message' => 'Variables y observaciones actualizadas correctamente'
         ]);
     } catch (\Illuminate\Validation\ValidationException $e) {
         return response()->json([
-            'success' => false, 
-            'message' => 'Error de validación: ' . implode(', ', $e->errors()),
+            'success' => false,
+            'message' => 'Error de validación: ' . implode(', ', array_merge(...array_values($e->errors()))),
             'errors' => $e->errors()
         ], 422);
     } catch (\Exception $e) {
         DB::rollback();
+        Log::error('Error al actualizar datos: ' . $e->getMessage());
         return response()->json([
-            'success' => false, 
+            'success' => false,
             'message' => 'Error interno del servidor: ' . $e->getMessage()
         ], 500);
     }
