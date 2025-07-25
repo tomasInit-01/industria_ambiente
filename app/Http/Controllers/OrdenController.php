@@ -179,10 +179,10 @@ class OrdenController extends Controller
         }
     
         $pagination = $query->orderBy('cotio_numcoti', 'desc')
-            ->orderBy('cotio_item', 'asc')
-            ->orderBy('cotio_subitem', 'asc')
-            ->orderBy('instance_number', 'asc')
-            ->paginate($viewType === 'documento' ? 20 : 10);
+        ->orderBy('cotio_item', 'asc')
+        ->orderBy('cotio_subitem', 'asc')
+        ->orderBy('instance_number', 'asc')
+        ->paginate($viewType === 'documento' ? 50 : 50); // Increase to 50 for both views
     
         $ordenes = $pagination->groupBy('cotio_numcoti')->map(function ($group) {
             $cotizacion = $group->first()->cotizacion;

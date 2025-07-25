@@ -1,5 +1,6 @@
-@foreach($ordenes as $numCoti => $instancias)
+@foreach($ordenes as $numCoti => $data)
     @php
+        $instancias = collect($data['instancias']); // Convert to Collection
         $coti = $instancias->first()->cotizacion ?? null;
     @endphp
     
@@ -15,9 +16,9 @@
                         onclick="toggleChevron('chevron-{{ $numCoti }}')">
                     <h4 class="mb-0 text-primary me-2">
                         Orden Nº {{ $numCoti }}
-                        <span class="badge ms-2 bg-{{ $coti->coti_estado == 'A' ? 'success' : ($coti->coti_estado == 'E' ? 'warning' : 'danger') }}">
+                        {{-- <span class="badge ms-2 bg-{{ $coti->coti_estado == 'A' ? 'success' : ($coti->coti_estado == 'E' ? 'warning' : 'danger') }}">
                             {{ $coti->coti_estado }}
-                        </span>
+                        </span> --}}
                     </h4>
                     <x-heroicon-o-chevron-up id="chevron-{{ $numCoti }}" class="text-primary chevron-icon" style="width: 20px; height: 20px;" />
                 </button>
@@ -41,7 +42,7 @@
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h5 class="mb-0">Muestras/Análisis</h5>
-                    <a class="btn btn-sm btn-primary" href="{{ url('/tareas/'.$numCoti) }}">
+                    <a class="btn btn-sm btn-primary" href="{{ route('ordenes.ver-detalle', $numCoti) }}">
                         Gestionar muestras
                     </a>
                 </div>
@@ -60,22 +61,42 @@
                         </thead>
                         <tbody>
                             @foreach($instancias as $instancia)
-                                <tr>
-                                    <td>{{ $instancia->cotio_descripcion }}</td>
-                                    <td>
-                                        <span class="badge bg-{{ $instancia->cotio_estado == 'finalizado' ? 'success' : ($instancia->cotio_estado == 'pendiente' ? 'warning' : 'info') }}">
-                                            {{ $instancia->cotio_estado }}
-                                        </span>
-                                    </td>
-                                    <td>{{ $instancia->fecha_muestreo ?: 'No programado' }}</td>
-                                    <td>{{ $instancia->responsable_muestreo ?? 'Sin asignar' }}</td>
-                                    <td>
-                                        <a href="{{ url('/ordenes/' . $numCoti . '/instancia/' . $instancia->id) }}" 
-                                           class="btn btn-sm btn-outline-primary">
-                                            Detalles
-                                        </a>
-                                    </td>
-                                </tr>
+                                @if($instancia->cotio_subitem == 0)
+                                @php
+                                    $estadoMuestra = strtolower($instancia->cotio_estado_analisis ?? 'pendiente');
+                                    $badgeClassMuestra = match ($estadoMuestra) {
+                                        'coordinado analisis' => 'warning',
+                                        'en revision analisis' => 'info',
+                                        'analizado' => 'success',
+                                        'suspension' => 'danger',
+                                        default => 'secondary'
+                                    };
+                                @endphp
+                                    <tr>
+                                        <td>{{ $instancia->cotio_descripcion }}</td>
+                                        <td>
+                                            <span class="badge bg-{{ $badgeClassMuestra }}">
+                                                {{ $instancia->cotio_estado_analisis }}
+                                            </span>
+                                        </td>
+                                        <td>{{ $instancia->fecha_muestreo ?: 'No programado' }}</td>
+                                        <td>{{ $instancia->responsable_muestreo ?? 'Sin asignar' }}</td>
+                                        <td>
+                                            @if($instancia->cotio_item !== null && $instancia->instance_number !== null)
+                                                <a href="{{ route('categoria.verOrden', [
+                                                    'cotizacion' => $numCoti,
+                                                    'item' => $instancia->cotio_item,
+                                                    'instance' => $instancia->instance_number
+                                                ]) }}"
+                                                class="btn btn-sm btn-outline-primary">
+                                                    Detalles
+                                                </a>
+                                            @else
+                                                <span class="text-muted">Detalles no disponibles</span>
+                                            @endif
+                                        </td>
+                                    </tr>
+                                @endif
                             @endforeach
                         </tbody>
                     </table>

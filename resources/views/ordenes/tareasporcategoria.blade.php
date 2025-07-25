@@ -51,24 +51,27 @@
                     <h4 class="text-muted mb-5">
                         Cotización: <strong>{{ $cotizacion->coti_num }}</strong>
                     </h4>
-                    <p class="text-muted mb-1">
-                        Estado: 
-                        @php
-                        // dd($instanciaActual);
-                            $estado = strtolower($instanciaActual->cotio_estado_analisis);
-                            $badgeClass = match ($estado) {
-                                'coordinado analisis' => 'warning',
-                                'en revision analisis' => 'info',
-                                'analizado' => 'success',
-                                'suspension' => 'danger',
-                                default => 'secondary'
-                            };
-                        @endphp
-                        <span class="badge bg-{{ $badgeClass }}">{{ $instanciaActual->cotio_estado_analisis }}</span>
-                        <button type="button" class="btn btn-sm btn-link" data-bs-toggle="modal" data-bs-target="#estadoModal" data-tipo="categoria">
-                            <x-heroicon-o-pencil style="width: 20px; height: 20px;" />
-                        </button>
-                    </p>
+                        <p class="text-muted mb-1">
+                            Estado: 
+                            @php
+                            // dd($instanciaActual);
+                                $estado = strtolower($instanciaActual->cotio_estado_analisis);
+                                $badgeClass = match ($estado) {
+                                    'coordinado analisis' => 'warning',
+                                    'en revision analisis' => 'info',
+                                    'analizado' => 'success',
+                                    'suspension' => 'danger',
+                                    default => 'secondary'
+                                };
+                            @endphp
+                            <span class="badge bg-{{ $badgeClass }}">{{ $instanciaActual->cotio_estado_analisis }}</span>
+                                @if($instanciaActual->active_ot == true && $instanciaActual->enable_inform == false)
+                                    <button type="button" class="btn btn-sm btn-link" data-bs-toggle="modal" data-bs-target="#estadoModal" data-tipo="categoria">
+                                        <x-heroicon-o-pencil style="width: 20px; height: 20px;" />
+                                    </button>
+                                @endif
+                        </p>
+
 
                     {{-- Mostrar todos los responsables de las tareas --}}
                     @if(isset($todosResponsablesTareas) && $todosResponsablesTareas->count() > 0)
@@ -77,13 +80,15 @@
                             @foreach ($todosResponsablesTareas as $responsable)
                                 <span class="badge bg-info d-inline-flex align-items-center me-2 mb-1">
                                     {{ $responsable->usu_descripcion }}
-                                    <button type="button" 
-                                            class="btn btn-sm btn-link text-danger p-0 ms-1" 
-                                            style="font-size: 0.75rem; line-height: 1;"
-                                            onclick="eliminarResponsableTodasTareas('{{ $responsable->usu_codigo }}')"
-                                            title="Eliminar de todas las tareas">
-                                        <x-heroicon-o-x-mark style="width: 12px; height: 12px;" />
-                                    </button>
+                                    @if($instanciaActual->active_ot == true && $instanciaActual->enable_inform == false)
+                                        <button type="button" 
+                                                class="btn btn-sm btn-link text-danger p-0 ms-1" 
+                                                style="font-size: 0.75rem; line-height: 1;"
+                                                onclick="eliminarResponsableTodasTareas('{{ $responsable->usu_codigo }}')"
+                                                title="Eliminar de todas las tareas">
+                                            <x-heroicon-o-x-mark style="width: 12px; height: 12px;" />
+                                        </button>
+                                    @endif
                                 </span>
                             @endforeach
                         </p>
