@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Models\User;
 
 class CotioHistorialCambios extends Model
 {
@@ -25,4 +26,9 @@ class CotioHistorialCambios extends Model
     protected $casts = [
         'fecha_cambio' => 'datetime',
     ];
+
+    public function usuario()
+    {
+        return $this->belongsTo(User::class, 'usuario_id', 'usu_codigo');
+    }
 }

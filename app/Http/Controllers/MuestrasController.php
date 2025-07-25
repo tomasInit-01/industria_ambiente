@@ -18,6 +18,7 @@ use App\Models\CotioInventarioMuestreo;
 use App\Http\Controllers\CotioController;
 use App\Models\VariableRequerida;
 use App\Models\CotioValorVariable;
+use App\Models\CotioHistorialCambios;
 use App\Models\InstanciaResponsableMuestreo;
 
 
@@ -734,10 +735,12 @@ public function verMuestra($cotizacion, $item, $instance = null)
                     'instance_number' => $instance,
                     'active_muestreo' => true
                 ])->first();
-    
+            
+
     // Preparar datos adicionales
     $herramientasMuestra = collect();
     $variablesOrdenadas = collect();
+    $historialCambios = collect();
     
     if ($instanciaMuestra) {
         // Obtener herramientas
@@ -760,7 +763,16 @@ public function verMuestra($cotizacion, $item, $instance = null)
                 ->sortBy('variable')
                 ->values();
         }
-    }
+
+        $historialCambios = CotioHistorialCambios::where('tabla_afectada', 'cotio_valores_variables')
+        ->whereIn('registro_id', $variablesOrdenadas->pluck('id'))
+        ->with(['usuario' => function ($query) {
+            $query->select('usu_codigo', 'usu_descripcion');
+        }])
+        ->orderBy('fecha_cambio', 'desc')
+        ->get()
+        ->groupBy('registro_id');
+        }
     
     if (!$instanciaMuestra) {
         return view('muestras.tareasporcategoria', [
@@ -773,7 +785,8 @@ public function verMuestra($cotizacion, $item, $instance = null)
             'instanciaActual' => null, 
             'instanciasMuestra' => collect(),
             'variablesMuestra' => collect(),
-            'herramientasMuestra' => collect()
+            'herramientasMuestra' => collect(),
+            'historialCambios' => collect()
         ]);
     }
 
@@ -850,7 +863,8 @@ public function verMuestra($cotizacion, $item, $instance = null)
         'instanciasMuestra' => $instanciasMuestra,
         'variablesMuestra' => $variablesOrdenadas,
         'herramientasMuestra' => $herramientasMuestra,
-        'todosResponsablesTareas' => $todosResponsablesTareas
+        'todosResponsablesTareas' => $todosResponsablesTareas,
+        'historialCambios' => $historialCambios
     ]);
 }
 

@@ -114,9 +114,11 @@
                                 };
                             @endphp
                             <span class="badge bg-{{ $badgeClass }}">{{ ucfirst($instanciaActual->cotio_estado ?? $categoria->cotio_estado) }}</span>
-                            <button type="button" class="btn btn-sm btn-link" data-bs-toggle="modal" data-bs-target="#estadoModal" data-tipo="categoria">
-                                <x-heroicon-o-pencil style="width: 20px; height: 20px;" />
-                            </button>
+                            @if($instanciaActual->enable_ot == false)
+                                <button type="button" class="btn btn-sm btn-link" data-bs-toggle="modal" data-bs-target="#estadoModal" data-tipo="categoria">
+                                    <x-heroicon-o-pencil style="width: 20px; height: 20px;" />
+                                </button>
+                            @endif
                         </p>
                         <p class="text-muted mb-1">
                             <strong>Asignada a:</strong> 
@@ -124,13 +126,17 @@
                                 @foreach ($instanciaActual->responsablesMuestreo as $responsable)
                                     <span class="badge bg-info d-inline-flex align-items-center me-2 mb-1">
                                         {{ $responsable->usu_descripcion }}
-                                    <button type="button" 
-                                        class="btn btn-sm btn-link text-danger p-0 ms-1" 
-                                        style="font-size: 0.75rem; line-height: 1;"
-                                        onclick="eliminarResponsableTodasTareas('{{ $responsable->usu_codigo }}')"
-                                        title="Eliminar de todas las tareas">
-                                        <x-heroicon-o-x-mark style="width: 12px; height: 12px;" />
-                                    </button>
+
+                                    @if($instanciaActual->enable_ot == false)
+                                        <button type="button" 
+                                            class="btn btn-sm btn-link text-danger p-0 ms-1" 
+                                            style="font-size: 0.75rem; line-height: 1;"
+                                            onclick="eliminarResponsableTodasTareas('{{ $responsable->usu_codigo }}')"
+                                            title="Eliminar de todas las tareas">
+                                            <x-heroicon-o-x-mark style="width: 12px; height: 12px;" />
+                                        </button>
+                                    @endif
+                            
                                 </span>
                                 @endforeach
                             @else
@@ -217,6 +223,7 @@
                                         <tr>
                                             <th>Variable</th>
                                             <th>Valor</th>
+                                            <th style="width: 100px; text-align: center; white-space: nowrap;">Historial de Cambios</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -228,6 +235,16 @@
                                                            value="{{ $variable->valor }}" 
                                                            data-id="{{ $variable->id }}"
                                                            @if($instanciaActual->cotio_estado == 'muestreado') readonly @endif>
+                                                </td>
+                                                <td style="display: flex; justify-content: center; align-items: center;">
+                                                    @if(isset($historialCambios[$variable->id]))
+                                                        <button class="btn btn-sm btn-link btn-historial" 
+                                                                data-variable-id="{{ $variable->id }}" 
+                                                                data-bs-toggle="modal" 
+                                                                data-bs-target="#historialModal">
+                                                            <x-heroicon-o-clock style="width: 20px; height: 20px;" />
+                                                        </button>
+                                                    @endif
                                                 </td>
                                             </tr>
                                         @endforeach
@@ -557,6 +574,25 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
                     <button type="button" class="btn btn-primary" onclick="guardarSeleccionHerramientas()">Guardar Selección</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="historialModal" tabindex="-1" aria-labelledby="historialModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="historialModalLabel">Historial de Cambios</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="historialContent">
+                        <p>Seleccione una variable para ver su historial.</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
                 </div>
             </div>
         </div>
@@ -1390,6 +1426,52 @@ document.addEventListener('DOMContentLoaded', function () {
                 });
             });
         };
+    });
+</script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const modal = new bootstrap.Modal(document.getElementById('historialModal'));
+        const historial = @json($historialCambios);
+
+        document.querySelectorAll('.btn-historial').forEach(button => {
+            button.addEventListener('click', function() {
+                const variableId = this.dataset.variableId;
+                const cambios = historial[variableId] || [];
+
+                let content = '';
+                if (cambios.length === 0) {
+                    content = '<p>No hay historial de cambios para esta variable.</p>';
+                } else {
+                    content = '<table class="table table-bordered table-striped">' +
+                              '<thead><tr>' +
+                              '<th>Fecha</th>' +
+                              '<th>Usuario</th>' +
+                              '<th>Acción</th>' +
+                              '<th>Campo</th>' +
+                              '<th>Valor Anterior</th>' +
+                              '<th>Valor Nuevo</th>' +
+                              '</tr></thead><tbody>';
+
+                    cambios.forEach(cambio => {
+                        content += `<tr>
+                            <td>${new Date(cambio.fecha_cambio).toLocaleString()}</td>
+                            <td>${cambio.usuario ? cambio.usuario.usu_descripcion : 'Desconocido'}</td>
+                            <td>${cambio.accion.charAt(0).toUpperCase() + cambio.accion.slice(1)}</td>
+                            <td>${cambio.campo_modificado}</td>
+                            <td>${cambio.valor_anterior || 'N/A'}</td>
+                            <td>${cambio.valor_nuevo || 'N/A'}</td>
+                        </tr>`;
+                    });
+
+                    content += '</tbody></table>';
+                }
+
+                document.getElementById('historialContent').innerHTML = content;
+                document.getElementById('historialModalLabel').textContent = `Historial de Cambios - Variable ID: ${variableId}`;
+                modal.show();
+            });
+        });
     });
 </script>
 
