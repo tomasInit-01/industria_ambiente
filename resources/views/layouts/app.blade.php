@@ -72,36 +72,36 @@
 
 
         /* Estilos para el acordeón del sidebar */
-.accordion-item {
-    border: none;
-    background: transparent;
-    margin-bottom: 0.5rem;
-}
+        .accordion-item {
+            border: none;
+            background: transparent;
+            margin-bottom: 0.5rem;
+        }
 
-.accordion-button {
-    background: transparent !important;
-    padding: 0.5rem 0;
-    color: #495057;
-    font-weight: 600;
-    box-shadow: none !important;
-}
+        .accordion-button {
+            background: transparent !important;
+            padding: 0.5rem 0;
+            color: #495057;
+            font-weight: 600;
+            box-shadow: none !important;
+        }
 
-.accordion-button:not(.collapsed) {
-    color: #0d6efd;
-}
+        .accordion-button:not(.collapsed) {
+            color: #0d6efd;
+        }
 
-.accordion-button::after {
-    margin-left: auto;
-    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%23212529'%3e%3cpath fill-rule='evenodd' d='M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z'/%3e%3c/svg%3e");
-}
+        .accordion-button::after {
+            margin-left: auto;
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%23212529'%3e%3cpath fill-rule='evenodd' d='M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z'/%3e%3c/svg%3e");
+        }
 
-.accordion-button:not(.collapsed)::after {
-    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%230d6efd'%3e%3cpath fill-rule='evenodd' d='M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z'/%3e%3c/svg%3e");
-}
+        .accordion-button:not(.collapsed)::after {
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%230d6efd'%3e%3cpath fill-rule='evenodd' d='M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z'/%3e%3c/svg%3e");
+        }
 
-.accordion-body {
-    padding: 0 !important;
-}
+        .accordion-body {
+            padding: 0 !important;
+        }
 
         /* Layout principal */
         .main-content {
@@ -739,7 +739,7 @@
     <nav class="navbar navbar-expand-md navbar-light bg-white shadow-sm d-none d-md-flex justify-content-end px-4" style="margin-left: var(--sidebar-width); padding: 1rem 0;">
         <div class="dropdown me-3">
             <a href="#" class="d-flex align-items-center text-decoration-none" id="notificationsDropdownMobile" data-bs-toggle="dropdown" aria-expanded="false">
-                <div class="position-relative" style="margin-top: -2px;">
+                <div class="position-relative">
                     <x-heroicon-o-bell style="width: 18px; height: 18px;" class="text-gray-500" />
                     @php
                         $notificacionesNoLeidas = App\Models\SimpleNotification::where('coordinador_codigo', auth()->user()->usu_codigo)
