@@ -135,13 +135,13 @@
                                             {{ $muestra->cotizacion->coti_num ?? 'N/A' }}
                                         </a>
                                     </td>
-                                    <td style="max-width: 200px;" title="{{ $muestra->cotio_descripcion }} - Muestra {{ $muestra->instance_number }}">
+                                    <td style="max-width: 200px;" title="{{ $muestra->cotio_descripcion }} - Muestra {{ $muestra->id ? '#' . str_pad($muestra->id, 8, '0', STR_PAD_LEFT) : null }}">
                                         <a href="{{ route('muestras.ver', [
                                             'cotizacion' => $muestra->cotizacion->coti_num,
                                             'item' => $muestra->cotio_item,
                                             'instance' => $muestra->instance_number
                                         ]) }}" class="text-primary">
-                                            {{ $muestra->cotio_descripcion }} - Muestra {{ $muestra->instance_number }}
+                                            {{ $muestra->cotio_descripcion }} - Muestra {{ $muestra->id ? '#' . str_pad($muestra->id, 8, '0', STR_PAD_LEFT) : null }}
                                         </a>
                                     </td>
                                     <td>
@@ -246,7 +246,7 @@
                                 <span class="fw-bold">#{{ $muestra->cotizacion->coti_num ?? 'N/A' }}</span>
                                 <small class="text-muted">{{ $muestra->fecha_muestreo->format('d/m H:i') }}</small>
                             </div>
-                            <p class="mb-1 small text-truncate">{{ $muestra->cotio_descripcion }}</p>
+                            <p class="mb-1 small text-truncate">{{ $muestra->cotio_descripcion }} {{ $muestra->id ? '#' . str_pad($muestra->id, 8, '0', STR_PAD_LEFT) : null }}</p>
                             <div class="d-flex justify-content-between align-items-center">
                                 <span class="badge bg-{{ $muestra->cotio_estado == 'coordinado muestreo' ? 'warning text-dark' : ($muestra->cotio_estado == 'en revision muestreo' ? 'info text-dark' : 'success') }} small">
                                     {{ Str::title(str_replace('_', ' ', $muestra->cotio_estado)) }}

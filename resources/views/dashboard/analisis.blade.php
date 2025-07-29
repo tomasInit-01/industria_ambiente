@@ -166,7 +166,7 @@
                                                         'item' => $muestra->cotio_item,
                                                         'instance' => $muestra->instance_number
                                                     ]) }}" class="text-primary">
-                                                        {{ $muestra->cotio_descripcion ?? 'N/A' }} {{ $muestra->instance_number ?? '' }}
+                                                        {{ $muestra->cotio_descripcion ?? 'N/A' }} {{ $muestra->id ? '#' . str_pad($muestra->id, 8, '0', STR_PAD_LEFT) : null }}
                                                         <span class="text-muted small">
                                                             <strong>Cotización:</strong> <a href="{{ route('cotizaciones.ver-detalle', $muestra->cotio_numcoti) }}" class="text-muted">{{ $muestra->cotio_numcoti ?? 'N/A' }}</a>
                                                         </span>
@@ -208,7 +208,7 @@
                                                             <span class="text-muted">Muestra {{ $item->instance_number }}</span>
                                                         </td>
                                                         <td style="max-width: 150px;" title="{{ $item->cotio_descripcion }}">
-                                                            {{ $item->cotio_descripcion ?? 'N/A' }}
+                                                            {{ $item->cotio_descripcion ?? 'N/A' }} {{ $item->id ? '#' . str_pad($item->id, 8, '0', STR_PAD_LEFT) : null }}
                                                         </td>
                                                         <td>
                                                             <span class="d-block">{{ $item->fecha_fin_ot->format('d/m/Y') }}</span>
@@ -294,7 +294,7 @@
                                                 'item' => $muestra->cotio_item,
                                                 'instance' => $muestra->instance_number
                                             ]) }}" class="text-primary">
-                                                {{ $muestra->cotio_descripcion ?? 'N/A' }} {{ $muestra->instance_number ?? '' }}
+                                                {{ $muestra->cotio_descripcion ?? 'N/A' }} {{ $muestra->id ? '#' . str_pad($muestra->id, 8, '0', STR_PAD_LEFT) : null }}
                                             </a>
                                         @else
                                             'N/A'

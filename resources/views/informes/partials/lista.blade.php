@@ -9,7 +9,6 @@
                             <th width="120">Cotización</th>
                             <th>Cliente</th>
                             {{-- <th width="120" class="text-center">Fecha Muestreo</th> --}}
-                            <th width="150">Matriz</th>
                             <th width="150" class="text-center">Acciones</th>
                         </tr>
                     </thead>
@@ -48,7 +47,7 @@
                                                             @foreach($informeData['muestras'] as $muestra)
                                                                 <tr>
                                                                     <td>{{ $muestra->cotio_identificacion }}</td>
-                                                                    <td>{{ $muestra->cotio_descripcion }} - {{ $muestra->instance_number }} </td>
+                                                                    <td>{{ $muestra->cotio_descripcion }} {{ $muestra->id ? '#' . str_pad($muestra->id, 8, '0', STR_PAD_LEFT) : null }} (#{{ $muestra->instance_number }})</td>
                                                                     <td class="text-center">
                                                                         <div class="btn-group" role="group">
                                                                             <button type="button" class="btn btn-sm btn-outline-primary preview-informe-btn"
@@ -136,24 +135,7 @@
                             <p class="small mb-1"><i class="fas fa-building me-1"></i> {{ $coti->coti_establecimiento }}</p>
                         @endif
                         
-                        <div class="my-3">
-                            <div class="d-flex justify-content-between mb-1">
-                                <span class="small">Informes finales</span>
-                                <span class="small fw-bold">{{ $porcentaje }}%</span>
-                            </div>
-                            <div class="progress" style="height: 8px;">
-                                <div class="progress-bar 
-                                    @if($porcentaje == 100) bg-success
-                                    @elseif($porcentaje > 0) bg-warning
-                                    @else bg-secondary @endif" 
-                                    style="width: {{ $porcentaje }}%">
-                                </div>
-                            </div>
-                            <div class="d-flex justify-content-between mt-1">
-                                <small class="text-muted">{{ $total }} muestras</small>
-                                <small class="text-muted">{{ $finales }} finales</small>
-                            </div>
-                        </div>
+                        
                         
                         <div class="d-flex justify-content-between align-items-center">
                             <div>

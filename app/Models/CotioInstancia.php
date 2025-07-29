@@ -57,7 +57,9 @@ class CotioInstancia extends Model
         'responsable_resultado_1',
         'responsable_resultado_2',
         'responsable_resultado_3',
-        'responsable_resultado_final'
+        'responsable_resultado_final',
+        'observaciones_ot',
+        'fecha_carga_ot'
     ];
 
     protected $casts = [
@@ -68,6 +70,7 @@ class CotioInstancia extends Model
         'fecha_fin_muestreo' => 'datetime',
         'fecha_inicio_ot' => 'datetime', 
         'fecha_fin_ot' => 'datetime',
+        'fecha_carga_ot' => 'datetime',
         'enable_ot' => 'boolean',
     ];
 

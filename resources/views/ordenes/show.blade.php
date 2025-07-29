@@ -124,7 +124,7 @@
                                                     >
                                                         <div class="d-flex align-items-center gap-2">
                                                             <h6 class="mb-1 fw-bold">
-                                                                {{ $categoria->cotio_descripcion }} 
+                                                                {{ $categoria->cotio_descripcion }} {{ $muestra->id ? '#' . str_pad($muestra->id, 8, '0', STR_PAD_LEFT) : null }}
                                                                 <small class="fw-normal">(Instancia {{ $muestra->instance_number }} / {{ $categoria->cotio_cantidad ?? '-' }})</small>
                                                             </h6>
                                                             @if($muestra->active_ot)

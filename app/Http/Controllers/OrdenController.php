@@ -184,29 +184,7 @@ class OrdenController extends Controller
         ->orderBy('instance_number', 'asc')
         ->paginate($viewType === 'documento' ? 50 : 50); // Increase to 50 for both views
     
-        $ordenes = $pagination->groupBy('cotio_numcoti')->map(function ($group) {
-            $cotizacion = $group->first()->cotizacion;
-            $total = $group->count();
-            $completadas = $group->where('cotio_estado_analisis', 'analizado')->count();
-            $enProceso = $group->where('cotio_estado_analisis', 'en revision analisis')->count();
-            $coordinadas = $group->where('cotio_estado_analisis', 'coordinado analisis')->count();
-            $suspendidas = $group->where('cotio_estado_analisis', 'suspension')->count();
-            $porcentaje = $total > 0 ? round(($completadas / $total) * 100) : 0;
-    
-            return [
-                'instancias' => $group,
-                'cotizacion' => $cotizacion,
-                'total' => $total,
-                'completadas' => $completadas,
-                'en_proceso' => $enProceso,
-                'coordinadas' => $coordinadas,
-                'suspendidas' => $suspendidas,
-                'porcentaje' => $porcentaje,
-                'has_suspension' => $group->contains(function ($instancia) {
-                    return strtolower(trim($instancia->cotio_estado_analisis)) === 'suspension';
-                })
-            ];
-        });
+
     
         return view('ordenes.index', [
             'ordenes' => $ordenes,
@@ -1784,6 +1762,7 @@ public function actualizarEstado(Request $request)
         'instance_number' => 'required|numeric',
         'estado' => 'required|in:coordinado analisis,en revision analisis,analizado,suspension,coordinado muestreo,en revision muestreo,muestreado',
         'fecha_carga_ot' => 'nullable|date',
+        'observaciones_ot' => 'nullable|string|max:1000',
     ]);
 
     try {
@@ -1814,6 +1793,11 @@ public function actualizarEstado(Request $request)
             } elseif ($validated['estado'] === 'analizado' && !$item->fecha_carga_ot) {
                 // Si el estado es 'analizado' y no hay fecha de carga, establecer la fecha actual
                 $item->fecha_carga_ot = now();
+            }
+            
+            // Actualizar las observaciones del coordinador si se proporcionaron
+            if (isset($validated['observaciones_ot'])) {
+                $item->observaciones_ot = $validated['observaciones_ot'];
             }
         } 
 
@@ -1855,7 +1839,7 @@ public function actualizarEstado(Request $request)
 
         return response()->json([
             'success' => true,
-            'message' => 'Estado actualizado correctamente'
+            'message' => 'Análisis actualizado correctamente'
         ]);
 
     } catch (\Exception $e) {

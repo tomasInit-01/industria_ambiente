@@ -39,7 +39,7 @@
                     </button>
                     <div>
                         <h4 class="mb-0 text-primary">
-                            Cotización Nº {{ $numCoti }} - {{ $instanciaMuestra->cotio_descripcion ?? 'N/A' }} #{{ $instanceNumber }}
+                            Cotización Nº {{ $numCoti }} - {{ $instanciaMuestra->cotio_descripcion ?? 'N/A' }} {{ $instanciaMuestra->id ? '#' . str_pad($instanciaMuestra->id, 8, '0', STR_PAD_LEFT) : null }} (#{{ $instanciaMuestra->instance_number ?? ''}})
                         </h4>
                         <div class="d-flex align-items-center gap-2 mt-1">
                             <span class="badge bg-{{ $badgeClassMuestra }} text-dark">

@@ -99,7 +99,7 @@
                             </td>
                             <td class="d-none d-md-table-cell">
                                     {{ $instanciaMuestra->cotio_descripcion ?? 'N/A' }}
-                                    <div class="small text-muted">Muestra</div>
+                                    <div class="small text-muted">Muestra {{ $instanciaMuestra->id ? '#' . str_pad($instanciaMuestra->id, 8, '0', STR_PAD_LEFT) : null }}</div>
                             </td>
                             <td class="d-none d-md-table-cell">
                                 @if($analisis->isNotEmpty())

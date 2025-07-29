@@ -10,7 +10,7 @@
         <h1 class="mb-0">
             Detalle de Muestra
             @if($instanceNumber)
-                <span class="fs-5 text-muted">(Muestra #{{ $instanceNumber }})</span>
+                <span class="fs-5 text-muted">(Muestra {{ $instancia->id ? '#' . str_pad($instancia->id, 8, '0', STR_PAD_LEFT) : null }})</span>
             @endif
         </h1>
         <a href="{{ url()->previous() }}" class="btn btn-outline-secondary">
@@ -353,6 +353,21 @@
                             <textarea class="form-control" name="observacion_resultado_final" rows="4"
                                 placeholder="Observación">{{ $item->observacion_resultado_final ?? '' }}</textarea>
                         </div>
+
+                        <div class="mb-3 p-3 bg-warning bg-opacity-25 rounded border border-warning">
+                            <label for="observaciones_ot" class="form-label fw-bold text-dark">
+                                Observaciones del Coordinador
+                            </label>
+                            <textarea 
+                                class="form-control" 
+                                name="observaciones_ot" 
+                                id="observaciones_ot" 
+                                rows="3"
+                                placeholder="Observaciones del coordinador sobre este análisis..." 
+                                readonly
+                            >{{ $item->observaciones_ot ?? '' }}</textarea>
+                        </div>
+                        
 
                         <div class="mb-3">
                             <x-heroicon-o-calendar style="width: 1rem; height: 1rem;" />

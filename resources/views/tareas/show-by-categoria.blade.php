@@ -7,7 +7,7 @@
         <h1 class="mb-0">
             Detalle de Muestra
             @if($instanceNumber)
-                <span class="fs-5 text-muted">(Muestra #{{ $instanceNumber }})</span>
+                <span class="fs-5 text-muted">(Muestra {{ $instancia->id ? '#' . str_pad($instancia->id, 8, '0', STR_PAD_LEFT) : null }})</span>
             @endif
         </h1>
         <a href="{{ url()->previous() }}" class="btn btn-outline-secondary">

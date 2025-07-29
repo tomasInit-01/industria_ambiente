@@ -128,7 +128,7 @@
                                                         ]) }}" 
                                                         class="text-decoration-none {{ $categoria->enable_ot ? 'text-dark' : 'text-white'}}"
                                                     >
-                                                        <strong>{{ $descripcion }}</strong> 
+                                                        <strong>{{ $descripcion }} {{ $instancia->id ? '#' . str_pad($instancia->id, 8, '0', STR_PAD_LEFT) : null }}</strong> 
                                                         <span class="ms-2">(Muestra {{ $instancia->instance_number }} / {{ $categoria->cotio_cantidad ?? '-' }})</span>
                                                     </a>
                                                     

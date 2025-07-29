@@ -73,7 +73,7 @@
                 </div>
 
                 <div class="d-flex justify-content-between align-items-center">
-                    <h2 class="fw-bold">{{ $categoria->cotio_descripcion }} ({{ $instanciaActual->instance_number ?? ''}} / {{ $categoria->cotio_cantidad ?? ''}})</h2>
+                    <h2 class="fw-bold">{{ $categoria->cotio_descripcion }} {{ $instanciaActual->id ? '#' . str_pad($instanciaActual->id, 8, '0', STR_PAD_LEFT) : null }} ({{ $instanciaActual->instance_number ?? ''}} / {{ $categoria->cotio_cantidad ?? ''}})</h2>
                     <div class="d-flex gap-2">
                         <a class="btn btn-outline-primary"
                             href="https://www.google.com/maps/search/?api=1&query={{ $cotizacion->coti_direccioncli }}, {{ $cotizacion->coti_localidad }}, {{ $cotizacion->coti_partido }}">

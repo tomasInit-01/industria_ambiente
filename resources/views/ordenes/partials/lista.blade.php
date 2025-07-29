@@ -8,7 +8,6 @@
                         <tr>
                             <th width="120">Orden</th>
                             <th>Cliente</th>
-                            <th width="100" class="text-center">Estado</th>
                             <th width="140" class="text-center">Progreso</th>
                             <th width="120" class="text-center">Fecha</th>
                             <th width="150">Matriz</th>
@@ -21,10 +20,10 @@
                             $coti = $instanciaData['instancias']->first()->cotizacion;
                             
                             // Calcular estados para la barra de progreso
-                            $analizadas = $instanciaData['instancias']->where('cotio_estado_analisis', 'analizado')->count();
-                            $enProceso = $instanciaData['instancias']->where('cotio_estado_analisis', 'en revision analisis')->count();
-                            $coordinadas = $instanciaData['instancias']->where('cotio_estado_analisis', 'coordinado analisis')->count();
-                            $total = $instanciaData['instancias']->count();
+                            $analizadas = $instanciaData['instancias']->where('cotio_estado_analisis', 'analizado')->where('cotio_subitem', '=', 0)->count();
+                            $enProceso = $instanciaData['instancias']->where('cotio_estado_analisis', 'en revision analisis')->where('cotio_subitem', '=', 0)->count();
+                            $coordinadas = $instanciaData['instancias']->where('cotio_estado_analisis', 'coordinado analisis')->where('cotio_subitem', '=', 0)->count();
+                            $total = $instanciaData['instancias']->where('cotio_subitem', '=', 0)->count();
                             
                             $porcentajes = [
                                 'analizadas' => $total > 0 ? ($analizadas / $total) * 100 : 0,
@@ -48,15 +47,6 @@
                                     @if($coti->coti_establecimiento)
                                         <small class="text-muted">{{ $coti->coti_establecimiento }}</small>
                                     @endif
-                                </td>
-                                <td class="text-center">
-                                    <span class="badge 
-                                        @if($coti->coti_estado == 'A') bg-success
-                                        @elseif($coti->coti_estado == 'E') bg-warning
-                                        @elseif($coti->coti_estado == 'S') bg-danger
-                                        @else bg-secondary @endif">
-                                        {{ trim($coti->coti_estado) }}
-                                    </span>
                                 </td>
                                 <td class="text-center">
                                     @if($total > 0)

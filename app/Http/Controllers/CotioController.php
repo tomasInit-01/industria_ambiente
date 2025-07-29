@@ -983,6 +983,7 @@ public function updateResultado(Request $request, $cotio_numcoti, $cotio_item, $
         'observacion_resultado_2' => 'nullable|string|max:255',
         'observacion_resultado_3' => 'nullable|string|max:255',
         'observacion_resultado_final' => 'nullable|string|max:255',
+        'observaciones_ot' => 'nullable|string|max:1000',
     ]);
 
     DB::beginTransaction();
@@ -1045,6 +1046,9 @@ public function updateResultado(Request $request, $cotio_numcoti, $cotio_item, $
         }
         if($request->filled('observacion_resultado_final')) {
             $instancia->observacion_resultado_final = $request->observacion_resultado_final;
+        }
+        if($request->has('observaciones_ot')) {
+            $instancia->observaciones_ot = $request->observaciones_ot;
         }
 
         $instancia->fecha_carga_ot = now();
@@ -1375,6 +1379,7 @@ public function disableOt(Request $request)
             ->where('instance_number', $request->instance)
             ->update([
                 'enable_ot' => false,
+                'active_ot' => false,
                 'complete_muestreo' => false,
                 'cotio_estado_analisis' => null,
             ]);

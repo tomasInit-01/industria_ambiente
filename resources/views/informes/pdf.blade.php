@@ -158,10 +158,12 @@
             <div class="info-item">
                 <span class="info-label">N° de Cotización:</span>
                 <span class="info-value">#{{ $muestra->cotio_numcoti }}</span>
+                <span style="margin-left: 300px;" class="info-label">O.T.N:</span>
+                <span class="info-value">{{ $muestra->id ? '#' . str_pad($muestra->id, 8, '0', STR_PAD_LEFT) : null }}</span>
             </div>
             <div class="info-item">
                 <span class="info-label">Muestra:</span>
-                <span class="info-value">{{ $muestra->cotio_descripcion ?? ''}} {{ $muestra->instance_number ?? '' }}</span>
+                <span class="info-value">{{ $muestra->cotio_descripcion ?? ''}} (#{{ $muestra->instance_number }})</span>
             </div>
             <div class="info-item">
                 <span class="info-label">Cliente:</span>

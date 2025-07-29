@@ -174,7 +174,10 @@
     <!-- Iterar sobre múltiples muestras -->
     @foreach($muestras as $index => $muestra)
         <div class="section">
-            <h2 class="section-title">MUESTRA #{{ $index + 1 }} - {{ $muestra->cotio_descripcion ?? 'EFLUENTE LÍQUIDO' }}</h2>
+            <div class="d-flex justify-content-between">
+                <h2 class="section-title">Reporte #{{ $index + 1 }} - {{ $muestra->cotio_descripcion ?? 'EFLUENTE LÍQUIDO' }}</h2>
+                <p style="margin-left: 450px; margin-top: -30px;">O.T.N: {{ $muestra->id ? '#' . str_pad($muestra->id, 8, '0', STR_PAD_LEFT) : null }}</p>
+            </div>
             <div class="info-grid">
                 <div class="info-item">
                     <span class="info-label">Cliente:</span>

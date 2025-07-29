@@ -29,7 +29,7 @@
             </div>
             
             <div class="d-flex justify-content-between align-items-center">
-                <h2 class="fw-bold mb-3">{{ $categoria->cotio_descripcion }} ({{ $instanciaActual->instance_number ?? ''}} / {{ $categoria->cotio_cantidad ?? ''}})</h2>
+                <h2 class="fw-bold mb-3">{{ $categoria->cotio_descripcion }} {{ $instanciaActual->id ? '#' . str_pad($instanciaActual->id, 8, '0', STR_PAD_LEFT) : null }} ({{ $instanciaActual->instance_number ?? ''}} / {{ $categoria->cotio_cantidad ?? ''}})</h2>
                 <div class="d-flex gap-2">
                     <a class="btn btn-outline-primary"
                         href="https://www.google.com/maps/search/?api=1&query={{ $cotizacion->coti_direccioncli }}, {{ $cotizacion->coti_localidad }}, {{ $cotizacion->coti_partido }}">
@@ -80,7 +80,7 @@
                             @foreach ($todosResponsablesTareas as $responsable)
                                 <span class="badge bg-info d-inline-flex align-items-center me-2 mb-1">
                                     {{ $responsable->usu_descripcion }}
-                                    @if($instanciaActual->active_ot == true && $instanciaActual->enable_inform == false)
+                                    @if($instanciaActual->cotio_estado_analisis != 'analizado' && $instanciaActual->active_ot == true && $instanciaActual->enable_inform == false)
                                         <button type="button" 
                                                 class="btn btn-sm btn-link text-danger p-0 ms-1" 
                                                 style="font-size: 0.75rem; line-height: 1;"
@@ -177,9 +177,11 @@
                             <x-heroicon-o-wrench-screwdriver class="me-2" style="width: 1rem; height: 1rem;" />
                             <h6 class="card-title mb-0">Herramientas de Análisis</h6>
                         </div>
-                        <button type="button" class="btn btn-sm btn-link" data-bs-toggle="modal" data-bs-target="#herramientasModal" data-instancia-id="{{ $instanciaActual->id }}" data-descripcion="{{ $instanciaActual->cotio_descripcion }}">
-                            <x-heroicon-o-pencil style="width: 20px; height: 20px;" />
-                        </button>
+                        @if($instanciaActual->cotio_estado_analisis != 'analizado' && $instanciaActual->active_ot == true && $instanciaActual->enable_inform == false)
+                            <button type="button" class="btn btn-sm btn-link" data-bs-toggle="modal" data-bs-target="#herramientasModal" data-instancia-id="{{ $instanciaActual->id }}" data-descripcion="{{ $instanciaActual->cotio_descripcion }}">
+                                <x-heroicon-o-pencil style="width: 20px; height: 20px;" />
+                            </button>
+                        @endif
                     </div>
                     <div class="card-body p-2">
                         <ul class="list-group list-group-flush">
@@ -248,7 +250,7 @@
                         
                         @if($instanciaActual->observaciones_medicion_coord_muestreo)
                             <div class="mt-4">
-                                <label for="observaciones" class="form-label"><strong>Observaciones del Coordinador:</strong></label>
+                                <label for="observaciones" class="form-label"><strong>Observaciones del Coordinador de Muestreo:</strong></label>
                                 <textarea class="form-control" id="observaciones" rows="3" 
                                         readonly>{{ $instanciaActual->observaciones_medicion_coord_muestreo }}</textarea>
                             </div>
@@ -322,25 +324,30 @@
                                                 </h5>
                                             </label>
                                         </div>
-                                        <button type="button" class="btn btn-sm btn-outline-dark"
-                                                data-bs-toggle="modal"
-                                                data-bs-target="#estadoModal"
-                                                data-tipo="tarea"
-                                                data-item="{{ $tarea->cotio_item }}"
-                                                data-subitem="{{ $tarea->cotio_subitem }}">
-                                            <x-heroicon-o-pencil-square style="width: 1rem; height: 1rem;" />
-                                        </button>
+                                        @if($instanciaActual->cotio_estado_analisis != 'analizado' && $instanciaActual->active_ot == true && $instanciaActual->enable_inform == false)
+                                            <button type="button" class="btn btn-sm btn-outline-dark"
+                                                    data-bs-toggle="modal"
+                                                    data-bs-target="#estadoModal"
+                                                    data-tipo="tarea"
+                                                    data-item="{{ $tarea->cotio_item }}"
+                                                    data-subitem="{{ $tarea->cotio_subitem }}"
+                                                    data-estado="{{ $tarea->instancia->cotio_estado_analisis ?? '' }}"
+                                                    data-fecha-carga="{{ $tarea->instancia && $tarea->instancia->fecha_carga_ot ? $tarea->instancia->fecha_carga_ot->format('Y-m-d\TH:i') : '' }}"
+                                                    data-observaciones-ot="{{ htmlspecialchars($tarea->instancia->observaciones_ot ?? '', ENT_QUOTES) }}">
+                                                <x-heroicon-o-pencil-square style="width: 1rem; height: 1rem;" />
+                                            </button>
+                                        @endif
                                     </div>
                     
                                     <!-- Card Content -->
                                     <div class="p-3">
                                         <!-- Observación Section -->
-                                        @if($tarea->instancia && $tarea->instancia->observacion_resultado)
+                                        @if($tarea->instancia && $tarea->instancia->observaciones_ot)
                                             <div class="d-flex align-items-start mb-2">
                                                 <x-heroicon-o-chat-bubble-bottom-center-text class="text-info me-2 mt-1" style="width: 1rem; height: 1rem;" />
                                                 <div>
-                                                    <span class="me-2"><strong>Observación:</strong></span>
-                                                    <span class="badge bg-info text-dark rounded-pill">{{ $tarea->instancia->observacion_resultado }}</span>
+                                                    <span class="me-2"><strong>Observación del coordinador:</strong></span>
+                                                    <span class="badge bg-info text-dark rounded-pill">{{ $tarea->instancia->observaciones_ot }}</span>
                                                 </div>
                                             </div>
                                         @endif
@@ -453,54 +460,84 @@
                                                                 ];
                                                             @endphp
                                                             
-                                                            <table class="table table-bordered table-hover">
-                                                                <thead class="table-light">
-                                                                    <tr>
-                                                                        <th>Título</th>
-                                                                        <th>Resultado</th>
-                                                                        <th style="width: 100px; text-align: center; white-space: nowrap;">Historial</th>
-                                                                    </tr>
-                                                                </thead>
-                                                                <tbody>
-                                                                    @foreach ($resultados as $r)
-                                                                        <tr>
-                                                                            <td>
-                                                                                <span class="badge bg-{{ $r['badge'] }} bg-opacity-10 text-{{ $r['badge'] }} rounded-pill me-2">{{ $r['label'] }}</span>
-                                                                                {{ $r['titulo'] }}
-                                                                            </td>
-                                                                            <td>
-                                                                                <input 
-                                                                                    class="form-control resultado-input" 
-                                                                                    type="text"
-                                                                                    id="{{ $r['field'] }}_{{ $tarea->cotio_item }}_{{ $tarea->cotio_subitem }}"
-                                                                                    name="{{ $r['field'] }}"
-                                                                                    value="{{ $r['valor'] }}"
-                                                                                    placeholder="Ingrese el resultado..."
-                                                                                >
-                                                                            </td>
-                                                                            <td style="display: flex; justify-content: center; align-items: center;">
-                                                                                @if(isset($historialCambios[$tarea->instancia->id]) && $historialCambios[$tarea->instancia->id]->where('campo_modificado', $r['field'])->isNotEmpty())
-                                                                                    <button class="btn btn-sm btn-link btn-historial-resultado" 
-                                                                                            data-instancia-id="{{ $tarea->instancia->id }}"
-                                                                                            data-campo="{{ $r['field'] }}"
-                                                                                            data-bs-toggle="modal" 
-                                                                                            data-bs-target="#historialResultadoModal">
-                                                                                        <x-heroicon-o-clock style="width: 20px; height: 20px;" />
-                                                                                    </button>
-                                                                                @endif
-                                                                            </td>
-                                                                        </tr>
-                                                                    @endforeach
-                                                                </tbody>
-                                                            </table>
+                                                            <div class="row g-3">
+                                                                @foreach ($resultados as $r)
+                                                                    <div class="col-12">
+                                                                        <div class="card border-0 shadow-sm">
+                                                                            <div class="card-header bg-{{ $r['badge'] }} bg-opacity-10 border-0 py-2">
+                                                                                <div class="d-flex justify-content-between align-items-center">
+                                                                                                                                                                         <div class="d-flex align-items-center">
+                                                                                         <span class="badge bg-{{ $r['badge'] }} rounded-pill me-2">{{ $r['label'] }}</span>
+                                                                                         <h6 class="mb-0 text-{{ $r['badge'] }} fw-semibold">{{ $r['titulo'] }}</h6>
+                                                                                         @if($r['obs'])
+                                                                                             <span class="badge bg-success rounded-pill ms-2" title="Tiene observaciones">
+                                                                                                 <x-heroicon-o-chat-bubble-left-ellipsis style="width: 12px; height: 12px;" />
+                                                                                             </span>
+                                                                                         @endif
+                                                                                     </div>
+                                                                                    @if(isset($historialCambios[$tarea->instancia->id]) && $historialCambios[$tarea->instancia->id]->where('campo_modificado', $r['field'])->isNotEmpty())
+                                                                                        <button class="btn btn-sm btn-outline-{{ $r['badge'] }} btn-historial-resultado" 
+                                                                                                data-instancia-id="{{ $tarea->instancia->id }}"
+                                                                                                data-campo="{{ $r['field'] }}"
+                                                                                                data-bs-toggle="modal" 
+                                                                                                data-bs-target="#historialResultadoModal"
+                                                                                                title="Ver historial de cambios">
+                                                                                            <x-heroicon-o-clock style="width: 16px; height: 16px;" />
+                                                                                        </button>
+                                                                                    @endif
+                                                                                </div>
+                                                                            </div>
+                                                                            <div class="card-body p-3">
+                                                                                <div class="row g-2">
+                                                                                    <div class="col-md-6">
+                                                                                        <label class="form-label text-muted small mb-1">
+                                                                                            <x-heroicon-o-beaker class="me-1" style="width: 14px; height: 14px;" />
+                                                                                            Resultado
+                                                                                        </label>
+                                                                                        <input 
+                                                                                            class="form-control resultado-input" 
+                                                                                            type="text"
+                                                                                            id="{{ $r['field'] }}_{{ $tarea->cotio_item }}_{{ $tarea->cotio_subitem }}"
+                                                                                            name="{{ $r['field'] }}"
+                                                                                            value="{{ $r['valor'] }}"
+                                                                                            placeholder="Ingrese el resultado..."
+                                                                                            @if($instanciaActual->cotio_estado_analisis == 'analizado')
+                                                                                                readonly
+                                                                                            @endif
+                                                                                        >
+                                                                                    </div>
+                                                                                    <div class="col-md-6">
+                                                                                        <label class="form-label text-muted small mb-1">
+                                                                                            <x-heroicon-o-chat-bubble-left-ellipsis class="me-1" style="width: 14px; height: 14px;" />
+                                                                                            Observaciones
+                                                                                        </label>
+                                                                                        <textarea 
+                                                                                            class="form-control observacion-input" 
+                                                                                            name="{{ $r['obs_field'] }}"
+                                                                                            id="{{ $r['obs_field'] }}_{{ $tarea->cotio_item }}_{{ $tarea->cotio_subitem }}"
+                                                                                            rows="2"
+                                                                                            placeholder="Observaciones del resultado..."
+                                                                                            @if($instanciaActual->cotio_estado_analisis == 'analizado')
+                                                                                                readonly
+                                                                                            @endif
+                                                                                        >{{ $r['obs'] }}</textarea>
+                                                                                                                                                                         </div>
+                                                                                 </div>
+                                                                             </div>
+                                                                        </div>
+                                                                    </div>
+                                                                @endforeach
+                                                            </div>
                     
                                                             <div class="mt-3 text-end">
-                                                                <button type="submit" 
-                                                                        class="btn btn-success guardar-todos-resultados"
-                                                                        data-form-id="{{ $accordionId }}">
-                                                                    <x-heroicon-o-check-circle style="width: 1rem; height: 1rem;" />
-                                                                    Guardar
-                                                                </button>
+                                                                @if($instanciaActual->cotio_estado_analisis != 'analizado' && $instanciaActual->active_ot == true && $instanciaActual->enable_inform == false)
+                                                                    <button type="submit" 
+                                                                            class="btn btn-success guardar-todos-resultados"
+                                                                            data-form-id="{{ $accordionId }}">
+                                                                        <x-heroicon-o-check-circle style="width: 1rem; height: 1rem;" />
+                                                                        Guardar
+                                                                    </button>
+                                                                @endif
                                                             </div>
                                                         </form>
                                                     </div>
@@ -547,7 +584,7 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="estadoModalLabel">Ajustar estado de tarea</h5>
+                <h5 class="modal-title" id="estadoModalLabel">Editar Análisis</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
@@ -559,21 +596,48 @@
                     <input type="hidden" name="instance_number" id="modal_instance_number" value="{{ $instance }}">
                     
                     <div class="mb-3">
-                        <label for="modal_estado" class="form-label">Estado</label>
+                        <label for="modal_estado" class="form-label">
+                            <x-heroicon-o-flag class="me-1" style="width: 16px; height: 16px;" />
+                            Estado
+                        </label>
                         <select class="form-select" id="modal_estado" name="estado" required>
                             <option value="coordinado analisis" {{ ($instanciaActual->cotio_estado_analisis ?? 'coordinado analisis') == 'coordinado analisis' ? 'selected' : '' }}>coordinado analisis</option>
                             <option value="en revision analisis" {{ ($instanciaActual->cotio_estado_analisis ?? 'en revision analisis') == 'en revision analisis' ? 'selected' : '' }}>En revision analisis</option>
                             <option value="analizado" {{ ($instanciaActual->cotio_estado_analisis ?? 'analizado') == 'analizado' ? 'selected' : '' }}>analizado</option>
                             <option value="suspension" {{ ($instanciaActual->cotio_estado_analisis ?? 'suspension') == 'suspension' ? 'selected' : '' }}>Suspension</option>
                         </select>
+                    </div>
 
+                    <div class="mb-3">
+                        <label for="modal_fecha_carga" class="form-label">
+                            <x-heroicon-o-calendar class="me-1" style="width: 16px; height: 16px;" />
+                            Fecha de Carga
+                        </label>
+                        <input type="datetime-local" 
+                               class="form-control" 
+                               id="modal_fecha_carga" 
+                               name="fecha_carga_ot"
+                               value="{{ $instanciaActual->fecha_carga_ot ? date('Y-m-d\TH:i', strtotime($instanciaActual->fecha_carga_ot)) : '' }}">
+                        <small class="text-muted">Si no se especifica, se usará la fecha y hora actual</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="modal_observaciones" class="form-label">
+                            <x-heroicon-o-chat-bubble-left-ellipsis class="me-1" style="width: 16px; height: 16px;" />
+                            Observaciones del Coordinador
+                        </label>
+                        <textarea class="form-control" 
+                                  id="modal_observaciones" 
+                                  name="observaciones_ot" 
+                                  rows="3" 
+                                  placeholder="Ingrese observaciones del coordinador...">{{ $instanciaActual->observaciones_ot ?? '' }}</textarea>
                     </div>
          
                 </form>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-primary" id="confirmarEstado">Ajustar</button>
+                <button type="button" class="btn btn-primary" id="confirmarEstado">Guardar Cambios</button>
             </div>
         </div>
     </div>
@@ -764,6 +828,57 @@
         box-shadow: 0 0 0 0.2rem rgba(25, 135, 84, 0.25);
     }
     
+    /* Estilos para las tarjetas de resultados */
+    .card-header.bg-primary.bg-opacity-10 {
+        background-color: rgba(13, 110, 253, 0.1) !important;
+        border-bottom: 2px solid rgba(13, 110, 253, 0.2) !important;
+    }
+    
+    .card-header.bg-info.bg-opacity-10 {
+        background-color: rgba(13, 202, 240, 0.1) !important;
+        border-bottom: 2px solid rgba(13, 202, 240, 0.2) !important;
+    }
+    
+    .card-header.bg-warning.bg-opacity-10 {
+        background-color: rgba(255, 193, 7, 0.1) !important;
+        border-bottom: 2px solid rgba(255, 193, 7, 0.2) !important;
+    }
+    
+    .card-header.bg-dark.bg-opacity-10 {
+        background-color: rgba(33, 37, 41, 0.1) !important;
+        border-bottom: 2px solid rgba(33, 37, 41, 0.2) !important;
+    }
+    
+    /* Animaciones para las tarjetas */
+    .card.border-0.shadow-sm {
+        transition: all 0.3s ease;
+        border-radius: 0.5rem !important;
+    }
+    
+    .card.border-0.shadow-sm:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+    }
+    
+    /* Estilos para los campos de observación */
+    .observacion-input {
+        resize: vertical;
+        min-height: 60px;
+        font-size: 0.9rem;
+    }
+    
+    .observacion-input:focus {
+        box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+    }
+    
+    /* Mejoras para labels */
+    .form-label.text-muted.small {
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        font-size: 0.75rem;
+    }
+    
     .guardar-resultado {
         transition: all 0.3s ease;
     }
@@ -846,15 +961,28 @@ document.addEventListener('DOMContentLoaded', function() {
             // Obtener estado actual de la categoría
             const estadoActual = card.querySelector('.badge').textContent.trim().toLowerCase();
             document.getElementById('modal_estado').value = estadoActual;
+            
+            // Ocultar campos de fecha de carga y observaciones para categoría
+            document.getElementById('modal_fecha_carga').closest('.mb-3').style.display = 'none';
+            document.getElementById('modal_observaciones').closest('.mb-3').style.display = 'none';
+            
+            // Limpiar valores de los campos ocultos
+            document.getElementById('modal_fecha_carga').value = '';
+            document.getElementById('modal_observaciones').value = '';
         } else {
             // Configuración para tarea
             document.getElementById('modal_cotio_item').value = button.dataset.item;
             document.getElementById('modal_cotio_subitem').value = button.dataset.subitem;
 
             
-            // Obtener estado actual de la tarea
-            const estadoActual = card.querySelector('.badge').textContent.trim().toLowerCase();
-            document.getElementById('modal_estado').value = estadoActual;
+            // Mostrar campos de fecha de carga y observaciones para tareas individuales
+            document.getElementById('modal_fecha_carga').closest('.mb-3').style.display = 'block';
+            document.getElementById('modal_observaciones').closest('.mb-3').style.display = 'block';
+            
+            // Usar los datos específicos de la tarea desde los data attributes
+            document.getElementById('modal_estado').value = button.dataset.estado || '';
+            document.getElementById('modal_fecha_carga').value = button.dataset.fechaCarga || '';
+            document.getElementById('modal_observaciones').value = button.dataset.observacionesOt || '';
         }
     });
 
@@ -877,7 +1005,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (data.success) {
                 Swal.fire({
                     icon: 'success',
-                    title: 'Éxito',
+                    title: 'Análisis Actualizado',
                     text: data.message,
                     confirmButtonColor: '#3085d6',
                 }).then(() => {
@@ -887,7 +1015,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 Swal.fire({
                     icon: 'error',
                     title: 'Error',
-                    text: data.message || 'Error al actualizar el estado',
+                    text: data.message || 'Error al actualizar el análisis',
                     confirmButtonColor: '#3085d6',
                 });
             }
