@@ -270,7 +270,7 @@
             @else
                 <div class="alert alert-info text-center">
                     <i class="fas fa-info-circle me-2"></i>
-                    No se encontraron facturas con los filtros aplicados.
+                    No hay facturas aún.
                 </div>
             @endif
         </div>

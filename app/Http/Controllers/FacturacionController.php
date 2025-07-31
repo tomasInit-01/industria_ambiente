@@ -604,6 +604,92 @@ public function verFactura($id)
     return view('facturacion.detalle', compact('factura', 'items'));
 }
 
+// public function descargar(Factura $factura)
+// {
+//     try {
+//         Log::info('Descargando factura', [
+//             'factura_id' => $factura->id,
+//             'numero_factura' => $factura->numero_factura,
+//             'cae' => $factura->cae
+//         ]);
+
+//         // Verificar si ya tenemos un PDF guardado localmente
+//         $fileName = 'Factura_' . str_replace(['-', '/', '\\'], '_', $factura->numero_factura) . '.pdf';
+//         $filePath = storage_path('app/facturas/' . $fileName);
+
+//         // Si el PDF ya existe, descargarlo directamente
+//         if (file_exists($filePath)) {
+//             Log::info('PDF encontrado en cache, descargando archivo existente', ['file' => $fileName]);
+//             return response()->download($filePath, $fileName);
+//         }
+
+//         // Si no existe, generar nuevo PDF
+//         Log::info('Generando nuevo PDF para factura', ['factura_id' => $factura->id]);
+
+//         // Crear directorio si no existe
+//         $directory = storage_path('app/facturas');
+//         if (!file_exists($directory)) {
+//             mkdir($directory, 0755, true);
+//         }
+
+//         // Generar PDF usando DomPDF
+//         $items = [];
+//         if (is_string($factura->items)) {
+//             $items = json_decode($factura->items, true) ?? [];
+//         } elseif (is_array($factura->items)) {
+//             $items = $factura->items;
+//         }
+
+//         $pdf = Pdf::loadView('facturacion.template_afip', [
+//             'factura' => $factura,
+//             'cotizacion' => $factura->cotizacion,
+//             'items' => $items,
+//             'fecha' => $factura->fecha_emision->format('d/m/Y')
+//         ]);
+
+//         // Configurar opciones del PDF
+//         $pdf->setPaper('A4', 'portrait');
+//         $pdf->setOptions([
+//             'isHtml5ParserEnabled' => true,
+//             'isPhpEnabled' => true,
+//             'defaultFont' => 'Arial'
+//         ]);
+
+//         // Guardar el PDF en storage
+//         $pdfContent = $pdf->output();
+//         file_put_contents($filePath, $pdfContent);
+
+//         // Actualizar la referencia en la base de datos
+//         $factura->update(['pdf_url' => $fileName]);
+
+//         Log::info('PDF generado exitosamente', [
+//             'factura_id' => $factura->id,
+//             'archivo' => $fileName,
+//             'tamaño' => strlen($pdfContent) . ' bytes'
+//         ]);
+
+//         // Descargar el archivo
+//         return response()->download($filePath, $fileName);
+
+//     } catch (\Exception $e) {
+//         Log::error('Error al generar/descargar factura: ' . $e->getMessage(), [
+//             'factura_id' => $factura->id,
+//             'numero_factura' => $factura->numero_factura,
+//             'error_trace' => $e->getTraceAsString()
+//         ]);
+        
+//         // Devuelve JSON si es una solicitud AJAX/fetch
+//         if (request()->wantsJson() || request()->ajax()) {
+//             return response()->json([
+//                 'error' => 'No se pudo generar el PDF: ' . $e->getMessage()
+//             ], 500);
+//         }
+        
+//         return back()->with('error', 'No se pudo generar el PDF: ' . $e->getMessage());
+//     }
+// }
+
+
 public function descargar(Factura $factura)
 {
     try {
@@ -617,14 +703,10 @@ public function descargar(Factura $factura)
         $fileName = 'Factura_' . str_replace(['-', '/', '\\'], '_', $factura->numero_factura) . '.pdf';
         $filePath = storage_path('app/facturas/' . $fileName);
 
-        // Si el PDF ya existe, descargarlo directamente
         if (file_exists($filePath)) {
             Log::info('PDF encontrado en cache, descargando archivo existente', ['file' => $fileName]);
             return response()->download($filePath, $fileName);
         }
-
-        // Si no existe, generar nuevo PDF
-        Log::info('Generando nuevo PDF para factura', ['factura_id' => $factura->id]);
 
         // Crear directorio si no existe
         $directory = storage_path('app/facturas');
@@ -632,43 +714,128 @@ public function descargar(Factura $factura)
             mkdir($directory, 0755, true);
         }
 
-        // Generar PDF usando DomPDF
-        $items = [];
-        if (is_string($factura->items)) {
-            $items = json_decode($factura->items, true) ?? [];
-        } elseif (is_array($factura->items)) {
-            $items = $factura->items;
+        // Cargar el archivo bill.html
+        $htmlPath = base_path('resources/views/facturacion/bill.html');
+        if (!file_exists($htmlPath)) {
+            throw new \Exception('Archivo bill.html no encontrado en ' . $htmlPath);
+        }
+        $html = file_get_contents($htmlPath);
+
+        // Preparar los datos para reemplazar los placeholders
+        $items = is_string($factura->items) ? json_decode($factura->items, true) ?? [] : $factura->items;
+        $total = $factura->monto_total ?? 0;
+        $neto = round($total / 1.21, 2);
+        $iva = round($total - $neto, 2);
+
+        // Generar la tabla de ítems
+        $itemsTable = '';
+        if ($items && is_array($items)) {
+            foreach ($items as $index => $item) {
+                $descripcion = htmlspecialchars($item['descripcion'] ?? 'N/A');
+                $identificacion = isset($item['identificacion']) && $item['identificacion'] ? "<br><small style=\"color: #666;\">ID: " . htmlspecialchars($item['identificacion']) . "</small>" : '';
+                $resultado = isset($item['resultado']) && $item['resultado'] ? "<br><small style=\"color: #666;\">Resultado: " . htmlspecialchars($item['resultado']) . "</small>" : '';
+                $tipo = $item['tipo'] == 'muestra' ? 'Muestra' : ($item['tipo'] == 'analisis' ? 'Análisis' : 'Unidad');
+                $itemsTable .= "
+                    <tr>
+                        <td>" . ($index + 1) . "</td>
+                        <td>$descripcion$identificacion$resultado</td>
+                        <td>" . ($item['cantidad'] ?? 1) . "</td>
+                        <td>$tipo</td>
+                        <td>" . number_format($item['precio_unitario'] ?? 0, 2, ',', '.') . "</td>
+                        <td>0,00</td>
+                        <td>0,00</td>
+                        <td>" . number_format($item['subtotal'] ?? 0, 2, ',', '.') . "</td>
+                    </tr>";
+            }
+        } else {
+            $itemsTable = '<tr><td colspan="8" style="text-align: center;">No hay ítems registrados</td></tr>';
         }
 
-        $pdf = Pdf::loadView('facturacion.template_afip', [
-            'factura' => $factura,
-            'cotizacion' => $factura->cotizacion,
-            'items' => $items,
-            'fecha' => $factura->fecha_emision->format('d/m/Y')
-        ]);
+        // Reemplazar placeholders
+        $replacements = [
+            '{{numero_factura}}' => htmlspecialchars($factura->numero_factura ?? 'N/A'),
+            '{{empresa_nombre}}' => htmlspecialchars(env('EMPRESA_NOMBRE', 'Industria y Ambiente')),
+            '{{empresa_direccion}}' => htmlspecialchars(env('EMPRESA_DIRECCION', 'Dirección del Laboratorio')),
+            '{{empresa_cuit}}' => htmlspecialchars(env('EMPRESA_CUIT', '20-12345678-9')),
+            '{{empresa_iibb}}' => htmlspecialchars(env('EMPRESA_IIBB', '12345432')),
+            '{{empresa_fecha_inicio}}' => htmlspecialchars(env('EMPRESA_FECHA_INICIO', '01/01/2020')),
+            '{{punto_venta}}' => htmlspecialchars(substr($factura->numero_factura ?? '0000-00000000', 0, 4)),
+            '{{comp_nro}}' => htmlspecialchars(substr($factura->numero_factura ?? '0000-00000000', 5)),
+            '{{fecha_emision}}' => $factura->fecha_emision ? $factura->fecha_emision->format('d/m/Y') : 'N/A',
+            '{{periodo_desde}}' => $factura->fecha_emision ? $factura->fecha_emision->format('d/m/Y') : 'N/A',
+            '{{periodo_hasta}}' => $factura->fecha_emision ? $factura->fecha_emision->format('d/m/Y') : 'N/A',
+            '{{fecha_vencimiento_cae}}' => $factura->fecha_vencimiento_cae ? \Carbon\Carbon::parse($factura->fecha_vencimiento_cae)->format('d/m/Y') : 'N/A',
+            '{{coti_cuit}}' => htmlspecialchars($factura->cotizacion->coti_cuit ?? 'N/A'),
+            '{{coti_empresa}}' => htmlspecialchars($factura->cotizacion->coti_empresa ?? 'N/A'),
+            '{{coti_direccioncli}}' => htmlspecialchars($factura->cotizacion->coti_direccioncli ?? 'N/A'),
+            '{{items_table}}' => $itemsTable,
+            '{{neto}}' => number_format($neto, 2, ',', '.'),
+            '{{iva}}' => number_format($iva, 2, ',', '.'),
+            '{{total}}' => number_format($total, 2, ',', '.'),
+            '{{cae}}' => htmlspecialchars($factura->cae ?? 'N/A'),
+            '{{qr_code}}' => htmlspecialchars($factura->qr_code ?? '')
+        ];
+        $html = str_replace(array_keys($replacements), array_values($replacements), $html);
 
-        // Configurar opciones del PDF
-        $pdf->setPaper('A4', 'portrait');
-        $pdf->setOptions([
-            'isHtml5ParserEnabled' => true,
-            'isPhpEnabled' => true,
-            'defaultFont' => 'Arial'
-        ]);
+        // Log HTML para depuración
+        file_put_contents(storage_path('app/debug_bill.html'), $html);
+        Log::debug('Processed HTML saved to storage/app/debug_bill.html');
 
-        // Guardar el PDF en storage
-        $pdfContent = $pdf->output();
-        file_put_contents($filePath, $pdfContent);
+        // Opciones para el archivo
+        $options = [
+            'width' => 8,
+            'marginLeft' => 0.4,
+            'marginRight' => 0.4,
+            'marginTop' => 0.4,
+            'marginBottom' => 0.4
+        ];
+
+        // Crear PDF con Afip SDK
+        $afip = new Afip(['CUIT' => env('AFIP_CUIT'), 'production' => env('AFIP_PRODUCTION', false)]);
+        try {
+            $res = $afip->ElectronicBilling->CreatePDF([
+                'html' => $html,
+                'file_name' => $fileName,
+                'options' => $options
+            ]);
+            Log::debug('CreatePDF response:', ['response' => $res]);
+        } catch (\Exception $e) {
+            throw new \Exception('Error en CreatePDF: ' . $e->getMessage());
+        }
+
+        // Verificar si el archivo es una URL
+        if (!isset($res['file'])) {
+            throw new \Exception('No se generó el archivo PDF. Respuesta: ' . json_encode($res));
+        }
+
+        // Si es una URL, descargar el archivo
+        if (filter_var($res['file'], FILTER_VALIDATE_URL)) {
+            $pdfContent = @file_get_contents($res['file']);
+            if ($pdfContent === false) {
+                throw new \Exception('No se pudo descargar el PDF desde ' . $res['file']);
+            }
+            if (!file_put_contents($filePath, $pdfContent)) {
+                throw new \Exception('No se pudo guardar el PDF en ' . $filePath);
+            }
+        } else {
+            // Si es un archivo local, moverlo
+            if (!file_exists($res['file'])) {
+                throw new \Exception('El archivo PDF local no existe: ' . $res['file']);
+            }
+            if (!rename($res['file'], $filePath)) {
+                throw new \Exception('No se pudo mover el archivo PDF de ' . $res['file'] . ' a ' . $filePath);
+            }
+        }
 
         // Actualizar la referencia en la base de datos
         $factura->update(['pdf_url' => $fileName]);
 
-        Log::info('PDF generado exitosamente', [
+        Log::info('PDF generado exitosamente con Afip SDK', [
             'factura_id' => $factura->id,
             'archivo' => $fileName,
-            'tamaño' => strlen($pdfContent) . ' bytes'
+            'tamaño' => filesize($filePath) . ' bytes'
         ]);
 
-        // Descargar el archivo
         return response()->download($filePath, $fileName);
 
     } catch (\Exception $e) {
@@ -677,17 +844,17 @@ public function descargar(Factura $factura)
             'numero_factura' => $factura->numero_factura,
             'error_trace' => $e->getTraceAsString()
         ]);
-        
-        // Devuelve JSON si es una solicitud AJAX/fetch
+
         if (request()->wantsJson() || request()->ajax()) {
             return response()->json([
                 'error' => 'No se pudo generar el PDF: ' . $e->getMessage()
             ], 500);
         }
-        
+
         return back()->with('error', 'No se pudo generar el PDF: ' . $e->getMessage());
     }
 }
+
 
 private function urlPdfValida($url)
 {

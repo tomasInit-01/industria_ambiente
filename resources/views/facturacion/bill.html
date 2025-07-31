@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Factura {{numero_factura}}</title>
+    <style type="text/css">
+        * {
+            box-sizing: border-box;
+            font-family: Arial, sans-serif;
+            font-size: 13px;
+        }
+        .bill-container {
+            width: 7.5in;
+            margin: 0 auto;
+            border-collapse: collapse;
+            padding: 0.15in;
+        }
+        .bill-emitter-row td {
+            width: 50%;
+            border-bottom: 1px solid #000;
+            padding: 0.15in 0.25in;
+            vertical-align: top;
+            height: 1.5in;
+        }
+        .bill-emitter-row {
+            position: relative;
+        }
+        .bill-type-container {
+            position: absolute;
+            top: 0.3in;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+        }
+        .bill-type {
+            border: 1px solid #000;
+            background: white;
+            width: 0.6in;
+            height: 0.5in;
+            line-height: 0.5in;
+            text-align: center;
+            font-size: 40px;
+            font-weight: 600;
+        }
+        .text-lg {
+            font-size: 30px;
+        }
+        .text-center {
+            text-align: center;
+        }
+        .row { clear: both; }
+        .margin-b-0 { margin-bottom: 0px; }
+        .bill-row td {
+            padding: 0.1in 0.15in;
+        }
+        .bill-row td > div {
+            border-top: 1px solid #000;
+            border-bottom: 1px solid #000;
+            padding: 0.1in;
+        }
+        .period-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .period-table td {
+            padding: 0.05in;
+        }
+        .row-details table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .row-details table td {
+            padding: 0.05in;
+        }
+        .row-details table tr:nth-child(1) {
+            border-top: 1px solid #000;
+            border-bottom: 1px solid #000;
+            background: #c0c0c0;
+            font-weight: bold;
+            text-align: center;
+        }
+        .row-details table tr + tr {
+            border-top: 1px solid #c0c0c0;
+        }
+        .text-right { text-align: right; }
+        .margin-b-10 { margin-bottom: 0.1in; }
+        .total-row td > div { border-width: 2px; }
+        .row-qrcode td { padding: 0.1in; }
+        #qrcode { width: 50%; }
+    </style>
+</head>
+<body>
+    <table class="bill-container">
+        <tr>
+            <td colspan="2">
+                <div class="bill-type-container">
+                    <div class="bill-type">B</div>
+                </div>
+            </td>
+        </tr>
+        <tr class="bill-emitter-row">
+            <td style="padding-right: 0.45in;">
+                <div class="text-lg text-center">{{empresa_nombre}}</div>
+                <p><strong>Razón social:</strong> {{empresa_nombre}}</p>
+                <p><strong>Domicilio Comercial:</strong> {{empresa_direccion}}</p>
+                <p><strong>Condición Frente al IVA:</strong> Responsable Inscripto</p>
+            </td>
+            <td>
+                <div style="padding-left: 0.5in;">
+                    <div class="text-lg">Factura</div>
+                    <p><strong>Punto de Venta:</strong> {{punto_venta}}</p>
+                    <p><strong>Comp. Nro:</strong> {{comp_nro}}</p>
+                    <p><strong>Fecha de Emisión:</strong> {{fecha_emision}}</p>
+                    <p><strong>CUIT:</strong> {{empresa_cuit}}</p>
+                    <p><strong>Ingresos Brutos:</strong> {{empresa_iibb}}</p>
+                    <p><strong>Fecha de Inicio de Actividades:</strong> {{empresa_fecha_inicio}}</p>
+                </div>
+            </td>
+        </tr>
+        <tr class="bill-row">
+            <td colspan="2">
+                <div>
+                    <table class="period-table">
+                        <tr>
+                            <td style="width: 33.33%;"><strong>Período Facturado Desde:</strong> {{periodo_desde}}</td>
+                            <td style="width: 25%;"><strong>Hasta:</strong> {{periodo_hasta}}</td>
+                            <td style="width: 41.67%;"><strong>Fecha de Vto. para el pago:</strong> {{fecha_vencimiento_cae}}</td>
+                        </tr>
+                    </table>
+                </div>
+            </td>
+        </tr>
+        <tr class="bill-row">
+            <td colspan="2">
+                <div>
+                    <p><strong>CUIL/CUIT:</strong> {{coti_cuit}}</p>
+                    <p><strong>Apellido y Nombre / Razón social:</strong> {{coti_empresa}}</p>
+                    <p><strong>Condición Frente al IVA:</strong> Consumidor final</p>
+                    <p><strong>Domicilio:</strong> {{coti_direccioncli}}</p>
+                    <p><strong>Condición de venta:</strong> Efectivo</p>
+                </div>
+            </td>
+        </tr>
+        <tr class="bill-row row-details">
+            <td colspan="2">
+                <div>
+                    <table>
+                        <tr>
+                            <td>Código</td>
+                            <td>Producto / Servicio</td>
+                            <td>Cantidad</td>
+                            <td>U. Medida</td>
+                            <td>Precio Unit.</td>
+                            <td>% Bonif.</td>
+                            <td>Imp. Bonif.</td>
+                            <td>Subtotal</td>
+                        </tr>
+                        {{items_table}}
+                    </table>
+                </div>
+            </td>
+        </tr>
+        <tr class="bill-row total-row">
+            <td colspan="2">
+                <div>
+                    <p style="text-align: right;"><strong>Subtotal: $</strong> {{neto}}</p>
+                    <p style="text-align: right;"><strong>Importe Otros Tributos: $</strong> {{iva}}</p>
+                    <p style="text-align: right;"><strong>Importe total: $</strong> {{total}}</p>
+                </div>
+            </td>
+        </tr>
+        <tr class="bill-row row-qrcode">
+            <td>
+                <div>
+                    <!-- <img id="qrcode" src="{{qr_code}}" alt="QR Code"> -->
+                </div>
+            </td>
+            <td>
+                <div>
+                    <p style="text-align: right; margin-bottom: 0.1in;"><strong>CAE Nº:</strong> {{cae}}</p>
+                    <p style="text-align: right;"><strong>Fecha de Vto. de CAE:</strong> {{fecha_vencimiento_cae}}</p>
+                </div>
+            </td>
+        </tr>
+        <tr class="bill-row row-details">
+            <td colspan="2">
+                <div>
+                    <p style="text-align: center; margin-bottom: 0.1in;">
+                        Generado con Afip SDK
+                        <img style="height: 20px; vertical-align: middle;" src="https://afipsdk.com/faviconx32.png" alt="📦">
+                    </p>
+                </div>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
