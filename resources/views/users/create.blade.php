@@ -22,6 +22,7 @@
                 <option value="muestreador">Muestreador</option>
                 <option value="coordinador_lab">Coordinador Laboratorio</option>
                 <option value="coordinador_muestreo">Coordinador Muestreo</option>
+                <option value="facturador">Facturador</option>
             </select>
         </div>
 

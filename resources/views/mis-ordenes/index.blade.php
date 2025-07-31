@@ -62,7 +62,7 @@
                                name="fecha_fin_ot" value="{{ request('fecha_fin_ot') }}">
                     </div>
 
-                    <div class="col-md-3">
+                    <div class="col-md-3" id="estadoContainer">
                         <label for="estado" class="form-label">Estado</label>
                         <select class="form-select" id="estado" name="estado">
                             <option value="">Todos</option>
@@ -71,6 +71,12 @@
                             <option value="analizado" {{ request('estado') === 'analizado' ? 'selected' : '' }}>Analizado</option>
                             <option value="suspension" {{ request('estado') === 'suspension' ? 'selected' : '' }}>Suspensión</option>
                         </select>
+                    </div>
+                    
+                    <div class="col-md-3" id="descripcionContainer" style="display: none;">
+                        <label for="cotio_descripcion_analisis" class="form-label">Descripción análisis</label>
+                        <input type="text" class="form-control" id="cotio_descripcion_analisis" name="cotio_descripcion_analisis" 
+                               placeholder="Ej: CONDUCTIVIDAD ELECTRICA" value="{{ request('cotio_descripcion_analisis') }}">
                     </div>
                     
                     <div class="col-12">
@@ -98,26 +104,27 @@
             'analizado' => 'success',
             'suspension' => 'danger',
         };
-
     @endphp
-        <div class="card mb-3 shadow-sm border-{{ $bagdeClass }}">
-            <div class="card-body py-2">
-                <div class="mb-2 fw-bold text-dark">
-                    Análisis con estado "{{ ucfirst(request('estado')) }}":
-                </div>
-                <ul class="list-group list-group-flush">
-                    @foreach($analitosSugeridos as $analito)
-                        <li class="list-group-item d-flex justify-content-between align-items-center table-{{ $bagdeClass }}">
-                            <span>
-                                {{ $analito->cotio_descripcion ?? 'Sin descripción' }}
-                                <span class="text-muted small">(Cotización N° {{ $analito->cotio_numcoti }})</span>
-                            </span>
-                            <a href="/ordenes-all/{{ $analito->cotio_numcoti }}/{{ $analito->cotio_item }}/{{ $analito->cotio_subitem }}/{{ $analito->instance_number }}" class="btn bg-{{ $bagdeClass }} text-white btn-sm">Ver análisis</a>
-                        </li>
-                    @endforeach
-                </ul>
+    <div class="card mb-3 shadow-sm border-{{ $bagdeClass }}" id="analitosSugeridosContainer">
+        <div class="card-body py-2">
+            <div class="mb-2 fw-bold text-dark">
+                Análisis con estado "{{ ucfirst(request('estado')) }}":
             </div>
+            <ul class="list-group list-group-flush" id="listaAnalitos">
+                @foreach($analitosSugeridos as $analito)
+                    <li class="list-group-item d-flex justify-content-between align-items-center table-{{ $bagdeClass }} analito-item" 
+                        data-descripcion="{{ strtolower($analito->cotio_descripcion ?? '') }}">
+                        <span>
+                            {{ $analito->cotio_descripcion ?? 'Sin descripción' }}
+                            <span class="text-muted small">(Cotización N° {{ $analito->cotio_numcoti }})</span>
+                        </span>
+                        <a href="/ordenes-all/{{ $analito->cotio_numcoti }}/{{ $analito->cotio_item }}/{{ $analito->cotio_subitem }}/{{ $analito->instance_number }}?openModal={{ $analito->cotio_subitem }}" 
+                            class="btn bg-{{ $bagdeClass }} text-white btn-sm">Ver análisis</a>
+                    </li>
+                @endforeach
+            </ul>
         </div>
+    </div>
     @endif
 
     @if(session('success'))
@@ -190,6 +197,55 @@
         });
     });
 </script>
+
+<script>
+    function filtrarAnalitos() {
+        const filtroDescripcion = document.getElementById('cotio_descripcion_analisis').value.toLowerCase();
+        const items = document.querySelectorAll('.analito-item');
+        
+        items.forEach(item => {
+            const descripcion = item.getAttribute('data-descripcion');
+            if (descripcion.includes(filtroDescripcion) || filtroDescripcion === '') {
+                item.style.display = 'flex';
+            } else {
+                item.style.display = 'none';
+            }
+        });
+    }
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        // Si hay un valor en el filtro de descripción al cargar la página, aplica el filtro
+        if (document.getElementById('cotio_descripcion_analisis').value) {
+            filtrarAnalitos();
+        }
+    });
+</script>
+
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const estadoSelect = document.getElementById('estado');
+        const descripcionContainer = document.getElementById('descripcionContainer');
+        
+        // Mostrar/ocultar al cargar la página según el estado seleccionado
+        if (estadoSelect.value) {
+            descripcionContainer.style.display = 'block';
+        }
+        
+        // Manejar cambios en el select de estado
+        estadoSelect.addEventListener('change', function() {
+            if (this.value) {
+                descripcionContainer.style.display = 'block';
+                // Opcional: enfocar el campo de descripción
+                document.getElementById('cotio_descripcion_analisis').focus();
+            } else {
+                descripcionContainer.style.display = 'none';
+                // Limpiar el campo al seleccionar "Todos"
+                document.getElementById('cotio_descripcion_analisis').value = '';
+            }
+        });
+    });
+    </script>
     
 <style>
     #searchToggleBtn.active {

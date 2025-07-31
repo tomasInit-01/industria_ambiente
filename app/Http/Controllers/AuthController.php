@@ -44,6 +44,8 @@ class AuthController extends Controller
                 return redirect()->intended('/dashboard/analisis');
             } elseif($user->rol == 'coordinador_muestreo') {
                 return redirect()->intended('/dashboard/muestreo');
+            } elseif($user->rol == 'facturador') {
+                return redirect()->intended('/facturacion');
             } else {
                 return redirect()->intended('/login');
             }

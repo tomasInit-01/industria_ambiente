@@ -4,8 +4,59 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "e88569a8d1966f15f2c04f8f539c3506",
+    "content-hash": "3aa3bab2197a144f48e4abb47f1ee97e",
     "packages": [
+        {
+            "name": "afipsdk/afip.php",
+            "version": "v1.1.5",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/AfipSDK/afip.php.git",
+                "reference": "62a13ab5780a93eb5f301abcd2854df6a9cef56c"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/AfipSDK/afip.php/zipball/62a13ab5780a93eb5f301abcd2854df6a9cef56c",
+                "reference": "62a13ab5780a93eb5f301abcd2854df6a9cef56c",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=5.3.3"
+            },
+            "type": "library",
+            "autoload": {
+                "files": [
+                    "src/Afip.php"
+                ]
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Afip SDK",
+                    "email": "afipsdk@gmail.com"
+                }
+            ],
+            "description": "Libreria para usar los Web Services de AFIP (Argentina) ",
+            "homepage": "https://github.com/afipsdk/afip.php",
+            "keywords": [
+                "afip",
+                "cae",
+                "contribuyente",
+                "facturacion-electronica",
+                "gratis",
+                "libreria",
+                "padron",
+                "soap"
+            ],
+            "support": {
+                "issues": "https://github.com/AfipSDK/afip.php/issues",
+                "source": "https://github.com/AfipSDK/afip.php/tree/v1.1.5"
+            },
+            "time": "2025-07-07T07:36:40+00:00"
+        },
         {
             "name": "bacon/bacon-qr-code",
             "version": "2.0.8",

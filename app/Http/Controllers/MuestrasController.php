@@ -957,275 +957,287 @@ public function updateAllData(Request $request)
 
 
 public function asignacionMasiva(Request $request)
- {
-        $itemsSeleccionados = json_decode($request->items_seleccionados, true);
-        $parametrosSeleccionados = json_decode($request->parametros_seleccionados, true);
+{
+    $itemsSeleccionados = json_decode($request->items_seleccionados, true);
+    $parametrosSeleccionados = json_decode($request->parametros_seleccionados, true);
 
-        // Validar la solicitud
-        $request->validate([
-            'cotio_numcoti' => 'required|string',
-            'items_seleccionados' => 'required|json',
-            'responsables_muestreo' => 'nullable|array',
-            'responsables_muestreo.*' => 'nullable|string|exists:usu,usu_codigo',
-            'herramientas' => 'nullable|array',
-            'herramientas.*' => 'nullable|integer|exists:inventario_muestreo,id',
-            'vehiculo' => 'nullable|integer|exists:vehiculos,id',
-            'fecha_inicio_muestreo' => 'required|date',
-            'fecha_fin_muestreo' => 'required|date|after_or_equal:fecha_inicio_muestreo',
-            'habilitar_frecuencia' => 'required|boolean',
-            'frecuencia' => 'nullable|in:diario,semanal,quincenal,mensual,trimestral,cuatrimestral,semestral,anual',
-            'parametros_seleccionados' => 'required|json',
-            'parametros_seleccionados.*.item' => 'required_with:parametros_seleccionados|integer',
-            'parametros_seleccionados.*.subitem' => 'required_with:parametros_seleccionados|integer',
-            'parametros_seleccionados.*.instance' => 'required_with:parametros_seleccionados|integer',
-            'parametros_seleccionados.*.variables' => 'required_with:parametros_seleccionados|array',
-            'parametros_seleccionados.*.variables.*' => 'integer|exists:variables_requeridas,id'
-        ]);
+    // Validar la solicitud
+    $request->validate([
+        'cotio_numcoti' => 'required|string',
+        'items_seleccionados' => 'required|json',
+        'responsables_muestreo' => 'nullable|array',
+        'responsables_muestreo.*' => 'nullable|string|exists:usu,usu_codigo',
+        'herramientas' => 'nullable|array',
+        'herramientas.*' => 'nullable|integer|exists:inventario_muestreo,id',
+        'vehiculo' => 'nullable|integer|exists:vehiculos,id',
+        'fecha_inicio_muestreo' => 'required|date',
+        'fecha_fin_muestreo' => 'required|date|after_or_equal:fecha_inicio_muestreo',
+        'habilitar_frecuencia' => 'required|boolean',
+        'frecuencia' => 'nullable|in:diario,semanal,quincenal,mensual,trimestral,cuatrimestral,semestral,anual',
+        'parametros_seleccionados' => 'required|json',
+        'parametros_seleccionados.*.item' => 'required_with:parametros_seleccionados|integer',
+        'parametros_seleccionados.*.subitem' => 'required_with:parametros_seleccionados|integer',
+        'parametros_seleccionados.*.instance' => 'required_with:parametros_seleccionados|integer',
+        'parametros_seleccionados.*.variables' => 'required_with:parametros_seleccionados|array',
+        'parametros_seleccionados.*.variables.*' => 'integer|exists:variables_requeridas,id'
+    ]);
 
-        DB::beginTransaction();
-        try {
-            $cotioNumcoti = $request->cotio_numcoti;
-            $itemsData = $itemsSeleccionados;
-            $parametrosSeleccionados = $parametrosSeleccionados;
-            $userId = Auth::user()->usu_codigo;
-            $updatedCount = 0;
+    DB::beginTransaction();
+    try {
+        $cotioNumcoti = $request->cotio_numcoti;
+        $itemsData = $itemsSeleccionados;
+        $parametrosSeleccionados = $parametrosSeleccionados;
+        $userId = Auth::user()->usu_codigo;
+        $updatedCount = 0;
 
-            // Mapa de frecuencias a unidades y valores
-            $frecuenciaMap = [
-                'diario' => ['unit' => 'day', 'value' => 1],
-                'semanal' => ['unit' => 'week', 'value' => 1],
-                'quincenal' => ['unit' => 'week', 'value' => 2],
-                'mensual' => ['unit' => 'month', 'value' => 1],
-                'trimestral' => ['unit' => 'month', 'value' => 3],
-                'cuatrimestral' => ['unit' => 'month', 'value' => 4],
-                'semestral' => ['unit' => 'month', 'value' => 6],
-                'anual' => ['unit' => 'year', 'value' => 1],
+        // Mapa de frecuencias a unidades y valores
+        $frecuenciaMap = [
+            'diario' => ['unit' => 'day', 'value' => 1],
+            'semanal' => ['unit' => 'week', 'value' => 1],
+            'quincenal' => ['unit' => 'week', 'value' => 2],
+            'mensual' => ['unit' => 'month', 'value' => 1],
+            'trimestral' => ['unit' => 'month', 'value' => 3],
+            'cuatrimestral' => ['unit' => 'month', 'value' => 4],
+            'semestral' => ['unit' => 'month', 'value' => 6],
+            'anual' => ['unit' => 'year', 'value' => 1],
+        ];
+
+        // Mapear IDs de variables a nombres
+        $variableNames = VariableRequerida::pluck('nombre', 'id')->toArray();
+
+        // Obtener variables obligatorias por tipo de muestra
+        $mandatoryVariables = VariableRequerida::where('obligatorio', true)
+            ->get()
+            ->groupBy('cotio_descripcion')
+            ->mapWithKeys(function ($variables, $tipoMuestra) {
+                return [$tipoMuestra => $variables->pluck('id')->toArray()];
+            });
+
+        // Precargar ítems desde Cotio para validar
+        $allItems = Cotio::where('cotio_numcoti', $cotioNumcoti)
+            ->get()
+            ->keyBy(function ($item) {
+                return "{$item->cotio_item}-{$item->cotio_subitem}";
+            });
+
+        // Función auxiliar para obtener descripción y precio
+        $getCotioData = function ($item, $subitem) use ($allItems) {
+            $key = "{$item}-{$subitem}";
+            $cotio = $allItems->get($key);
+            return [
+                'descripcion' => $cotio?->cotio_descripcion,
+                'precio' => $cotio?->cotio_precio ? $cotio->cotio_precio : null
             ];
+        };
 
-            // Mapear IDs de variables a nombres
-            $variableNames = VariableRequerida::pluck('nombre', 'id')->toArray();
-
-            // Obtener variables obligatorias por tipo de muestra
-            $mandatoryVariables = VariableRequerida::where('obligatorio', true)
-                ->get()
-                ->groupBy('cotio_descripcion')
-                ->mapWithKeys(function ($variables, $tipoMuestra) {
-                    return [$tipoMuestra => $variables->pluck('id')->toArray()];
-                });
-
-            // Precargar ítems desde Cotio para validar
-            $allItems = Cotio::where('cotio_numcoti', $cotioNumcoti)
-                ->get()
-                ->keyBy(function($item) {
-                    return "{$item->cotio_item}-{$item->cotio_subitem}";
-                });
-
-            // Validar muestras para frecuencia
-            $muestras = collect($itemsData)->where('subitem', '0')->values();
-            if ($request->habilitar_frecuencia && $request->frecuencia) {
-                if ($muestras->count() < 2) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Se requieren al menos dos muestras para habilitar frecuencia.'
-                    ], 422);
-                }
-                $firstMuestra = $muestras->first();
-                $valid = $muestras->every(fn($item) => 
-                    $item['item'] === $firstMuestra['item'] && 
-                    $item['descripcion'] === $firstMuestra['descripcion']
-                );
-                if (!$valid) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Las muestras seleccionadas deben ser del mismo tipo para habilitar frecuencia.'
-                    ], 422);
-                }
+        // Validar muestras para frecuencia
+        $muestras = collect($itemsData)->where('subitem', '0')->values();
+        if ($request->habilitar_frecuencia && $request->frecuencia) {
+            if ($muestras->count() < 2) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Se requieren al menos dos muestras para habilitar frecuencia.'
+                ], 422);
             }
-
-            // Agrupar muestras por cotio_item para calcular índices específicos
-            $muestrasPorItem = collect($itemsData)
-                ->where('subitem', '0')
-                ->groupBy('item')
-                ->map(function ($group) {
-                    return $group->sortBy('instance')->values();
-                });
-
-            // Procesar los ítems manualmente seleccionados
-            $manualSelections = collect($itemsData)->where('isManual', true);
-            $processedInstances = [];
-            $affectedInstances = collect();
-
-            foreach ($manualSelections as $itemData) {
-                $item = $itemData['item'];
-                $subitem = $itemData['subitem'];
-                $instance = $itemData['instance'];
-                $cotioKey = "{$item}-{$subitem}";
-                if (!$allItems->has($cotioKey)) continue;
-
-                $instancia = CotioInstancia::firstOrNew([
-                    'cotio_numcoti' => $cotioNumcoti,
-                    'cotio_item' => $item,
-                    'cotio_subitem' => $subitem,
-                    'instance_number' => $instance
-                ]);
-
-                // Solo modificar si es nueva instancia o fue selección manual
-                if (!$instancia->exists || $itemData['isManual']) {
-                    $instancia->active_muestreo = $itemData['isManual'];
-                    $instancia->fecha_muestreo = $itemData['isManual'] ? now() : null;
-                    $instancia->coordinador_codigo = $userId;
-                    $instancia->cotio_estado = 'coordinado muestreo';
-                    
-                    $descripcion = $allItems[$cotioKey]->cotio_descripcion;
-                    if ($descripcion && !$instancia->cotio_descripcion) {
-                        $instancia->cotio_descripcion = $descripcion;
-                    }
-                }
-
-                // Actualizar campos comunes (solo para selecciones manuales)
-                if ($itemData['isManual']) {
-                    $startDate = Carbon::parse($request->fecha_inicio_muestreo);
-                    if ($request->habilitar_frecuencia && $request->frecuencia && isset($frecuenciaMap[$request->frecuencia])) {
-                        $frecuencia = $frecuenciaMap[$request->frecuencia];
-                        $muestraIndex = 0;
-                        if ($subitem == '0') {
-                            $muestrasGrupo = $muestrasPorItem->get($item, collect());
-                            $muestraIndex = $muestrasGrupo->search(fn($m) => $m['instance'] == $instance) ?: 0;
-                        } else {
-                            $muestraAsociada = $muestras->firstWhere(fn($m) => $m['item'] == $item && $m['instance'] == $instance);
-                            if ($muestraAsociada) {
-                                $muestrasGrupo = $muestrasPorItem->get($item, collect());
-                                $muestraIndex = $muestrasGrupo->search(fn($m) => $m['instance'] == $muestraAsociada['instance']) ?: 0;
-                            }
-                        }
-                        $startDate->addUnit($frecuencia['unit'], $frecuencia['value'] * $muestraIndex);
-                        $instancia->es_frecuente = true;
-                    }
-                    $endDate = Carbon::parse($request->fecha_fin_muestreo)->setDateFrom($startDate);
-
-                    $instancia->fecha_inicio_muestreo = $startDate;
-                    $instancia->fecha_fin_muestreo = $endDate;
-
-                    if ($request->filled('vehiculo')) {
-                        $instancia->vehiculo_asignado = $request->vehiculo;
-                    }
-                }
-
-                // Guardar la instancia para obtener un ID válido
-                $instancia->save();
-                $updatedCount++;
-
-                // Sincronizar responsables solo para ítems seleccionados manualmente
-                if ($itemData['isManual'] && !empty($request->responsables_muestreo)) {
-                    $instancia->responsablesMuestreo()->sync($request->responsables_muestreo);
-                    Log::debug('Asignando responsables_muestreo a ítem seleccionado manualmente', [
-                        'instancia_id' => $instancia->id,
-                        'item' => $item,
-                        'subitem' => $subitem,
-                        'instance' => $instance,
-                        'responsables_muestreo' => $request->responsables_muestreo
-                    ]);
-                } elseif ($itemData['isManual']) {
-                    // Si no hay responsables, limpiar asignaciones previas para ítems manuales
-                    $instancia->responsablesMuestreo()->detach();
-                    Log::debug('Limpiando responsables_muestreo para ítem seleccionado manualmente', [
-                        'instancia_id' => $instancia->id,
-                        'item' => $item,
-                        'subitem' => $subitem,
-                        'instance' => $instance
-                    ]);
-                }
-
-                // Procesar variables seleccionadas
-                $parametrosInstancia = collect($parametrosSeleccionados)
-                    ->firstWhere(fn($p) => $p['item'] == $item && $p['subitem'] == $subitem && $p['instance'] == $instance);
-
-                $selectedVariableIds = $parametrosInstancia['variables'] ?? [];
-                $mandatoryVariableIds = $mandatoryVariables[$instancia->cotio_descripcion] ?? [];
-                $allVariableIds = array_unique(array_merge($selectedVariableIds, $mandatoryVariableIds));
-
-                // Limpiar variables existentes para evitar duplicados
-                CotioValorVariable::where('cotio_instancia_id', $instancia->id)->delete();
-
-                // Asignar variables en la tabla pivote
-                foreach ($allVariableIds as $variableId) {
-                    $variableNombre = $variableNames[$variableId] ?? null;
-                    if (!$variableNombre) continue;
-
-                    CotioValorVariable::create([
-                        'cotio_instancia_id' => $instancia->id,
-                        'variable' => $variableNombre,
-                        'valor' => null
-                    ]);
-                }
-
-                // Registrar instancia procesada
-                $processedInstances["{$item}-{$subitem}-{$instance}"] = true;
-                
-                // Registrar instancias afectadas (solo muestras principales)
-                if ($subitem == '0') {
-                    $affectedInstances->push([
-                        'item' => $item,
-                        'instance' => $instance,
-                        'fecha_inicio_muestreo' => $instancia->fecha_inicio_muestreo,
-                        'fecha_fin_muestreo' => $instancia->fecha_fin_muestreo
-                    ]);
-                }
-
-                // Asignar herramientas si se especifican (solo para selecciones manuales)
-                if ($itemData['isManual'] && !empty($request->herramientas)) {
-                    $this->actualizarHerramientas(
-                        $cotioNumcoti,
-                        $item,
-                        $subitem,
-                        $instance,
-                        $request->herramientas,
-                        $instancia->exists
-                    );
-                }
+            $firstMuestra = $muestras->first();
+            $valid = $muestras->every(fn($item) => 
+                $item['item'] === $firstMuestra['item'] && 
+                $item['descripcion'] === $firstMuestra['descripcion']
+            );
+            if (!$valid) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Las muestras seleccionadas deben ser del mismo tipo para habilitar frecuencia.'
+                ], 422);
             }
-
-            // Procesar análisis no seleccionados para las instancias afectadas
-            foreach ($affectedInstances->unique() as $mainItem) {
-                $this->procesarAnalisisDeCategoria(
-                    $cotioNumcoti,
-                    $mainItem['item'],
-                    $mainItem['instance'],
-                    $allItems,
-                    $request,
-                    $userId,
-                    $updatedCount,
-                    $mainItem['fecha_inicio_muestreo'],
-                    $mainItem['fecha_fin_muestreo'],
-                    $request->habilitar_frecuencia && $request->frecuencia
-                );
-            }
-
-            DB::commit();
-
-            return response()->json([
-                'success' => true,
-                'message' => "Asignación completada para $updatedCount instancias",
-                'updated_count' => $updatedCount
-            ]);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('Error en asignacionMasiva', [
-                'message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-            return response()->json([
-                'success' => false,
-                'message' => 'Error en asignación masiva: ' . $e->getMessage(),
-                'error_details' => $e->getTraceAsString()
-            ], 500);
         }
+
+        // Agrupar muestras por cotio_item para calcular índices específicos
+        $muestrasPorItem = collect($itemsData)
+            ->where('subitem', '0')
+            ->groupBy('item')
+            ->map(function ($group) {
+                return $group->sortBy('instance')->values();
+            });
+
+        // Procesar los ítems manualmente seleccionados
+        $manualSelections = collect($itemsData)->where('isManual', true);
+        $processedInstances = [];
+        $affectedInstances = collect();
+
+        foreach ($manualSelections as $itemData) {
+            $item = $itemData['item'];
+            $subitem = $itemData['subitem'];
+            $instance = $itemData['instance'];
+            $cotioKey = "{$item}-{$subitem}";
+            if (!$allItems->has($cotioKey)) continue;
+
+            $instancia = CotioInstancia::firstOrNew([
+                'cotio_numcoti' => $cotioNumcoti,
+                'cotio_item' => $item,
+                'cotio_subitem' => $subitem,
+                'instance_number' => $instance
+            ]);
+
+            // Solo modificar si es nueva instancia o fue selección manual
+            if (!$instancia->exists || $itemData['isManual']) {
+                $cotioData = $getCotioData($item, $subitem);
+                if ($cotioData['descripcion'] && !$instancia->cotio_descripcion) {
+                    $instancia->cotio_descripcion = $cotioData['descripcion'];
+                }
+                if ($cotioData['precio'] !== null) {
+                    $instancia->monto = $cotioData['precio'];
+                }
+
+                $instancia->active_muestreo = $itemData['isManual'];
+                $instancia->fecha_muestreo = $itemData['isManual'] ? now() : null;
+                $instancia->coordinador_codigo = $userId;
+                $instancia->cotio_estado = 'coordinado muestreo';
+            }
+
+            // Actualizar campos comunes (solo para selecciones manuales)
+            if ($itemData['isManual']) {
+                $startDate = Carbon::parse($request->fecha_inicio_muestreo);
+                if ($request->habilitar_frecuencia && $request->frecuencia && isset($frecuenciaMap[$request->frecuencia])) {
+                    $frecuencia = $frecuenciaMap[$request->frecuencia];
+                    $muestraIndex = 0;
+                    if ($subitem == '0') {
+                        $muestrasGrupo = $muestrasPorItem->get($item, collect());
+                        $muestraIndex = $muestrasGrupo->search(fn($m) => $m['instance'] == $instance) ?: 0;
+                    } else {
+                        $muestraAsociada = $muestras->firstWhere(fn($m) => $m['item'] == $item && $m['instance'] == $instance);
+                        if ($muestraAsociada) {
+                            $muestrasGrupo = $muestrasPorItem->get($item, collect());
+                            $muestraIndex = $muestrasGrupo->search(fn($m) => $m['instance'] == $muestraAsociada['instance']) ?: 0;
+                        }
+                    }
+                    $startDate->addUnit($frecuencia['unit'], $frecuencia['value'] * $muestraIndex);
+                    $instancia->es_frecuente = true;
+                }
+                $endDate = Carbon::parse($request->fecha_fin_muestreo)->setDateFrom($startDate);
+
+                $instancia->fecha_inicio_muestreo = $startDate;
+                $instancia->fecha_fin_muestreo = $endDate;
+
+                if ($request->filled('vehiculo')) {
+                    $instancia->vehiculo_asignado = $request->vehiculo;
+                }
+            }
+
+            // Guardar la instancia
+            $instancia->save();
+            $updatedCount++;
+
+            // Sincronizar responsables solo para ítems seleccionados manualmente
+            if ($itemData['isManual'] && !empty($request->responsables_muestreo)) {
+                $instancia->responsablesMuestreo()->sync($request->responsables_muestreo);
+                Log::debug('Asignando responsables_muestreo a ítem seleccionado manualmente', [
+                    'instancia_id' => $instancia->id,
+                    'item' => $item,
+                    'subitem' => $subitem,
+                    'instance' => $instance,
+                    'responsables_muestreo' => $request->responsables_muestreo
+                ]);
+            } elseif ($itemData['isManual']) {
+                $instancia->responsablesMuestreo()->detach();
+                Log::debug('Limpiando responsables_muestreo para ítem seleccionado manualmente', [
+                    'instancia_id' => $instancia->id,
+                    'item' => $item,
+                    'subitem' => $subitem,
+                    'instance' => $instance
+                ]);
+            }
+
+            // Procesar variables seleccionadas
+            $parametrosInstancia = collect($parametrosSeleccionados)
+                ->firstWhere(fn($p) => $p['item'] == $item && $p['subitem'] == $subitem && $p['instance'] == $instance);
+
+            $selectedVariableIds = $parametrosInstancia['variables'] ?? [];
+            $mandatoryVariableIds = $mandatoryVariables[$instancia->cotio_descripcion] ?? [];
+            $allVariableIds = array_unique(array_merge($selectedVariableIds, $mandatoryVariableIds));
+
+            // Limpiar variables existentes
+            CotioValorVariable::where('cotio_instancia_id', $instancia->id)->delete();
+
+            // Asignar variables en la tabla pivote
+            foreach ($allVariableIds as $variableId) {
+                $variableNombre = $variableNames[$variableId] ?? null;
+                if (!$variableNombre) continue;
+
+                CotioValorVariable::create([
+                    'cotio_instancia_id' => $instancia->id,
+                    'variable' => $variableNombre,
+                    'valor' => null
+                ]);
+            }
+
+            // Registrar instancia procesada
+            $processedInstances["{$item}-{$subitem}-{$instance}"] = true;
+            
+            // Registrar instancias afectadas (solo muestras principales)
+            if ($subitem == '0') {
+                $affectedInstances->push([
+                    'item' => $item,
+                    'instance' => $instance,
+                    'fecha_inicio_muestreo' => $instancia->fecha_inicio_muestreo,
+                    'fecha_fin_muestreo' => $instancia->fecha_fin_muestreo
+                ]);
+            }
+
+            // Asignar herramientas si se especifican
+            if ($itemData['isManual'] && !empty($request->herramientas)) {
+                $this->actualizarHerramientas(
+                    $cotioNumcoti,
+                    $item,
+                    $subitem,
+                    $instance,
+                    $request->herramientas,
+                    $instancia->exists
+                );
+            }
+        }
+
+        // Procesar análisis no seleccionados para las instancias afectadas
+        foreach ($affectedInstances->unique() as $mainItem) {
+            $this->procesarAnalisisDeCategoria(
+                $cotioNumcoti,
+                $mainItem['item'],
+                $mainItem['instance'],
+                $allItems,
+                $request,
+                $userId,
+                $updatedCount,
+                $mainItem['fecha_inicio_muestreo'],
+                $mainItem['fecha_fin_muestreo'],
+                $request->habilitar_frecuencia && $request->frecuencia
+            );
+        }
+
+        DB::commit();
+
+        return response()->json([
+            'success' => true,
+            'message' => "Asignación completada para $updatedCount instancias",
+            'updated_count' => $updatedCount
+        ]);
+    } catch (\Exception $e) {
+        DB::rollBack();
+        Log::error('Error en asignacionMasiva', [
+            'message' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ]);
+        return response()->json([
+            'success' => false,
+            'message' => 'Error en asignación masiva: ' . $e->getMessage(),
+            'error_details' => $e->getTraceAsString()
+        ], 500);
+    }
 }
 
 protected function procesarAnalisisDeCategoria($cotioNumcoti, $item, $instance, $allItems, $request, $userId, &$updatedCount, $fechaInicio, $fechaFin, $esFrecuente)
 {
     // Obtener todos los análisis para esta categoría
-    $analisisItems = $allItems->filter(function($cotioItem) use ($item) {
+    $analisisItems = $allItems->filter(function ($cotioItem) use ($item) {
         return $cotioItem->cotio_item == $item && $cotioItem->cotio_subitem > 0;
     });
 
@@ -1240,6 +1252,16 @@ protected function procesarAnalisisDeCategoria($cotioNumcoti, $item, $instance, 
             return [$tipoMuestra => $variables->pluck('id')->toArray()];
         });
 
+    // Función auxiliar para obtener descripción y precio
+    $getCotioData = function ($item, $subitem) use ($allItems) {
+        $key = "{$item}-{$subitem}";
+        $cotio = $allItems->get($key);
+        return [
+            'descripcion' => $cotio?->cotio_descripcion,
+            'precio' => $cotio?->cotio_precio ? $cotio->cotio_precio : null
+        ];
+    };
+
     foreach ($analisisItems as $analisis) {
         $instAn = CotioInstancia::firstOrNew([
             'cotio_numcoti' => $cotioNumcoti,
@@ -1250,7 +1272,14 @@ protected function procesarAnalisisDeCategoria($cotioNumcoti, $item, $instance, 
 
         // Solo modificar si es nueva instancia
         if (!$instAn->exists) {
-            $instAn->cotio_descripcion = $analisis->cotio_descripcion;
+            $cotioData = $getCotioData($item, $analisis->cotio_subitem);
+            if ($cotioData['descripcion'] && !$instAn->cotio_descripcion) {
+                $instAn->cotio_descripcion = $cotioData['descripcion'];
+            }
+            if ($cotioData['precio'] !== null) {
+                $instAn->monto = $cotioData['precio'];
+            }
+
             $instAn->active_muestreo = false; // Por defecto no activar
             $instAn->cotio_estado = 'coordinado muestreo';
             $instAn->fecha_inicio_muestreo = $fechaInicio;
@@ -1267,12 +1296,10 @@ protected function procesarAnalisisDeCategoria($cotioNumcoti, $item, $instance, 
                 ->firstWhere(fn($p) => $p['item'] == $item && $p['subitem'] == $analisis->cotio_subitem && $p['instance'] == $instance);
 
             $selectedVariableIds = $parametrosInstancia['variables'] ?? [];
-
-            // Incluir variables obligatorias
             $mandatoryVariableIds = $mandatoryVariables[$instAn->cotio_descripcion] ?? [];
             $allVariableIds = array_unique(array_merge($selectedVariableIds, $mandatoryVariableIds));
 
-            // Limpiar variables existentes para evitar duplicados
+            // Limpiar variables existentes
             CotioValorVariable::where('cotio_instancia_id', $instAn->id)->delete();
 
             // Asignar variables en la tabla pivote
@@ -1412,7 +1439,7 @@ public function finalizarTodas(Request $request)
 public function getDatosRecoordinacion(CotioInstancia $instancia)
 {
     // Verificar que la instancia esté en estado suspensión
-    if ($instancia->cotio_estado !== 'suspension') {
+    if ($instancia->cotio_estado !== 'suspension' && $instancia->cotio_estado !== 'coordinado muestreo' && $instancia->enable_ot == true) {
         return response()->json(['error' => 'La instancia no está en estado suspensión'], 400);
     }
 
@@ -1469,8 +1496,8 @@ public function recoordinar(Request $request)
 
         $instancia = CotioInstancia::findOrFail($validated['instancia_id']);
 
-        if ($instancia->cotio_estado !== 'suspension') {
-            throw new \Exception('La instancia no está en estado suspensión');
+        if ($instancia->cotio_estado !== 'suspension' && $instancia->cotio_estado !== 'coordinado muestreo' && $instancia->enable_ot == true) {
+            throw new \Exception('La muestra no puede ser recoordinada. Se encuentra en órdenes de trabajo o su estado es avanzado.');
         }
 
         // Actualizar datos principales

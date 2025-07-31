@@ -177,7 +177,7 @@
                                                         <p class="mb-0 badge bg-{{ $badgeClass }} ms-2">
                                                             {{ ucfirst($instancia->cotio_estado) }}
                                                         </p>
-                                                        @if($instancia->cotio_estado == 'suspension')
+                                                        @if($instancia->cotio_estado == 'suspension' || ($instancia->cotio_estado == 'coordinado muestreo' && $instancia->enable_ot == false))
                                                             <button type="button" class="btn btn-sm btn-outline-warning" 
                                                                     data-bs-toggle="modal" 
                                                                     data-bs-target="#recoordinarModal"
@@ -1064,12 +1064,20 @@ document.addEventListener('DOMContentLoaded', function() {
         if (now.getDay() === 0) defaultStartDate.setDate(now.getDate() + 1);
         else if (now.getDay() === 6) defaultStartDate.setDate(now.getDate() + 2);
         
-        defaultStartDate.setHours(8, 0, 0, 0);
-        document.getElementById('fecha_inicio_muestreo').value = formatDateTimeForInput(defaultStartDate);
+        // Solo establecer valores por defecto si los campos están vacíos
+        const fechaInicioInput = document.getElementById('fecha_inicio_muestreo');
+        const fechaFinInput = document.getElementById('fecha_fin_muestreo');
         
-        let defaultEndDate = new Date(defaultStartDate);
-        defaultEndDate.setHours(18, 0, 0, 0);
-        document.getElementById('fecha_fin_muestreo').value = formatDateTimeForInput(defaultEndDate);
+        if (!fechaInicioInput.value) {
+            defaultStartDate.setHours(8, 0, 0, 0);
+            fechaInicioInput.value = formatDateTimeForInput(defaultStartDate);
+        }
+        
+        if (!fechaFinInput.value) {
+            let defaultEndDate = new Date(defaultStartDate);
+            defaultEndDate.setHours(18, 0, 0, 0);
+            fechaFinInput.value = formatDateTimeForInput(defaultEndDate);
+        }
     });
 
     function formatDateTimeForInput(date) {
@@ -1081,27 +1089,16 @@ document.addEventListener('DOMContentLoaded', function() {
         const endDateInput = document.getElementById('fecha_fin_muestreo');
         const startDate = new Date(startDateInput.value);
         
-        // if (startDate.getDay() === 0 || startDate.getDay() === 6) {
-        //     Swal.fire({
-        //         title: 'Día no válido',
-        //         text: 'No se pueden seleccionar sábados o domingos como fecha de inicio',
-        //         icon: 'error'
-        //     });
-        //     startDateInput.value = '';
-        //     return;
-        // }
-        
+        // Solo validar si hay una fecha de fin y es anterior a la de inicio
         if (endDateInput.value) {
             const endDate = new Date(endDateInput.value);
             if (endDate <= startDate) {
-                const newEndDate = new Date(startDate);
-                newEndDate.setHours(18, 0, 0, 0);
-                endDateInput.value = formatDateTimeForInput(newEndDate);
+                Swal.fire({
+                    title: 'Fecha inválida',
+                    text: 'La fecha de fin debe ser posterior a la fecha de inicio',
+                    icon: 'warning'
+                });
             }
-        } else {
-            const defaultEndDate = new Date(startDate);
-            defaultEndDate.setHours(18, 0, 0, 0);
-            endDateInput.value = formatDateTimeForInput(defaultEndDate);
         }
     });
 
@@ -1122,39 +1119,14 @@ document.addEventListener('DOMContentLoaded', function() {
         const startDate = new Date(startDateInput.value);
         const endDate = new Date(endDateInput.value);
         
-        // if (endDate.getDay() === 0 || endDate.getDay() === 6) {
-        //     Swal.fire({
-        //         title: 'Día no válido',
-        //         text: 'No se pueden seleccionar sábados o domingos como fecha de fin',
-        //         icon: 'error'
-        //     });
-        //     endDateInput.value = '';
-        //     return;
-        // }
-        
         if (endDate <= startDate) {
             Swal.fire({
                 title: 'Fecha inválida',
                 text: 'La fecha de fin debe ser posterior a la fecha de inicio',
                 icon: 'error'
             });
-            const defaultEndDate = new Date(startDate);
-            defaultEndDate.setHours(18, 0, 0, 0);
-            endDateInput.value = formatDateTimeForInput(defaultEndDate);
+            endDateInput.value = '';
             return;
-        }
-        
-        if (endDate.getDate() !== startDate.getDate() || 
-            endDate.getMonth() !== startDate.getMonth() || 
-            endDate.getFullYear() !== startDate.getFullYear()) {
-            Swal.fire({
-                title: 'Fecha inválida',
-                text: 'La fecha de fin debe ser el mismo día que la fecha de inicio',
-                icon: 'error'
-            });
-            const defaultEndDate = new Date(startDate);
-            defaultEndDate.setHours(18, 0, 0, 0);
-            endDateInput.value = formatDateTimeForInput(defaultEndDate);
         }
     });
 
@@ -1252,48 +1224,8 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-//recordinar muestra
+//recoordinar muestra  
 document.addEventListener('DOMContentLoaded', function() {
-    const fechaInicioInput = document.getElementById('fecha_inicio_muestreo');
-    const fechaFinInput = document.getElementById('fecha_fin_muestreo');
-
-    fechaInicioInput.addEventListener('change', function () {
-        if (this.value) {
-            // Parse the selected start date
-            const startDate = new Date(this.value);
-            
-            // Set start time to 08:00
-            startDate.setHours(8, 0, 0, 0);
-            
-            // Format start date back to input
-            this.value = startDate.toISOString().slice(0, 16);
-
-            // Set end date to same day at 18:00
-            const endDate = new Date(startDate);
-            endDate.setHours(18, 0, 0, 0);
-            
-            // Update end date input
-            fechaFinInput.value = endDate.toISOString().slice(0, 16);
-        }
-    });
-
-    // Ensure end date time is fixed at 18:00 if modified
-    fechaFinInput.addEventListener('change', function () {
-        if (this.value && fechaInicioInput.value) {
-            // Get start date to enforce same day
-            const startDate = new Date(fechaInicioInput.value);
-            const endDate = new Date(this.value);
-            
-            // Set end date to same day as start, at 18:00
-            endDate.setFullYear(startDate.getFullYear());
-            endDate.setMonth(startDate.getMonth());
-            endDate.setDate(startDate.getDate());
-            endDate.setHours(18, 0, 0, 0);
-            
-            // Update end date input
-            this.value = endDate.toISOString().slice(0, 16);
-        }
-    });
 
     // Inicializar selects múltiples
     $('#responsables_muestreo').select2({

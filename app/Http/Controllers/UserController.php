@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\User;
+use Illuminate\Support\Facades\Log;
 
 class UserController extends Controller
 {
@@ -40,7 +41,7 @@ class UserController extends Controller
 
     public function storeUser(Request $request)
     {
-        \Log::info('Starting user creation', ['request_data' => $request->except('password')]);
+        Log::info('Starting user creation', ['request_data' => $request->except('password')]);
     
         try {
             $validatedData = $request->validate([
@@ -50,7 +51,7 @@ class UserController extends Controller
                 'sector_codigo' => 'nullable|string',
                 'password' => 'required|string|min:4',
             ]);
-            \Log::debug('Validation passed for new user');
+            Log::debug('Validation passed for new user');
     
             $usuario = new User();
             $usuario->usu_descripcion = $request->usu_descripcion;
@@ -61,20 +62,20 @@ class UserController extends Controller
             $usuario->usu_estado = true;
     
             $usuario->save();
-            \Log::info('User created successfully', ['user_id' => $usuario->usu_codigo]);
+            Log::info('User created successfully', ['user_id' => $usuario->usu_codigo]);
     
             return redirect()
                 ->route('users.showUsers')
                 ->with('success', 'Usuario creado correctamente.');
     
         } catch (\Illuminate\Validation\ValidationException $e) {
-            \Log::error('Validation failed while creating user', [
+            Log::error('Validation failed while creating user', [
                 'errors' => $e->errors(),
                 'input' => $request->except('password')
             ]);
             throw $e;
         } catch (\Exception $e) {
-            \Log::error('Error creating user', [
+            Log::error('Error creating user', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);

@@ -280,7 +280,7 @@
 
    <!-- Modales para editar análisis -->
     @foreach($analisis as $item)
-    <div class="modal fade" id="editAnalisisModal{{ $item->cotio_subitem }}" tabindex="-1" aria-hidden="true">
+    <div class="modal fade" id="editAnalisisModal{{ $item->cotio_subitem }}" tabindex="-1" aria-hidden="true" data-subitem="{{ $item->cotio_subitem }}">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
@@ -718,6 +718,54 @@ document.getElementById('guardarHerramientasBtn').addEventListener('click', func
         @foreach($analisis as $item)
             calculateAverage('editAnalisisModal{{ $item->cotio_subitem }}');
         @endforeach
+    });
+</script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Verificar si hay un parámetro openModal en la URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const subitemToOpen = urlParams.get('openModal');
+        
+        if (subitemToOpen) {
+            // Esperar un breve momento para asegurar que los modales están cargados
+            setTimeout(() => {
+                const modal = new bootstrap.Modal(document.getElementById(`editAnalisisModal${subitemToOpen}`));
+                modal.show();
+                
+                // Opcional: Expandir el acordeón correspondiente
+                const accordionItem = document.getElementById(`heading${subitemToOpen}`);
+                if (accordionItem) {
+                    const collapse = new bootstrap.Collapse(document.getElementById(`collapse${subitemToOpen}`), {
+                        toggle: true
+                    });
+                }
+            }, 300);
+        }
+    });
+</script>
+
+<script>
+    // Manejar el cierre del modal para actualizar la URL
+    document.querySelectorAll('.modal').forEach(modal => {
+        modal.addEventListener('hidden.bs.modal', function () {
+            // Eliminar el parámetro openModal de la URL sin recargar
+            if (window.history.replaceState && window.location.search.includes('openModal')) {
+                const newUrl = window.location.pathname + window.location.search.replace(/(&|\?)openModal=[^&]*/, '').replace(/^&/, '?');
+                window.history.replaceState({}, document.title, newUrl);
+            }
+        });
+    });
+    
+    // Opcional: Scroll al análisis cuando se abre el modal
+    document.querySelectorAll('.modal').forEach(modal => {
+        modal.addEventListener('shown.bs.modal', function () {
+            const subitem = this.getAttribute('data-subitem');
+            const accordionHeader = document.getElementById(`heading${subitem}`);
+            if (accordionHeader) {
+                accordionHeader.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        });
     });
 </script>
 

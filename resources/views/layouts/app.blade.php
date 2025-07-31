@@ -574,6 +574,14 @@
                 </a>
             @endif
 
+            
+            @if(Auth::user()->usu_nivel >= 900 || Auth::user()->rol == 'facturador')
+                <a class="nav-link mobile-nav-link" href="{{ url('/facturacion') }}">
+                    <x-heroicon-o-ticket style="width: 18px; height: 18px;" />
+                    Facturación
+                </a>
+            @endif
+
             @if(Auth::user()->usu_nivel >= 900)
                 <a class="nav-link mobile-nav-link" href="{{ url('/users') }}">
                     <x-heroicon-o-user style="width: 18px; height: 18px;" />
@@ -618,7 +626,7 @@
     
     <nav class="nav flex-column w-100 px-2">
         
-        @if(Auth::user()->rol == 'coordinador_muestreo' || Auth::user()->rol == 'coordinador_lab' || Auth::user()->usu_nivel >= 900)
+        @if(Auth::user()->rol == 'coordinador_muestreo' || Auth::user()->rol == 'coordinador_lab' || Auth::user()->usu_nivel >= 900 || Auth::user()->rol == 'facturador')
             <div class="accordion-item">
                 <button class="accordion-button nav-group-title" type="button" data-bs-toggle="collapse" data-bs-target="#bandejaTrabajo">
                     Bandeja de Trabajo
@@ -668,12 +676,17 @@
                                 Informes
                             </a>
                         @endif
+
+                        @if(Auth::user()->usu_nivel >= 900 || Auth::user()->rol == 'facturador')
+                            <a class="nav-link mobile-nav-link" href="{{ url('/facturacion') }}">
+                                Facturación
+                            </a>
+                        @endif
                     </div>
                 </div>
             </div>
         @endif
 
-        
         @if(Auth::user()->usu_nivel >= 900 || Auth::user()->rol == 'coordinador_lab' || Auth::user()->rol == 'coordinador_muestreo')
             <div class="accordion-item">
                 <button class="accordion-button nav-group-title" type="button" data-bs-toggle="collapse" data-bs-target="#configuracion">

@@ -62,112 +62,129 @@ public function pasarMuestreo(Request $request)
     try {
         DB::beginTransaction();
 
-        $updatedCount   = 0;
-        $failedUpdates  = [];
-        $userId         = Auth::user()->usu_codigo;
-        $cotioNumcoti   = $request->cotio_numcoti;
-        $cambios        = $request->cambios;
+        $updatedCount = 0;
+        $failedUpdates = [];
+        $userId = Auth::user()->usu_codigo;
+        $cotioNumcoti = $request->cotio_numcoti;
+        $cambios = $request->cambios;
 
-        // 1) Precarga descripciones de categorías (subitem = 0) y de análisis (subitem > 0)
+        // Precarga de ítems de cotio agrupados por subitem
         $allItems = Cotio::where('cotio_numcoti', $cotioNumcoti)
             ->get()
-            ->groupBy('cotio_subitem'); // 0 ⇒ muestras; >0 ⇒ análisis
+            ->keyBy(function ($item) {
+                return "{$item->cotio_item}-{$item->cotio_subitem}";
+            });
+
+        // Función auxiliar para obtener descripción y precio
+        $getCotioData = function ($item, $subitem) use ($allItems) {
+            $key = "{$item}-{$subitem}";
+            $cotio = $allItems->get($key);
+            return [
+                'descripcion' => $cotio?->cotio_descripcion,
+                'precio' => $cotio?->cotio_precio ? round($cotio->cotio_precio, 2) : null
+            ];
+        };
 
         foreach ($cambios as $key => $activado) {
             if (!preg_match('/^(\d+)-(\d+)-(\d+)$/', $key, $m)) {
                 throw new \Exception("Formato inválido para key: {$key}");
             }
             [, $item, $subitem, $instance] = $m;
-        
-            // 1) Instancia de muestra
+
+            // 1) Instancia de muestra (subitem = 0)
             if ($subitem == 0) {
                 $instancia = CotioInstancia::firstOrNew([
-                    'cotio_numcoti'   => $cotioNumcoti,
-                    'cotio_item'      => $item,
-                    'cotio_subitem'   => 0,
+                    'cotio_numcoti' => $cotioNumcoti,
+                    'cotio_item' => $item,
+                    'cotio_subitem' => 0,
                     'instance_number' => $instance,
                 ]);
 
-                // Obtener descripción para muestra (subitem = 0)
-                $descripcion = $allItems->get(0)?->firstWhere('cotio_item', $item)?->cotio_descripcion;
-                
-                if ($descripcion && !$instancia->cotio_descripcion) {
-                    $instancia->cotio_descripcion = $descripcion;
+                // Obtener descripción y precio
+                $cotioData = $getCotioData($item, 0);
+                if ($cotioData['descripcion'] && !$instancia->cotio_descripcion) {
+                    $instancia->cotio_descripcion = $cotioData['descripcion'];
                 }
-                
+                if ($cotioData['precio'] !== null) {
+                    $instancia->monto = $cotioData['precio'];
+                }
+
                 $instancia->active_muestreo = $activado;
-                // si requiere fecha/coordinador:
                 if ($activado) {
-                    $instancia->fecha_muestreo     = now();
+                    $instancia->fecha_muestreo = now();
                     $instancia->coordinador_codigo = $userId;
                 } else {
-                    $instancia->fecha_muestreo     = null;
+                    $instancia->fecha_muestreo = null;
                     $instancia->coordinador_codigo = null;
                 }
-        
+
                 $instancia->save();
                 $updatedCount++;
-        
-                // Si activé la muestra, creo/copio todos los análisis de catálogo
+
+                // Si se activó la muestra, crear/copiar análisis
                 if ($activado) {
-                    $analisis = collect($allItems)
-                        ->filter(fn($group, $sub) => $sub > 0)
-                        ->flatten(1)
-                        ->where('cotio_item', $item);
-        
+                    $analisis = $allItems->filter(function ($tarea) use ($item) {
+                        return $tarea->cotio_subitem > 0 && $tarea->cotio_item == $item;
+                    });
+
                     foreach ($analisis as $tarea) {
                         $analisisKey = "{$item}-{$tarea->cotio_subitem}-{$instance}";
-                        $checked     = !empty($cambios[$analisisKey]);
-        
-                        $instAn = CotioInstancia::firstOrNew([
-                            'cotio_numcoti'   => $cotioNumcoti,
-                            'cotio_item'      => $item,
-                            'cotio_subitem'   => $tarea->cotio_subitem,
+                        $checked = !empty($cambios[$analisisKey]);
+
+                        $analisisInst = CotioInstancia::firstOrNew([
+                            'cotio_numcoti' => $cotioNumcoti,
+                            'cotio_item' => $item,
+                            'cotio_subitem' => $tarea->cotio_subitem,
                             'instance_number' => $instance,
                         ]);
-        
-                        // Asignar descripción del análisis
-                        $descAnalisis = $tarea->cotio_descripcion;
-                        if ($descAnalisis && !$instAn->cotio_descripcion) {
-                            $instAn->cotio_descripcion = $descAnalisis;
+
+                        // Asignar descripción y precio del análisis
+                        $cotioData = $getCotioData($item, $tarea->cotio_subitem);
+                        if ($cotioData['descripcion'] && !$analisisInst->cotio_descripcion) {
+                            $analisisInst->cotio_descripcion = $cotioData['descripcion'];
                         }
-        
-                        $instAn->active_muestreo = $checked;
+                        if ($cotioData['precio'] !== null) {
+                            $analisisInst->monto = $cotioData['precio'];
+                        }
+
+                        $analisisInst->active_muestreo = $checked;
                         if ($checked) {
-                            $instAn->fecha_muestreo     = now();
-                            $instAn->coordinador_codigo = $userId;
+                            $analisisInst->fecha_muestreo = now();
+                            $analisisInst->coordinador_codigo = $userId;
                         }
-        
-                        $instAn->save();
+
+                        $analisisInst->save();
                         $updatedCount++;
                     }
                 }
-        
-            // 2) Instancia de análisis individual (actualización posterior)
+
+            // 2) Instancia de análisis individual
             } else {
                 $instAn = CotioInstancia::firstOrNew([
-                    'cotio_numcoti'   => $cotioNumcoti,
-                    'cotio_item'      => $item,
-                    'cotio_subitem'   => $subitem,
+                    'cotio_numcoti' => $cotioNumcoti,
+                    'cotio_item' => $item,
+                    'cotio_subitem' => $subitem,
                     'instance_number' => $instance,
                 ]);
-        
-                // Obtener descripción para análisis (subitem > 0)
-                $descripcion = $allItems->get($subitem)?->firstWhere('cotio_item', $item)?->cotio_descripcion;
-                
-                if ($descripcion && !$instAn->cotio_descripcion) {
-                    $instAn->cotio_descripcion = $descripcion;
+
+                // Obtener descripción y precio
+                $cotioData = $getCotioData($item, $subitem);
+                if ($cotioData['descripcion'] && !$instAn->cotio_descripcion) {
+                    $instAn->cotio_descripcion = $cotioData['descripcion'];
                 }
-                
+                if ($cotioData['precio'] !== null) {
+                    $instAn->monto = $cotioData['precio'];
+                }
+
                 $instAn->active_muestreo = $activado;
                 if ($activado) {
-                    $instAn->fecha_muestreo     = now();
+                    $instAn->fecha_muestreo = now();
                     $instAn->coordinador_codigo = $userId;
                 } else {
-                    $instAn->fecha_muestreo     = null;
+                    $instAn->fecha_muestreo = null;
                     $instAn->coordinador_codigo = null;
                 }
-        
+
                 $instAn->save();
                 $updatedCount++;
             }
@@ -176,21 +193,20 @@ public function pasarMuestreo(Request $request)
         DB::commit();
 
         return response()->json([
-            'success'       => true,
-            'message'       => "{$updatedCount} registros creados/actualizados correctamente",
+            'success' => true,
+            'message' => "{$updatedCount} registros creados/actualizados correctamente",
             'updated_count' => $updatedCount,
-            'failed_updates'=> $failedUpdates
+            'failed_updates' => $failedUpdates
         ]);
     } catch (\Exception $e) {
         DB::rollBack();
         return response()->json([
-            'success'       => false,
-            'message'       => 'Error: ' . $e->getMessage(),
+            'success' => false,
+            'message' => 'Error: ' . $e->getMessage(),
             'error_details' => $e->getTraceAsString()
         ], 500);
     }
 }
-    
     
 protected function actualizarContadorMuestra($cotioNumcoti, $item, $cantidadTotal)
 {

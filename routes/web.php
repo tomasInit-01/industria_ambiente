@@ -131,6 +131,8 @@ Route::middleware([CheckAdminOrRole::class])->group(function () {
     Route::put('/inventarios/{id}', [InventarioLabController::class, 'update'])->name('inventarios.update');
     Route::delete('/inventarios/{id}', [InventarioLabController::class, 'destroy'])->name('inventarios.destroy');
 
+    Route::get('/api/instancias/{instancia}/herramientas', [App\Http\Controllers\OrdenController::class, 'apiHerramientasInstancia']);
+
     // Gestión de inventarios de muestreo
     Route::get('/inventarios-muestreo', [InventarioMuestreoController::class, 'index'])->name('inventarios-muestreo.index');
     Route::get('/inventarios-muestreo/create', [InventarioMuestreoController::class, 'create'])->name('inventarios-muestreo.create');
@@ -194,6 +196,13 @@ Route::middleware([CheckAdminOrRole::class])->group(function () {
     Route::post('/calibracion/notificaciones/{id}/leida', [App\Http\Controllers\CalibracionController::class, 'marcarLeida'])->name('calibracion.marcar-leida');
     Route::get('/calibracion/equipos-proximos', [App\Http\Controllers\CalibracionController::class, 'equiposProximos'])->name('calibracion.equipos-proximos');
     Route::get('/calibracion/equipos-vencidos', [App\Http\Controllers\CalibracionController::class, 'equiposVencidos'])->name('calibracion.equipos-vencidos');
+
+    Route::get('/facturacion', [App\Http\Controllers\FacturacionController::class, 'index'])->name('facturacion.index');
+    Route::get('/facturacion/listado', [App\Http\Controllers\FacturacionController::class, 'listarFacturas'])->name('facturacion.listado');
+    Route::get('/facturacion/detalle/{id}', [App\Http\Controllers\FacturacionController::class, 'verFactura'])->name('facturacion.ver');
+    Route::get('/facturacion/{factura}/descargar', [App\Http\Controllers\FacturacionController::class, 'descargar'])->name('facturacion.descargar');
+    Route::get('/facturacion/facturar/{cotizacion}', [App\Http\Controllers\FacturacionController::class, 'facturar'])->name('facturacion.show');
+    Route::post('/facturacion/facturar/{cotizacion}', [App\Http\Controllers\FacturacionController::class, 'generarFacturaArca'])->name('facturacion.facturar');
 });
 
 
@@ -247,6 +256,8 @@ Route::middleware([CheckAdminOrRole::class])->group(function () {
     Route::put('/variables-requeridas/grupo/{groupName}', [VariableRequeridaController::class, 'updateGroup'])
     ->name('variables-requeridas.update-group');
     
+    Route::get('/api/instancias/{instancia}/herramientas', [App\Http\Controllers\OrdenController::class, 'apiHerramientasInstancia']);
+
     // Gestión de ordenes de trabajo
     Route::get('/ordenes', [OrdenController::class, 'index'])->name('ordenes.index');
     Route::get('/ordenes/{cotizacion}', [OrdenController::class, 'showDetalle'])->name('ordenes.ver-detalle');
@@ -386,5 +397,15 @@ Route::middleware([CheckAdminOrRole::class])->group(function () {
     Route::post('/notificaciones/marcar-leidas', [SimpleNotificationController::class, 'marcarLeidas'])->name('notificaciones.marcar-leidas');
 });
 
+
+Route::middleware([CheckAdminOrRole::class])->group(function () {
+    Route::get('/facturacion', [App\Http\Controllers\FacturacionController::class, 'index'])->name('facturacion.index');
+    Route::get('/facturacion/listado', [App\Http\Controllers\FacturacionController::class, 'listarFacturas'])->name('facturacion.listado');
+    Route::get('/facturacion/detalle/{id}', [App\Http\Controllers\FacturacionController::class, 'verFactura'])->name('facturacion.ver');
+    Route::get('/facturacion/{factura}/descargar', [App\Http\Controllers\FacturacionController::class, 'descargar'])->name('facturacion.descargar');
+    Route::get('/facturacion/facturar/{cotizacion}', [App\Http\Controllers\FacturacionController::class, 'facturar'])->name('facturacion.show');
+    Route::post('/facturacion/facturar/{cotizacion}', [App\Http\Controllers\FacturacionController::class, 'generarFacturaArca'])->name('facturacion.facturar');
+});
+
 // API: Herramientas de una instancia (temporal, aquí en web.php)
-Route::get('/api/instancias/{instancia}/herramientas', [App\Http\Controllers\OrdenController::class, 'apiHerramientasInstancia']);
+

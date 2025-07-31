@@ -33,7 +33,7 @@ class OrdenController extends Controller
         $currentMonth = $request->get('month') ? Carbon::parse($request->get('month')) : now();
         $startOfWeek = $request->get('week') ? Carbon::parse($request->get('week'))->startOfWeek() : now()->startOfWeek();
         $endOfWeek = $startOfWeek->copy()->endOfWeek();
-    
+
         // Consulta base para todas las vistas
         $baseQuery = CotioInstancia::with([
             'cotizacion.matriz',
@@ -43,10 +43,10 @@ class OrdenController extends Controller
                 $q->select('id', 'cotio_numcoti', 'cotio_estado_analisis');
             }
         ])->where('enable_ot', true);
-    
+
         if ($viewType === 'calendario') {
             $query = clone $baseQuery;
-    
+
             // Aplicar filtros
             if ($request->has('search') && !empty($request->search)) {
                 $searchTerm = '%'.$request->search.'%';
@@ -56,13 +56,13 @@ class OrdenController extends Controller
                         ->orWhereRaw('LOWER(coti_establecimiento) LIKE ?', [strtolower($searchTerm)]);
                 });
             }
-    
+
             if ($request->has('matriz') && !empty($request->matriz)) {
                 $query->whereHas('cotizacion', function($q) use ($request) {
                     $q->where('coti_matriz', $request->matriz);
                 });
             }
-    
+
             if ($request->has('estado') && !empty($request->estado)) {
                 $query->where('cotio_estado_analisis', $request->estado);
             } elseif (!$verTodas) {
@@ -70,12 +70,12 @@ class OrdenController extends Controller
                     $q->where('coti_estado', 'A');
                 });
             }
-    
+
             // Filtros por rango de fechas
             if ($request->has('fecha_inicio_ot') && !empty($request->fecha_inicio_ot)) {
                 $query->whereDate('fecha_inicio_ot', '>=', $request->fecha_inicio_ot);
             }
-    
+
             if ($request->has('fecha_fin_ot') && !empty($request->fecha_fin_ot)) {
                 $query->whereDate('fecha_fin_ot', '<=', $request->fecha_fin_ot);
             } else {
@@ -85,17 +85,17 @@ class OrdenController extends Controller
                     $currentMonth->copy()->endOfMonth()
                 ]);
             }
-    
+
             // Obtener resultados
             $instancias = $query->orderBy('fecha_inicio_ot', 'asc')->get();
-    
+
             // Verificar suspensiones
             $instancias->each(function ($instancia) {
                 $instancia->has_suspension = $instancia->cotizacion->instancias->contains(function ($i) {
                     return strtolower(trim($i->cotio_estado_analisis)) === 'suspension';
                 });
             });
-    
+
             // Agrupar por fecha de inicio
             $tareasCalendario = $instancias
                 ->filter(fn($item) => !empty($item->fecha_inicio_ot))
@@ -105,13 +105,13 @@ class OrdenController extends Controller
                 ->map(function($items) {
                     return $items->sortBy('fecha_inicio_ot');
                 });
-    
+
             // Instancias sin fecha programada
             $unscheduled = $instancias->filter(fn($instancia) => empty($instancia->fecha_inicio_ot));
             if ($unscheduled->isNotEmpty()) {
                 $tareasCalendario->put('sin-fecha', $unscheduled);
             }
-    
+
             // Generar eventos para FullCalendar
             $events = collect();
             foreach ($tareasCalendario as $date => $instancias) {
@@ -137,7 +137,7 @@ class OrdenController extends Controller
                     ]);
                 }
             }
-    
+
             return view('ordenes.index', [
                 'events' => $events,
                 'tareasCalendario' => $tareasCalendario,
@@ -152,9 +152,9 @@ class OrdenController extends Controller
                 'viewTasks' => false
             ]);
         }
-    
+
         $query = clone $baseQuery;
-    
+
         if ($request->has('search') && !empty($request->search)) {
             $searchTerm = '%'.$request->search.'%';
             $query->whereHas('cotizacion', function($q) use ($searchTerm) {
@@ -163,13 +163,13 @@ class OrdenController extends Controller
                     ->orWhereRaw('LOWER(coti_establecimiento) LIKE ?', [strtolower($searchTerm)]);
             });
         }
-    
+
         if ($request->has('matriz') && !empty($request->matriz)) {
             $query->whereHas('cotizacion', function($q) use ($request) {
                 $q->where('coti_matriz', $request->matriz);
             });
         }
-    
+
         if ($request->has('estado') && !empty($request->estado)) {
             $query->where('cotio_estado_analisis', $request->estado);
         } elseif (!$verTodas) {
@@ -177,15 +177,37 @@ class OrdenController extends Controller
                 $q->where('coti_estado', 'A');
             });
         }
-    
-        $pagination = $query->orderBy('cotio_numcoti', 'desc')
-        ->orderBy('cotio_item', 'asc')
-        ->orderBy('cotio_subitem', 'asc')
-        ->orderBy('instance_number', 'asc')
-        ->paginate($viewType === 'documento' ? 50 : 50); // Increase to 50 for both views
-    
 
-    
+        $pagination = $query->orderBy('cotio_numcoti', 'desc')
+            ->orderBy('cotio_item', 'asc')
+            ->orderBy('cotio_subitem', 'asc')
+            ->orderBy('instance_number', 'asc')
+            ->paginate($viewType === 'documento' ? 50 : 50);
+
+        $ordenes = $pagination->groupBy('cotio_numcoti')->map(function ($group) {
+            $cotizacion = $group->first()->cotizacion;
+            $total = $group->count();
+            $completadas = $group->where('cotio_estado_analisis', 'analizado')->count();
+            $enProceso = $group->where('cotio_estado_analisis', 'en revision analisis')->count();
+            $coordinadas = $group->where('cotio_estado_analisis', 'coordinado analisis')->count();
+            $suspendidas = $group->where('cotio_estado_analisis', 'suspension')->count();
+            $porcentaje = $total > 0 ? round(($completadas / $total) * 100) : 0;
+
+            return [
+                'instancias' => $group,
+                'cotizacion' => $cotizacion,
+                'total' => $total,
+                'completadas' => $completadas,
+                'en_proceso' => $enProceso,
+                'coordinadas' => $coordinadas,
+                'suspendidas' => $suspendidas,
+                'porcentaje' => $porcentaje,
+                'has_suspension' => $group->contains(function ($instancia) {
+                    return strtolower(trim($instancia->cotio_estado_analisis)) === 'suspension';
+                })
+            ];
+        });
+
         return view('ordenes.index', [
             'ordenes' => $ordenes,
             'viewType' => $viewType,
@@ -435,8 +457,17 @@ public function showOrdenes(Request $request)
     // SUGERENCIAS DE ANALITOS POR ESTADO
     $analitosSugeridos = collect();
     if ($estado) {
-        $analitosSugeridos = $todosAnalisis->filter(function($analisis) use ($estado) {
-            return $analisis->cotio_estado_analisis === $estado;
+        $analitosSugeridos = $todosAnalisis->filter(function($analisis) use ($estado, $request) {
+            $matchesEstado = $analisis->cotio_estado_analisis === $estado;
+            
+            // Solo aplicar filtro por descripción si hay estado seleccionado
+            if ($request->get('cotio_descripcion_analisis')) {
+                $descripcionMatch = stripos($analisis->cotio_descripcion ?? '', 
+                                          $request->get('cotio_descripcion_analisis')) !== false;
+                return $matchesEstado && $descripcionMatch;
+            }
+            
+            return $matchesEstado;
         });
     }
 

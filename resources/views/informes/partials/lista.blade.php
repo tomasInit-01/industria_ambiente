@@ -1,3 +1,9 @@
+@php
+    $user = Auth::user();
+    $role = $user->rol;
+    $isInformes = $role == 'informes';
+@endphp
+
 <div class="d-none d-lg-block">
     {{-- @dd($informesPorCotizacion) --}}
     <div class="card shadow-sm mb-4">
@@ -50,14 +56,16 @@
                                                                     <td>{{ $muestra->cotio_descripcion }} {{ $muestra->id ? '#' . str_pad($muestra->id, 8, '0', STR_PAD_LEFT) : null }} (#{{ $muestra->instance_number }})</td>
                                                                     <td class="text-center">
                                                                         <div class="btn-group" role="group">
-                                                                            <button type="button" class="btn btn-sm btn-outline-primary preview-informe-btn"
-                                                                                    data-cotizacion="{{ $numCoti }}"
-                                                                                    data-item="{{ $muestra->cotio_item }}"
-                                                                                    data-instance="{{ $muestra->instance_number }}"
-                                                                                    data-bs-toggle="tooltip" 
-                                                                                    title="Vista previa y editar">
-                                                                                <x-heroicon-o-eye style="width: 15px; height: 15px;" />
-                                                                            </button>
+                                                                            @if($isInformes)
+                                                                                <button type="button" class="btn btn-sm btn-outline-primary preview-informe-btn"
+                                                                                        data-cotizacion="{{ $numCoti }}"
+                                                                                        data-item="{{ $muestra->cotio_item }}"
+                                                                                        data-instance="{{ $muestra->instance_number }}"
+                                                                                        data-bs-toggle="tooltip" 
+                                                                                        title="Vista previa y editar">
+                                                                                    <x-heroicon-o-eye style="width: 15px; height: 15px;" />
+                                                                                </button>
+                                                                                @endif
                                                                             <a href="{{ route('informes.pdf', [
                                                                                 'cotio_numcoti' => $numCoti,
                                                                                 'cotio_item' => $muestra->cotio_item,

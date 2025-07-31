@@ -59,7 +59,9 @@ class CotioInstancia extends Model
         'responsable_resultado_3',
         'responsable_resultado_final',
         'observaciones_ot',
-        'fecha_carga_ot'
+        'fecha_carga_ot',
+        'monto',
+        'facturado'
     ];
 
     protected $casts = [
