@@ -22,6 +22,7 @@ class InventarioLab extends Model
         'activo',
         'estado',
         'fecha_calibracion',
+        'certificado',
         'created_at',
         'updated_at'
     ];

@@ -11,9 +11,9 @@
             Volver a la cotización
         </a>
         <div class="d-flex flex-column flex-md-row gap-2">
-            <button type="button" class="btn btn-secondary d-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#asignarModal" disabled>
+            {{-- <button type="button" class="btn btn-secondary d-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#asignarModal" disabled>
                 Asignar elementos
-            </button>
+            </button> --}}
             {{-- <button type="button" class="btn btn-primary d-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#asignarFrecuenciaModal">
                 Ajustar Frecuencia
             </button> --}}
@@ -26,7 +26,25 @@
         <div class="card-body">
             <div class="alert alert-warning mb-3">
                 <strong>Módulo de OT - Asignación de analistas</strong>
+                {{-- @if($instanciaActual->cotio_estado_analisis == 'coordinado analisis')
+                    <button type="button" class="btn btn-danger" id="btnQuitarOT"
+                            data-numcoti="{{ $instanciaActual->cotio_numcoti }}"
+                            data-item="{{ $instanciaActual->cotio_item }}"
+                            data-instance="{{ $instanciaActual->instance_number }}">
+                        Quitar de OT
+                    </button>
+                @endif --}}
             </div>
+
+            <form id="formQuitarDirectoAOT" method="POST" action="{{ route('muestras.quitar-directo-a-ot-from-coordinador', [
+                'cotio_numcoti' => $instanciaActual->cotio_numcoti,
+                'cotio_item' => $instanciaActual->cotio_item,
+                'instance_number' => $instanciaActual->instance_number
+            ]) }}">
+                @csrf
+                @method('DELETE')
+                <input type="hidden" name="isFromCoordinador" value="true">
+            </form>
             
             <div class="d-flex justify-content-between align-items-center">
                 <h2 class="fw-bold mb-3">{{ $categoria->cotio_descripcion }} {{ $instanciaActual->id ? '#' . str_pad($instanciaActual->id, 8, '0', STR_PAD_LEFT) : null }} ({{ $instanciaActual->instance_number ?? ''}} / {{ $categoria->cotio_cantidad ?? ''}})</h2>
@@ -91,7 +109,15 @@
                                     @endif
                                 </span>
                             @endforeach
+
+                            {{-- @if($instanciaActual->cotio_estado_analisis == 'coordinado analisis')
+                                <button type="button" class="btn btn-sm btn-link" data-bs-toggle="modal" data-bs-target="#editarResponsables">
+                                    <x-heroicon-o-pencil style="width: 20px; height: 20px;" />
+                                </button>
+                            @endif --}}
                         </p>
+          
+
                     @endif
                 </div>
                 <div class="col-md-6">
@@ -1358,18 +1384,44 @@ document.addEventListener('DOMContentLoaded', function() {
         const resultado3Input = form.querySelector('input[name="resultado_3"]');
         const resultadoFinalInput = form.querySelector('input[name="resultado_final"]');
         
-        let valores = [];
+        // Función mejorada para extraer números con precisión
+        function extraerNumero(valor) {
+            if (!valor) return NaN;
+            
+            // Reemplazar comas por puntos para estandarizar
+            const valorEstandarizado = valor.toString().replace(',', '.');
+            
+            // Extraer solo números, punto decimal y signo negativo
+            const numeroString = valorEstandarizado
+                .replace(/[^\d.-]/g, '')
+                .replace(/(\..*)\./g, '$1'); // Eliminar puntos decimales adicionales
+                
+            const numero = parseFloat(numeroString);
+            return isFinite(numero) ? numero : NaN;
+        }
         
-        // Validar y recolectar valores numéricos
-        if (resultadoInput && resultadoInput.value && !isNaN(parseFloat(resultadoInput.value))) {
-            valores.push(parseFloat(resultadoInput.value));
+        // Función para determinar decimales necesarios
+        function determinarDecimales(numeros) {
+            let maxDecimales = 0;
+            numeros.forEach(num => {
+                const partes = num.toString().split('.');
+                if (partes.length > 1) {
+                    maxDecimales = Math.max(maxDecimales, partes[1].length);
+                }
+            });
+            return Math.max(maxDecimales, 4); // Mínimo 4 decimales
         }
-        if (resultado2Input && resultado2Input.value && !isNaN(parseFloat(resultado2Input.value))) {
-            valores.push(parseFloat(resultado2Input.value));
-        }
-        if (resultado3Input && resultado3Input.value && !isNaN(parseFloat(resultado3Input.value))) {
-            valores.push(parseFloat(resultado3Input.value));
-        }
+        
+        // Recolectar valores válidos
+        const valores = [];
+        [resultadoInput, resultado2Input, resultado3Input].forEach(input => {
+            if (input && input.value) {
+                const valor = extraerNumero(input.value);
+                if (!isNaN(valor)) {
+                    valores.push(valor);
+                }
+            }
+        });
         
         console.log('Valores recolectados:', valores);
         
@@ -1377,8 +1429,18 @@ document.addEventListener('DOMContentLoaded', function() {
         if (valores.length > 0 && resultadoFinalInput) {
             const suma = valores.reduce((a, b) => a + b, 0);
             const promedio = suma / valores.length;
-            resultadoFinalInput.value = promedio.toFixed(2);
-            console.log('Promedio calculado:', promedio.toFixed(2));
+            
+            // Determinar decimales necesarios
+            const decimales = determinarDecimales(valores);
+            
+            // Formatear el resultado
+            let resultadoFormateado = promedio.toFixed(decimales);
+            
+            // Eliminar ceros innecesarios al final
+            resultadoFormateado = resultadoFormateado.replace(/(\.\d*?[1-9])0+$/, '$1').replace(/\.$/, '');
+            
+            resultadoFinalInput.value = resultadoFormateado;
+            console.log('Promedio calculado:', resultadoFormateado);
         } else if (resultadoFinalInput) {
             resultadoFinalInput.value = '';
             console.log('Sin valores válidos para calcular promedio');
@@ -1494,11 +1556,21 @@ document.addEventListener('DOMContentLoaded', function() {
     })
     .then(data => {
         console.log('Datos de respuesta:', data);
-        showAlert('success', 'Resultados guardados correctamente');
+        Swal.fire({
+            icon: 'success',
+            title: '¡Guardado!',
+            text: 'Resultados guardados correctamente',
+            timer: 1500,
+            showConfirmButton: false
+        });
     })
     .catch(error => {
         console.error('Error:', error);
-        showAlert('danger', 'Error al guardar los resultados: ' + error.message);
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Error al guardar los resultados: ' + error.message
+        });
     })
     .finally(() => {
         // Restaurar el botón solo si existe
@@ -1512,99 +1584,111 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // Inicializar todos los formularios de resultados
-    document.querySelectorAll('.resultados-form').forEach(form => {
-        inicializarFormulario(form);
-    });
-    
-    // Función para mostrar alertas (mejorada)
-    function showAlert(type, message) {
-        // Eliminar alertas existentes primero
-        document.querySelectorAll('.custom-alert').forEach(alert => alert.remove());
-        
-        const alertDiv = document.createElement('div');
-        alertDiv.className = `custom-alert alert alert-${type} alert-dismissible fade show fixed-top mx-auto mt-3`;
-        alertDiv.style.maxWidth = '500px';
-        alertDiv.style.zIndex = '1100';
-        alertDiv.role = 'alert';
-        alertDiv.innerHTML = `
-            ${message}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        `;
-        
-        document.body.appendChild(alertDiv);
-        
-        // Auto-eliminar después de 5 segundos
-        setTimeout(() => {
-            alertDiv.remove();
-        }, 5000);
-        
-        // Permitir cerrar manualmente
-        alertDiv.querySelector('.btn-close').addEventListener('click', () => {
-            alertDiv.remove();
-        });
-    }
-    
-    // Función para eliminar responsable de todas las tareas
-    window.eliminarResponsableTodasTareas = function(usuCodigo) {
-        if (!confirm('¿Estás seguro de que quieres eliminar este responsable de todas las tareas?')) {
-            return;
+document.querySelectorAll('.resultados-form').forEach(form => {
+    inicializarFormulario(form);
+});
+
+// Función para eliminar responsable de todas las tareas
+// Función para eliminar responsable de todas las tareas
+window.eliminarResponsableTodasTareas = function(usuCodigo) {
+    Swal.fire({
+        title: '¿Estás seguro?',
+        text: "¿Estás seguro de que quieres eliminar este responsable de todas las tareas?",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: 'Sí, eliminar',
+        cancelButtonText: 'Cancelar'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            const cotioNumcoti = '{{ $cotizacion->coti_num }}';
+            const cotioItem = '{{ $categoria->cotio_item }}';
+            const instance = '{{ $instance }}';
+            const instanciaId = '{{ $instanciaActual->id ?? "" }}';
+            
+            console.log('Datos para eliminar responsable:', {
+                cotioNumcoti,
+                cotioItem,
+                instance,
+                instanciaId,
+                usuCodigo
+            });
+            
+            // Crear el formulario de datos
+            const formData = new FormData();
+            formData.append('_token', '{{ csrf_token() }}');
+            formData.append('instancia_id', instanciaId);
+            formData.append('user_codigo', usuCodigo);
+            formData.append('todos', 'true');
+            
+            // Construir la URL
+            const url = '{{ route("ordenes.remover-responsable", ["ordenId" => $cotizacion->coti_num]) }}';
+            
+            console.log('Enviando petición a:', url);
+            
+            fetch(url, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                    'Accept': 'application/json'
+                }
+            })
+            .then(response => {
+                console.log('Respuesta recibida:', response);
+                return response.json();
+            })
+            .then(data => {
+                console.log('Datos de respuesta:', data);
+                if (data.success) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: '¡Guardado!',
+                        text: 'Responsables actualizados correctamente',
+                        timer: 1500,
+                        showConfirmButton: false
+                    });
+                    // Recargar la página para mostrar los cambios
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1500);
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: data.message || 'Error al eliminar el responsable'
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'Error al eliminar el responsable: ' + error.message
+                });
+            });
         }
-        
-        // Obtener los datos necesarios de la página
-        const cotioNumcoti = '{{ $cotizacion->coti_num }}';
-        const cotioItem = '{{ $categoria->cotio_item }}';
-        const instance = '{{ $instance }}';
-        const instanciaId = '{{ $instanciaActual->id ?? "" }}';
-        
-        console.log('Datos para eliminar responsable:', {
-            cotioNumcoti,
-            cotioItem,
-            instance,
-            instanciaId,
-            usuCodigo
-        });
-        
-        // Crear el formulario de datos
-        const formData = new FormData();
-        formData.append('_token', '{{ csrf_token() }}');
-        formData.append('instancia_id', instanciaId);
-        formData.append('user_codigo', usuCodigo);
-        formData.append('todos', 'true'); // Enviar como string 'true' o 'false'
-        
-        // Construir la URL
-        const url = '{{ route("ordenes.remover-responsable", ["ordenId" => $cotizacion->coti_num]) }}';
-        
-        console.log('Enviando petición a:', url);
-        
-        fetch(url, {
-            method: 'POST',
-            body: formData,
-            headers: {
-                'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                'Accept': 'application/json'
-            }
-        })
-        .then(response => {
-            console.log('Respuesta recibida:', response);
-            return response.json();
-        })
-        .then(data => {
-            console.log('Datos de respuesta:', data);
-            if (data.success) {
-                showAlert('success', data.message);
-                // Recargar la página para mostrar los cambios
-                setTimeout(() => {
-                    window.location.reload();
-                }, 1500);
-            } else {
-                showAlert('danger', data.message || 'Error al eliminar el responsable');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            showAlert('danger', 'Error al eliminar el responsable: ' + error.message);
-        });
-    };
+    });
+};
+});
+
+document.getElementById('btnQuitarOT')?.addEventListener('click', function() {
+    Swal.fire({
+        title: '¿Está seguro?',
+        text: "¿Quitar la muestra de la OT?",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: 'Sí, quitar',
+        cancelButtonText: 'Cancelar'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            document.getElementById('formQuitarDirectoAOT').submit();
+        }
+    });
 });
 </script>
 
@@ -1795,5 +1879,190 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
+{{-- MODAL DE EDICIÓN DE RESPONSABLES --}}
+<div class="modal fade" id="editarResponsables" tabindex="-1" aria-labelledby="editarResponsablesLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form id="formEditarResponsables" method="POST">
+                @csrf
+                @method('PUT')
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editarResponsablesLabel">Editar Responsables</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="responsables_analisis" class="form-label">Responsables de Análisis</label>
+                        <select class="form-select select2-multiple" id="responsables_analisis" name="responsables_analisis[]" multiple>
+                            @foreach($usuarios as $usuario)
+                                <option value="{{ $usuario->usu_codigo }}">
+                                    {{ $usuario->usu_descripcion }} ({{ $usuario->usu_codigo }})
+                                </option>
+                            @endforeach
+                        </select>
+                        <small class="text-muted">Los responsables actuales aparecen seleccionados y se mantienen. Seleccione responsables adicionales para agregar a la muestra y todos sus análisis.</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Guardar Cambios</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+// Inicializar el modal de editar responsables
+document.addEventListener('DOMContentLoaded', function() {
+    const editarResponsablesModal = document.getElementById('editarResponsables');
+    const form = document.getElementById('formEditarResponsables');
+    const select = document.getElementById('responsables_analisis');
+    
+    // Inicializar Select2
+    $(select).select2({
+        dropdownParent: $('#editarResponsables'),
+        multiple: true,
+        placeholder: "Seleccione responsables",
+        allowClear: true
+    });
+    
+    // Cuando se abre el modal, cargar los responsables actuales
+    editarResponsablesModal.addEventListener('show.bs.modal', function(event) {
+        // Establecer la acción del formulario
+        const cotioNumcoti = '{{ $cotizacion->coti_num }}';
+        const cotioItem = '{{ $categoria->cotio_item }}';
+        const instance = '{{ $instance }}';
+        
+        form.action = `/ordenes/${cotioNumcoti}/editar-responsables`;
+        
+        // Agregar campos ocultos
+        let hiddenFields = form.querySelector('.hidden-fields');
+        if (hiddenFields) {
+            hiddenFields.remove();
+        }
+        
+        hiddenFields = document.createElement('div');
+        hiddenFields.className = 'hidden-fields';
+        hiddenFields.innerHTML = `
+            <input type="hidden" name="cotio_item" value="${cotioItem}">
+            <input type="hidden" name="instance_number" value="${instance}">
+        `;
+        form.appendChild(hiddenFields);
+        
+        // Cargar responsables actuales
+        fetch(`/api/get-responsables-analisis`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+            },
+            body: JSON.stringify({
+                cotio_numcoti: cotioNumcoti,
+                cotio_item: cotioItem,
+                instance_number: instance
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Guardar los responsables iniciales para poder comparar después
+                window.responsablesIniciales = data.responsables || [];
+                
+                // Cargar todos los responsables actuales en el select
+                $(select).val(data.responsables).trigger('change');
+                console.log('Responsables actuales cargados:', data.responsables);
+            }
+        })
+        .catch(error => {
+            console.error('Error cargando responsables:', error);
+        });
+    });
+    
+    // Manejar el envío del formulario
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(form);
+        
+        // Obtener los valores seleccionados de Select2
+        const responsablesSeleccionados = $(select).val() || [];
+        
+        // Obtener los responsables que estaban cargados inicialmente
+        const responsablesIniciales = window.responsablesIniciales || [];
+        
+        // Filtrar solo los responsables nuevos (que no estaban inicialmente)
+        const nuevosResponsables = responsablesSeleccionados.filter(responsable => 
+            !responsablesIniciales.includes(responsable)
+        );
+        
+        // Limpiar los valores existentes del FormData para responsables_analisis
+        formData.delete('responsables_analisis[]');
+        
+        // Agregar solo los responsables nuevos
+        if (nuevosResponsables.length > 0) {
+            nuevosResponsables.forEach(responsable => {
+                formData.append('responsables_analisis[]', responsable);
+            });
+        }
+        
+        console.log('Responsables iniciales:', responsablesIniciales);
+        console.log('Responsables seleccionados:', responsablesSeleccionados);
+        console.log('Nuevos responsables a enviar:', nuevosResponsables);
+        
+        // Si no hay nuevos responsables, mostrar mensaje y no enviar
+        if (nuevosResponsables.length === 0) {
+            Swal.fire({
+                icon: 'info',
+                title: 'Sin cambios',
+                text: 'No se han seleccionado nuevos responsables para agregar.',
+                confirmButtonColor: '#3085d6'
+            });
+            return;
+        }
+        
+        fetch(form.action, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                'Accept': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log('Respuesta del servidor:', data);
+            if (data.success) {
+                Swal.fire({
+                    icon: 'success',
+                    title: '¡Guardado!',
+                    text: 'Responsables actualizados correctamente',
+                    timer: 1500,
+                    showConfirmButton: false
+                });
+                bootstrap.Modal.getInstance(editarResponsablesModal).hide();
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1500);
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: data.message || 'Ocurrió un error al guardar.'
+                });
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'Error al guardar.'
+            });
+        });
+    });
+});
+</script>
 
 @endsection

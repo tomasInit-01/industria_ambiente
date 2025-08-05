@@ -18,6 +18,9 @@ class InventarioMuestreo extends Model
         'marca_modelo',
         'n_serie_lote',
         'observaciones',
+        'activo',
+        'fecha_calibracion',
+        'certificado',
         'created_at',
         'updated_at'
     ];

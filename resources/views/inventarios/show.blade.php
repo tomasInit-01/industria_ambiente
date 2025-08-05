@@ -20,7 +20,7 @@
                     <strong>Formulario de Edición</strong>
                 </div>
                 <div class="card-body">
-                    <form action="{{ url('/inventarios/' . $inventario->id) }}" method="POST">
+                    <form action="{{ url('/inventarios/' . $inventario->id) }}" method="POST" enctype="multipart/form-data">  
                         @csrf
                         @method('PUT')
 
@@ -53,6 +53,22 @@
                         <div class="mb-3">
                             <label for="codigo_ficha" class="form-label">Código de Ficha</label>
                             <input type="text" name="codigo_ficha" id="codigo_ficha" class="form-control" value="{{ old('codigo_ficha', $inventario->codigo_ficha) }}" required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="certificado" class="form-label">Certificado de Calibración (PDF)</label>
+                            <input type="file" class="form-control" id="certificado" name="certificado" accept=".pdf">
+                            <small class="text-muted">Tamaño máximo: 5MB</small>
+                            
+                            @if($inventario->certificado)
+                                <div class="mt-2">
+                                    <small>Certificado actual: 
+                                        <a href="{{ Storage::url($inventario->certificado) }}" target="_blank">
+                                            Ver
+                                        </a>
+                                    </small>
+                                </div>
+                            @endif
                         </div>
 
                         <div class="mb-3">

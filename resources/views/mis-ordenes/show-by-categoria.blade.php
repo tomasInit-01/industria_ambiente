@@ -261,12 +261,14 @@
                                 aria-labelledby="heading{{ $item->cotio_subitem }}" data-bs-parent="#analisisAccordion">
                                 <div class="accordion-body pt-3">
                              
-                                    <div class="d-flex justify-content-end mb-3">
-                                        <button class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="modal" 
-                                            data-bs-target="#editAnalisisModal{{ $item->cotio_subitem }}">
-                                            Agregar Resultado
-                                        </button>
-                                    </div>
+                                    @if($instancia->cotio_estado_analisis == 'coordinado analisis' || $instancia->cotio_estado_analisis == 'en revision analisis')
+                                        <div class="d-flex justify-content-end mb-3">
+                                            <button class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="modal" 
+                                                data-bs-target="#editAnalisisModal{{ $item->cotio_subitem }}">
+                                                Agregar Resultado
+                                            </button>
+                                        </div>
+                                    @endif
                                 </div>
                             </div>
                         </div>
@@ -416,94 +418,134 @@
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    var herramientasModal = document.getElementById('editHerramientasModal');
-    var instanciaId = {{ $instancia->id }};
-    if (herramientasModal) {
-        herramientasModal.addEventListener('show.bs.modal', function () {
-            var modalInputs = document.getElementById('herramientasSelect');
-            var form = document.getElementById('formEditarHerramientas');
-            form.action = '/instancias/' + instanciaId + '/herramientas';
+    document.addEventListener('DOMContentLoaded', function () {
+        const herramientasModal = document.getElementById('editHerramientasModal');
+        const instanciaId = {{ $instancia->id }};
+        const modalInputs = document.getElementById('herramientasSelect');
+        const form = document.getElementById('formEditarHerramientas');
 
-            // Loader
-            $(modalInputs).html('').append('<option>Cargando...</option>');
+        if (herramientasModal && form && modalInputs) {
+            herramientasModal.addEventListener('show.bs.modal', function () {
+                console.log(`[Modal] Abriendo modal para instancia ID: ${instanciaId}`);
+                
+                form.action = `/instancias/${instanciaId}/herramientas`;
+                console.log(`[Modal] Action del formulario configurada a: ${form.action}`);
 
-            // Cargar herramientas actuales por AJAX
-            fetch('/api/instancias/' + instanciaId + '/herramientas')
-                .then(response => response.json())
-                .then(data => {
-                    $(modalInputs).empty();
-                    if (data && data.herramientas && data.herramientas.length > 0) {
-                        data.herramientas.forEach(h => {
-                            const option = new Option(h.nombre, h.id, h.asignada, h.asignada);
-                            option.dataset.cantidad = h.cantidad || 1;
-                            option.dataset.observaciones = h.observaciones || '';
-                            $(modalInputs).append(option);
-                        });
-                    }
-                    $(modalInputs).select2({
-                        dropdownParent: $('#editHerramientasModal'),
-                        width: '100%',
-                        placeholder: 'Seleccione herramientas',
-                        allowClear: true
+                // Limpiar y mostrar loader
+                modalInputs.innerHTML = '';
+                const loadingOption = document.createElement('option');
+                loadingOption.textContent = 'Cargando...';
+                modalInputs.appendChild(loadingOption);
+
+                console.log(`[Modal] Solicitando herramientas desde API: /api/instancias/${instanciaId}/herramientas`);
+
+                fetch(`/instancias/${instanciaId}/herramientas`)
+                    .then(response => response.json())
+                    .then(data => {
+                        console.log(`[API] Herramientas recibidas:`, data);
+
+                        modalInputs.innerHTML = '';
+
+                        if (data?.herramientas?.length > 0) {
+                            data.herramientas.forEach(h => {
+                                const option = document.createElement('option');
+                                option.value = h.id;
+                                option.textContent = h.nombre;
+                                option.selected = h.asignada;
+                                option.dataset.cantidad = h.cantidad || 1;
+                                option.dataset.observaciones = h.observaciones || '';
+                                modalInputs.appendChild(option);
+                            });
+                            console.log(`[Modal] ${data.herramientas.length} herramientas agregadas al select`);
+                        } else {
+                            console.warn('[Modal] No se encontraron herramientas para esta instancia');
+                        }
+
+                        if (window.$ && window.$.fn.select2) {
+                            console.log('[Select2] Inicializando select2...');
+                            window.$(modalInputs).select2({
+                                dropdownParent: window.$('#editHerramientasModal'),
+                                width: '100%',
+                                placeholder: 'Seleccione herramientas',
+                                allowClear: true
+                            }).trigger('change');
+                        }
+                    })
+                    .catch(err => {
+                        console.error('[API] Error al cargar herramientas:', err);
+                        modalInputs.innerHTML = '';
+                        const errorOption = document.createElement('option');
+                        errorOption.textContent = 'Error al cargar';
+                        modalInputs.appendChild(errorOption);
                     });
-                    // Disparar evento para mostrar detalles de seleccionadas
-                    $(modalInputs).trigger('change');
-                })
-                .catch(() => {
-                    $(modalInputs).html('<option>Error al cargar</option>');
-                });
-        });
-
-        // Enviar formulario por AJAX
-        document.getElementById('formEditarHerramientas').addEventListener('submit', function(e) {
-            e.preventDefault();
-            var form = this;
-            var formData = new FormData(form);
-            var action = form.action;
-            // Agregar los valores seleccionados manualmente (por select2)
-            var herramientas = $('#herramientasSelect').val() || [];
-            formData.delete('herramientas[]');
-            herramientas.forEach(id => formData.append('herramientas[]', id));
-
-            fetch(action, {
-                method: 'POST',
-                headers: {
-                    'X-CSRF-TOKEN': form.querySelector('[name=_token]').value,
-                    'Accept': 'application/json',
-                },
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    Swal.fire({
-                        icon: 'success',
-                        title: '¡Guardado!',
-                        text: 'Herramientas actualizadas correctamente',
-                        timer: 1500,
-                        showConfirmButton: false
-                    });
-                    setTimeout(() => { var modal = bootstrap.Modal.getInstance(herramientasModal); modal.hide(); location.reload(); }, 1500);
-                } else {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Error',
-                        text: data.message || 'Ocurrió un error al guardar.'
-                    });
-                }
-            })
-            .catch(() => {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Error',
-                    text: 'Error al guardar.'
-                });
             });
-        });
-    }
-});
+
+            form.addEventListener('submit', function (e) {
+                e.preventDefault();
+                const formData = new FormData(form);
+                console.log('[Formulario] Enviando formulario con acción:', form.action);
+
+                let herramientas = [];
+                if (window.$ && window.$.fn.select2) {
+                    herramientas = window.$(modalInputs).val() || [];
+                } else {
+                    herramientas = Array.from(modalInputs.selectedOptions).map(opt => opt.value);
+                }
+
+                console.log('[Formulario] Herramientas seleccionadas:', herramientas);
+
+                formData.delete('herramientas[]');
+                herramientas.forEach(id => formData.append('herramientas[]', id));
+
+                fetch(form.action, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': form.querySelector('[name=_token]').value,
+                        'Accept': 'application/json',
+                    },
+                    body: formData
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        console.log('[Respuesta] Datos recibidos al guardar:', data);
+
+                        if (data.success) {
+                            Swal.fire({
+                                icon: 'success',
+                                title: '¡Guardado!',
+                                text: 'Herramientas actualizadas correctamente',
+                                timer: 1500,
+                                showConfirmButton: false
+                            });
+                            setTimeout(() => {
+                                const modal = bootstrap.Modal.getInstance(herramientasModal);
+                                modal.hide();
+                                location.reload();
+                            }, 1500);
+                        } else {
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Error',
+                                text: data.message || 'Ocurrió un error al guardar.'
+                            });
+                        }
+                    })
+                    .catch(err => {
+                        console.error('[Formulario] Error al guardar herramientas:', err);
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error',
+                            text: 'Error al guardar.'
+                        });
+                    });
+            });
+        } else {
+            console.warn('[Inicialización] Elementos del DOM no encontrados correctamente.');
+        }
+    });
 </script>
+
+    
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
@@ -675,50 +717,102 @@ document.getElementById('guardarHerramientasBtn').addEventListener('click', func
 
 
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Function to calculate the average for a specific modal
-        function calculateAverage(modalId) {
-            const modal = document.getElementById(modalId);
-            if (!modal) return;
-    
-            const resultadoInput = modal.querySelector('input[name="resultado"]');
-            const resultado2Input = modal.querySelector('input[name="resultado_2"]');
-            const resultado3Input = modal.querySelector('input[name="resultado_3"]');
-            const resultadoFinalTextarea = modal.querySelector('textarea[name="resultado_final"]');
-    
-            // Function to compute and update the average
-            function updateAverage() {
+document.addEventListener('DOMContentLoaded', function() {
+    // Function to calculate the average for a specific modal
+    function calculateAverage(modalId) {
+        const modal = document.getElementById(modalId);
+        if (!modal) return;
+
+        const resultadoInput = modal.querySelector('input[name="resultado"]');
+        const resultado2Input = modal.querySelector('input[name="resultado_2"]');
+        const resultado3Input = modal.querySelector('input[name="resultado_3"]');
+        const resultadoFinalTextarea = modal.querySelector('textarea[name="resultado_final"]');
+
+        // Improved function to extract numbers with small decimal values
+        function extractNumber(value) {
+            if (!value) return NaN;
+            
+            // Convert commas to points for decimal separation if needed
+            const standardizedValue = value.toString().replace(',', '.');
+            
+            // Remove any non-numeric characters except decimal point and minus sign
+            const numericString = standardizedValue
+                .replace(/[^\d.-]/g, '')
+                .replace(/(\..*)\./g, '$1'); // Remove extra decimal points
+            
+            return parseFloat(numericString);
+        }
+
+        // Function to determine the appropriate number of decimal places
+        function getDecimalPlaces(numbers) {
+            // Find the number with most decimal places
+            const decimalCounts = numbers.map(num => {
+                const parts = num.toString().split('.');
+                return parts.length > 1 ? parts[1].length : 0;
+            });
+            return Math.max(...decimalCounts, 4); // Use at least 4 decimal places
+        }
+
+        // Function to compute and update the average
+        function updateAverage() {
+            try {
                 // Get values and convert to numbers
-                const val1 = parseFloat(resultadoInput.value) || 0;
-                const val2 = parseFloat(resultado2Input.value) || 0;
-                const val3 = parseFloat(resultado3Input.value) || 0;
-    
-                // Count non-empty values
-                const validValues = [val1, val2, val3].filter(val => !isNaN(val) && val !== 0);
+                const val1 = extractNumber(resultadoInput.value);
+                const val2 = extractNumber(resultado2Input.value);
+                const val3 = extractNumber(resultado3Input.value);
+
+                // Filter valid numbers (not NaN)
+                const validValues = [val1, val2, val3].filter(val => !isNaN(val));
                 const count = validValues.length;
-    
-                // Calculate average
-                const sum = validValues.reduce((acc, val) => acc + val, 0);
-                const average = count > 0 ? (sum / count).toFixed(2) : '';
-    
+
+                // Calculate average if we have valid values
+                let average = '';
+                if (count > 0) {
+                    const sum = validValues.reduce((acc, val) => acc + val, 0);
+                    const avg = sum / count;
+                    
+                    // Determine appropriate decimal places
+                    const decimalPlaces = getDecimalPlaces(validValues);
+                    
+                    // Format the average with the required precision
+                    average = avg.toFixed(decimalPlaces);
+                    
+                    // Remove trailing zeros after decimal if needed
+                    average = average.replace(/(\.\d*?[1-9])0+$/, '$1').replace(/\.$/, '');
+                }
+
                 // Update resultado_final textarea
                 resultadoFinalTextarea.value = average;
+            } catch (error) {
+                console.error('Error calculating average:', error);
+                resultadoFinalTextarea.value = 'Error en cálculo';
             }
-    
-            // Add event listeners to input fields
-            [resultadoInput, resultado2Input, resultado3Input].forEach(input => {
-                input.addEventListener('input', updateAverage);
-            });
-    
-            // Initial calculation
-            updateAverage();
         }
-    
-        // Initialize for each modal
-        @foreach($analisis as $item)
-            calculateAverage('editAnalisisModal{{ $item->cotio_subitem }}');
-        @endforeach
-    });
+
+        // Add event listeners with debounce
+        const debounceTime = 300;
+        let debounceTimer;
+        
+        function debouncedUpdate() {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(updateAverage, debounceTime);
+        }
+
+        [resultadoInput, resultado2Input, resultado3Input].forEach(input => {
+            input.addEventListener('input', debouncedUpdate);
+            input.addEventListener('paste', debouncedUpdate);
+            input.addEventListener('change', updateAverage);
+        });
+
+        // Initial calculation
+        updateAverage();
+    }
+
+    // Initialize for each modal
+    @foreach($analisis as $item)
+        calculateAverage('editAnalisisModal{{ $item->cotio_subitem }}');
+    @endforeach
+});
 </script>
 
 <script>

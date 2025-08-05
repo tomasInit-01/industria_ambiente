@@ -134,18 +134,24 @@
                                             </td>
                                             
                                             <td class="text-center">
-                                                @php
-                                                    $muestreoEstado = $grupo['instancia']->cotio_estado ?? 'no coordinado';
-                                                    $muestreoClass = [
-                                                        'muestreado' => 'success',
-                                                        'en revision muestreo' => 'info',
-                                                        'coordinado muestreo' => 'warning',
-                                                    ][$muestreoEstado] ?? 'secondary';
-                                                @endphp
-                                                <span class="badge rounded-pill bg-{{ $muestreoClass }} bg-opacity-10 text-{{ $muestreoClass }}">
-                                                    <i class="fas fa-{{ $muestreoEstado === 'muestreado' ? 'check-circle' : ($muestreoEstado === 'en revision muestreo' ? 'hourglass-half' : 'question-circle') }} me-1"></i>
-                                                    {{ ucfirst($muestreoEstado) }}
-                                                </span>
+                                                @if($grupo['muestra']->requiereMuestreo)
+                                                    @php
+                                                        $muestreoEstado = $grupo['instancia']->cotio_estado ?? 'no coordinado';
+                                                        $muestreoClass = [
+                                                            'muestreado' => 'success',
+                                                            'en revision muestreo' => 'info',
+                                                            'coordinado muestreo' => 'warning',
+                                                        ][$muestreoEstado] ?? 'secondary';
+                                                    @endphp
+                                                    <span class="badge rounded-pill bg-{{ $muestreoClass }} bg-opacity-10 text-{{ $muestreoClass }}">
+                                                        <i class="fas fa-{{ $muestreoEstado === 'muestreado' ? 'check-circle' : ($muestreoEstado === 'en revision muestreo' ? 'hourglass-half' : 'question-circle') }} me-1"></i>
+                                                        {{ ucfirst($muestreoEstado) }}
+                                                    </span>
+                                                @else
+                                                    <span class="badge bg-secondary bg-opacity-10 text-success">
+                                                        <i class="fas fa-user-slash me-1"></i> No requiere muestreo
+                                                    </span>
+                                                @endif
                                             </td>
                                             
                                             <td class="text-center">

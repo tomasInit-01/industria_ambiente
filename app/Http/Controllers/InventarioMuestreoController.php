@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\InventarioMuestreo;
+use Illuminate\Support\Facades\Log;
 
 
 
@@ -55,13 +56,64 @@ class InventarioMuestreoController extends Controller
 
     public function update(Request $request, $id)
     {
-        $inventario = InventarioMuestreo::find($id);
-        $inventario->equipamiento = $request->equipamiento;
-        $inventario->marca_modelo = $request->marca_modelo;
-        $inventario->n_serie_lote = $request->n_serie_lote;
-        $inventario->observaciones = $request->observaciones;
-        $inventario->save();
-        return redirect()->route('inventarios-muestreo.index')->with('success', 'Equipamiento actualizado correctamente.');
+        try {
+            // Validación
+            $validated = $request->validate([
+                'equipamiento' => 'required|string|max:255',
+                'marca_modelo' => 'nullable|string|max:255',
+                'n_serie_lote' => 'nullable|string|max:255',
+                'fecha_calibracion' => 'nullable|date',
+                'activo' => 'required|boolean',
+                'certificado' => [
+                    'nullable',
+                    function ($attribute, $value, $fail) use ($request) {
+                        if (is_string($value)) return;
+                        
+                        if ($request->hasFile($attribute)) {
+                            $file = $request->file($attribute);
+                            if ($file->getClientOriginalExtension() !== 'pdf') {
+                                $fail('El certificado debe ser un archivo PDF.');
+                            }
+                            if ($file->getSize() > 5120 * 1024) {
+                                $fail('El certificado no debe exceder los 5MB.');
+                            }
+                        }
+                    }
+                ],
+                'observaciones' => 'nullable|string'
+            ]);
+    
+            $inventario = InventarioMuestreo::findOrFail($id);
+            
+            // Inicializar datos con todos los campos validados
+            $data = $validated;
+    
+            // Manejo del certificado
+            if ($request->hasFile('certificado')) {
+                // Eliminar el anterior si existe
+                if ($inventario->certificado) {
+                    Storage::disk('public')->delete($inventario->certificado);
+                }
+                
+                // Guardar el nuevo
+                $path = $request->file('certificado')->store('certificados', 'public');
+                $data['certificado'] = $path;
+            } else {
+                // Conservar el certificado existente si no se sube uno nuevo
+                $data['certificado'] = $inventario->certificado;
+            }
+    
+            // Actualización
+            $inventario->update($data);
+    
+            return redirect()->route('inventarios-muestreo.index')
+                ->with('success', 'Equipamiento actualizado correctamente.');
+    
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return back()->withErrors($e->errors())->withInput();
+        } catch (\Exception $e) {
+            return back()->with('error', 'Error al actualizar: ' . $e->getMessage());
+        }
     }
     
     public function destroy($id)
@@ -79,15 +131,27 @@ class InventarioMuestreoController extends Controller
 
     public function store(Request $request)
     {
-        $inventario = new InventarioMuestreo();
-        $inventario->equipamiento = $request->equipamiento;
-        $inventario->marca_modelo = $request->marca_modelo;
-        $inventario->n_serie_lote = $request->n_serie_lote;
-        $inventario->observaciones = $request->observaciones;
-        $inventario->save();
+        $request->validate([
+            'equipamiento' => 'required|string|max:255',
+            'marca_modelo' => 'nullable|string|max:255',
+            'n_serie_lote' => 'nullable|string|max:255',
+            'fecha_calibracion' => 'nullable|date',
+            'activo' => 'required|boolean',
+            'certificado' => 'nullable|file|mimes:pdf|max:5120', // 5MB máximo
+            'observaciones' => 'nullable|string'
+        ]);
+
+        $data = $request->except('certificado');
         
-        return redirect()->route('inventarios-muestreo.index')->with('success', 'Equipamiento creado correctamente.');
+        if ($request->hasFile('certificado')) {
+            $path = $request->file('certificado')->store('certificados', 'public');
+            $data['certificado'] = $path;
+        }
+
+        InventarioMuestreo::create($data);
         
+        return redirect()->route('inventarios-muestreo.index')
+            ->with('success', 'Equipamiento creado correctamente.');
     }
     
 }

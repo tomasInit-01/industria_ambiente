@@ -5,7 +5,7 @@
 
 @section('content')
 <div class="container py-4">
-    <a href="{{ url('/') }}" class="btn btn-outline-secondary mb-4">← Volver a Cotizaciones</a>
+    <a href="{{ url('/muestras') }}" class="btn btn-outline-secondary mb-4">← Volver a Muestras</a>
     <h2 class="mb-4">Muestras de Cotización <span class="text-primary">{{ $cotizacion->coti_num }}</span></h2>
     
     @if (session('success'))
@@ -104,7 +104,7 @@
                                 <div class="mb-4">
                                     <div class="card shadow-sm mi-tarjeta h-100">
                                         <!-- Encabezado de la tarjeta -->
-                                        <div class="card-header text-white d-flex justify-content-between align-items-center flex-wrap {{ $headerClass }}">
+                                        <div class="card-header text-white d-flex justify-content-between align-items-center flex-wrap {{ $headerClass }} {{ $instancia->active_ot ? 'bg-success' : '' }}">
                                             <div class="d-flex align-items-center gap-2 flex-wrap">
                                                 <!-- Checkbox principal -->
                                                 <input
@@ -130,6 +130,9 @@
                                                     >
                                                         <strong>{{ $descripcion }} {{ $instancia->id ? '#' . str_pad($instancia->id, 8, '0', STR_PAD_LEFT) : null }}</strong> 
                                                         <span class="ms-2">(Muestra {{ $instancia->instance_number }} / {{ $categoria->cotio_cantidad ?? '-' }})</span>
+                                                        @if($instancia->active_ot)
+                                                            <span class="ms-2">(Esta muestra se encuentra en una Orden de Trabajo)</span>
+                                                        @endif
                                                     </a>
                                                     
                                                     @if($instancia->active_muestreo && $instancia->fecha_muestreo)
@@ -201,39 +204,39 @@
                                                 >
                                                     Pasar a OT
                                                 </button>
-                                            @elseif(!$requiereMuestreo && $instancia->enable_ot)
-                                                <button 
-                                                    type="button" 
-                                                    onclick="quitarDirectoAOT({{ $instancia }})" 
-                                                    class="btn btn-danger" 
-                                                    data-bs-toggle="tooltip" 
-                                                    title="Quitar esta muestra de la Orden de Trabajo"
-                                                >
-                                                    Quitar de OT
-                                                </button>
-                                            @elseif($requiereMuestreo && !$instancia->enable_ot)
-                                                <span class="ms-2">(Debe pasar por muestreo)</span>
-                                            @endif
+                                                @elseif(!$requiereMuestreo && !$instancia->active_ot)
+                                                    <button 
+                                                        type="button" 
+                                                        onclick="quitarDirectoAOT({{ $instancia }})" 
+                                                        class="btn btn-danger" 
+                                                        data-bs-toggle="tooltip" 
+                                                        title="Quitar esta muestra de la Orden de Trabajo"
+                                                    >
+                                                        Quitar de OT
+                                                    </button>
+                                                @elseif($requiereMuestreo && !$instancia->enable_ot)
+                                                    <span class="ms-2">(Debe pasar por muestreo)</span>
+                                                @endif
                                             
-                        
-                                                <!-- QR -->
-                                                <a 
-                                                    href="#"
-                                                    class="text-decoration-none"
-                                                    title="Generar QR para esta muestra"
-                                                    data-url="{{ route('tareas.all.show', [
-                                                        'cotio_numcoti' => $cotizacion->coti_num, 
-                                                        'cotio_item' => $categoria->original_item, 
-                                                        'cotio_subitem' => 0,
-                                                        'instance' => $instancia->instance_number
-                                                    ]) }}"
-                                                    data-coti="{{ $cotizacion->coti_num }}"
-                                                    data-categoria="{{ $descripcion }}"
-                                                    data-instance="{{ $instancia->instance_number }}"
-                                                    onclick="generateQr(this)"
-                                                >
-                                                    <x-heroicon-o-qr-code class="text-white" style="width: 24px; height: 24px;"/>
-                                                </a>
+                                                @if(!$instancia->active_ot)
+                                                    <a 
+                                                        href="#"
+                                                        class="text-decoration-none"
+                                                        title="Generar QR para esta muestra"
+                                                        data-url="{{ route('tareas.all.show', [
+                                                            'cotio_numcoti' => $cotizacion->coti_num, 
+                                                            'cotio_item' => $categoria->original_item, 
+                                                            'cotio_subitem' => 0,
+                                                            'instance' => $instancia->instance_number
+                                                        ]) }}"
+                                                        data-coti="{{ $cotizacion->coti_num }}"
+                                                        data-categoria="{{ $descripcion }}"
+                                                        data-instance="{{ $instancia->instance_number }}"
+                                                        onclick="generateQr(this)"
+                                                    >
+                                                        <x-heroicon-o-qr-code class="text-white" style="width: 24px; height: 24px;"/>
+                                                    </a>
+                                                @endif
                         
                                             </div>
                                         </div>
@@ -1155,25 +1158,25 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        let missingMandatory = false;
-        Object.entries(mandatoryVariables).forEach(([tipoMuestra, variableIds]) => {
-            const selectedVariables = Array.from(document.querySelectorAll(`.variable-checkbox[data-tipo="${tipoMuestra}"]:checked`))
-                .map(cb => parseInt(cb.value));
-            variableIds.forEach(id => {
-                if (!selectedVariables.includes(id)) {
-                    missingMandatory = true;
-                }
-            });
-        });
+        // let missingMandatory = false;
+        // Object.entries(mandatoryVariables).forEach(([tipoMuestra, variableIds]) => {
+        //     const selectedVariables = Array.from(document.querySelectorAll(`.variable-checkbox[data-tipo="${tipoMuestra}"]:checked`))
+        //         .map(cb => parseInt(cb.value));
+        //     variableIds.forEach(id => {
+        //         if (!selectedVariables.includes(id)) {
+        //             missingMandatory = true;
+        //         }
+        //     });
+        // });
 
-        if (missingMandatory) {
-            Swal.fire({
-                title: 'Variables obligatorias faltantes',
-                text: 'Debe seleccionar todas las variables obligatorias marcadas con *',
-                icon: 'warning'
-            });
-            return;
-        }
+        // if (missingMandatory) {
+        //     Swal.fire({
+        //         title: 'Variables obligatorias faltantes',
+        //         text: 'Debe seleccionar todas las variables obligatorias marcadas con *',
+        //         icon: 'warning'
+        //     });
+        //     return;
+        // }
 
         fetch(this.action, {
             method: 'POST',
@@ -1483,6 +1486,7 @@ const quitarDirectoAOT = (instancia) => {
     const cotio_numcoti = instancia.cotio_numcoti;
     const cotio_item = instancia.cotio_item;
     const instance_number = instancia.instance_number;
+    const isFromCoordinador = false;
 
     fetch(`/muestras/quitar-directo-a-ot/${cotio_numcoti}/${cotio_item}/${instance_number}`, {
         method: 'DELETE',

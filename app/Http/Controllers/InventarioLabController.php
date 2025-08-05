@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\InventarioLab;
+use Illuminate\Support\Facades\Log;
 
 
 
@@ -56,6 +57,7 @@ class InventarioLabController extends Controller
 
     public function update(Request $request, $id)
     {
+        // Log::info($request->all());
         $inventario = InventarioLab::find($id);
         $inventario->equipamiento = $request->equipamiento;
         $inventario->marca_modelo = $request->marca_modelo;
@@ -64,6 +66,18 @@ class InventarioLabController extends Controller
         $inventario->observaciones = $request->observaciones;
         $inventario->activo = $request->activo;
         $inventario->fecha_calibracion = $request->fecha_calibracion;
+
+        if ($request->hasFile('certificado')) {
+            if ($inventario->certificado) {
+                Storage::disk('public')->delete($inventario->certificado);
+            }
+            
+            $path = $request->file('certificado')->store('certificados', 'public');
+            $inventario->certificado = $path;
+        } else {
+            $inventario->certificado = $inventario->certificado;
+        }
+
         $inventario->save();
         return redirect()->route('inventarios.index')->with('success', 'Equipamiento actualizado correctamente.');
     }
@@ -83,6 +97,7 @@ class InventarioLabController extends Controller
 
     public function store(Request $request)
     {
+        Log::info($request->all());
         $inventario = new InventarioLab();
         $inventario->equipamiento = $request->equipamiento;
         $inventario->marca_modelo = $request->marca_modelo;
@@ -91,6 +106,13 @@ class InventarioLabController extends Controller
         $inventario->observaciones = $request->observaciones;
         $inventario->activo = $request->activo;
         $inventario->fecha_calibracion = $request->fecha_calibracion;
+
+        if ($request->hasFile('certificado_calibracion')) {
+            $path = $request->file('certificado_calibracion')->store('certificados', 'public');
+            $inventario->certificado = $path;
+        }
+
+
         $inventario->save();
         return redirect()->route('inventarios.index')->with('success', 'Equipamiento creado correctamente.');
     }

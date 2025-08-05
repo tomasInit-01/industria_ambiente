@@ -626,7 +626,7 @@
     
     <nav class="nav flex-column w-100 px-2">
         
-        @if(Auth::user()->rol == 'coordinador_muestreo' || Auth::user()->rol == 'coordinador_lab' || Auth::user()->usu_nivel >= 900 || Auth::user()->rol == 'facturador')
+        @if(Auth::user())
             <div class="accordion-item">
                 <button class="accordion-button nav-group-title" type="button" data-bs-toggle="collapse" data-bs-target="#bandejaTrabajo">
                     Bandeja de Trabajo
@@ -635,6 +635,19 @@
                 
                 <div id="bandejaTrabajo" class="accordion-collapse collapse show">
                     <div class="accordion-body p-0">
+                        @if(Auth::user()->rol == 'muestreador' || Auth::user()->rol == 'laboratorio' && Auth::user()->usu_nivel < 900)
+                            @if(Auth::user()->rol == 'muestreador')
+                                <a class="nav-link" href="{{ url('/mis-tareas') }}">
+                                    Mis muestras
+                                </a>
+                            @endif
+                            @if(Auth::user()->rol == 'laboratorio')
+                                <a class="nav-link" href="{{ url('/mis-ordenes') }}">
+                                    Mis análisis
+                                </a>
+                            @endif
+                        @endif
+
                         @if(Auth::user()->usu_nivel >= 900)
                             <a class="nav-link" href="{{ url('/dashboard') }}">
                                 Dashboard

@@ -116,7 +116,7 @@
 
 @section('content')
 <div class="container">
-    <a href="{{ url('/') }}" class="back-btn">← Volver a Cotizaciones</a>
+    <a href="{{ url('/facturacion') }}" class="back-btn">← Volver a Facturación</a>
     <h2 class="title">Cotización <span class="text-primary">{{ $cotizacion->coti_num }}</span></h2>
 
     @if (session('success'))
@@ -153,6 +153,7 @@
                                     id="sample-{{ $instancia->id }}"
                                     data-instancia="{{ $instancia->id }}"
                                     onchange="toggleAllTasks(this, {{ $instancia->id }})"
+                                    @if($facturada) disabled @endif
                                 >
                                 <label class="sample-label" for="sample-{{ $instancia->id }}">
                                     Muestra #{{ str_pad($instancia->id, 8, '0', STR_PAD_LEFT) }} (#{{$instancia->instance_number }})

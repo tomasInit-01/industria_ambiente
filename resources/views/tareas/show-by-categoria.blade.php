@@ -53,9 +53,11 @@
                             <i class="fas fa-pause me-1"></i> Ya suspendida
                         </button>
                     @endif
-                    <button class="btn btn-sm btn-outline-light" data-bs-toggle="modal" data-bs-target="#editMuestraModal">
-                        Añadir identificación
-                    </button>
+                    @if($instancia->cotio_estado == 'coordinado muestreo' || $instancia->cotio_estado == 'en revision muestreo')
+                        <button class="btn btn-sm btn-outline-light" data-bs-toggle="modal" data-bs-target="#editMuestraModal">
+                            Añadir identificación
+                        </button>
+                    @endif
                 </div>
             @endif
         </div>

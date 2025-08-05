@@ -52,6 +52,7 @@ Route::middleware(CheckAuth::class)->group(function () {
     Route::get('auth/{id}/ayuda', [AuthController::class, 'showHelp'])->name('auth.help');
 
     Route::put('/instancias/{instancia}/herramientas', [OrdenController::class, 'updateHerramientas'])->name('instancias.update-herramientas');
+    Route::get('/instancias/{instancia}/herramientas', [OrdenController::class, 'apiHerramientasInstancia']);
 });
 
 // Rutas para usuarios con nivel 900 o más (admin)
@@ -132,6 +133,7 @@ Route::middleware([CheckAdminOrRole::class])->group(function () {
     Route::delete('/inventarios/{id}', [InventarioLabController::class, 'destroy'])->name('inventarios.destroy');
 
     Route::get('/api/instancias/{instancia}/herramientas', [App\Http\Controllers\OrdenController::class, 'apiHerramientasInstancia']);
+    Route::post('/api/get-responsables-analisis', [App\Http\Controllers\OrdenController::class, 'getResponsablesAnalisis']);
 
     // Gestión de inventarios de muestreo
     Route::get('/inventarios-muestreo', [InventarioMuestreoController::class, 'index'])->name('inventarios-muestreo.index');
@@ -150,6 +152,7 @@ Route::middleware([CheckAdminOrRole::class])->group(function () {
     Route::post('/ordenes/{ordenId}/asignacion-masiva', [OrdenController::class, 'asignacionMasiva'])->name('ordenes.asignacionMasiva');
     Route::post('/ordenes/finalizar-todas', [OrdenController::class, 'finalizarTodas'])->name('ordenes.finalizar-todas');
     Route::post('/ordenes/{ordenId}/remover-responsable', [OrdenController::class, 'removerResponsable'])->name('ordenes.remover-responsable');
+    Route::put('/ordenes/{cotio_numcoti}/editar-responsables', [OrdenController::class, 'editarResponsables'])->name('ordenes.editar-responsables');
     Route::post('/ordenes/{cotio_numcoti}/{cotio_item}/{cotio_subitem}/{instance}/enable-informe', [OrdenController::class, 'enableInforme'])->name('ordenes.enable-informe');
     Route::post('/ordenes/{cotio_numcoti}/{cotio_item}/{cotio_subitem}/{instance}/disable-informe', [OrdenController::class, 'disableInforme'])->name('ordenes.disable-informe');
     Route::post('/ordenes/{cotizacion}/deshacer-asignaciones', [OrdenController::class, 'deshacerAsignaciones'])->name('ordenes.deshacer-asignaciones');
@@ -171,6 +174,7 @@ Route::middleware([CheckAdminOrRole::class])->group(function () {
     Route::put('/muestras/update-all-data', [MuestrasController::class, 'updateAllData'])->name('muestras.updateAllData');
     Route::post('/muestras/pasar-directo-a-ot/{cotio_numcoti}/{cotio_item}/{instance_number}', [MuestrasController::class, 'pasarDirectoAOT'])->name('muestras.pasar-directo-a-ot');
     Route::delete('/muestras/quitar-directo-a-ot/{cotio_numcoti}/{cotio_item}/{instance_number}', [MuestrasController::class, 'quitarDirectoAOT'])->name('muestras.quitar-directo-a-ot');
+    Route::delete('/muestras/quitar-directo-a-ot-from-coordinador/{cotio_numcoti}/{cotio_item}/{instance_number}', [MuestrasController::class, 'quitarDirectoAOTFromCoordinador'])->name('muestras.quitar-directo-a-ot-from-coordinador');
 
 
 
@@ -257,6 +261,7 @@ Route::middleware([CheckAdminOrRole::class])->group(function () {
     ->name('variables-requeridas.update-group');
     
     Route::get('/api/instancias/{instancia}/herramientas', [App\Http\Controllers\OrdenController::class, 'apiHerramientasInstancia']);
+    Route::post('/api/get-responsables-analisis', [App\Http\Controllers\OrdenController::class, 'getResponsablesAnalisis']);
 
     // Gestión de ordenes de trabajo
     Route::get('/ordenes', [OrdenController::class, 'index'])->name('ordenes.index');
@@ -266,6 +271,7 @@ Route::middleware([CheckAdminOrRole::class])->group(function () {
     Route::post('/ordenes/{ordenId}/asignacion-masiva', [OrdenController::class, 'asignacionMasiva'])->name('ordenes.asignacionMasiva');
     Route::post('/ordenes/finalizar-todas', [OrdenController::class, 'finalizarTodas'])->name('ordenes.finalizar-todas');
     Route::post('/ordenes/{ordenId}/remover-responsable', [OrdenController::class, 'removerResponsable'])->name('ordenes.remover-responsable');
+    Route::put('/ordenes/{cotio_numcoti}/editar-responsables', [OrdenController::class, 'editarResponsables'])->name('ordenes.editar-responsables');
     Route::post('/ordenes/{cotio_numcoti}/{cotio_item}/{cotio_subitem}/{instance}/enable-informe', [OrdenController::class, 'enableInforme'])->name('ordenes.enable-informe');
     Route::post('/ordenes/{cotio_numcoti}/{cotio_item}/{cotio_subitem}/{instance}/disable-informe', [OrdenController::class, 'disableInforme'])->name('ordenes.disable-informe');
     Route::post('/ordenes/{cotizacion}/deshacer-asignaciones', [OrdenController::class, 'deshacerAsignaciones'])->name('ordenes.deshacer-asignaciones');

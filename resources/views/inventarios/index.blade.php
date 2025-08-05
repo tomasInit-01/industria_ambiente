@@ -141,9 +141,10 @@
                     <th>Marca/Modelo</th>
                     <th>Número de Serie/Lote</th>
                     <th>Activo</th>
-                    <th>Fecha de Calibración</th>
+                    <th>Fecha de Calibración (vencimiento)</th>
                     {{-- <th>Estado</th> --}}
                     <th>Observaciones</th>
+                    <th>Certificado</th>
                     <th>Acciones</th>
                 </tr>
             </thead>
@@ -157,6 +158,15 @@
                         {{-- <td class="<?php echo $inventario->estado === 'libre' ? 'bg-success' : 'bg-danger'; ?>">{{ $inventario->estado === 'libre' ? 'Libre' : 'Ocupado' }}</td> --}}
                         <td>{{ $inventario->fecha_calibracion }}</td>
                         <td>{{ $inventario->observaciones ?? 'N/A' }}</td>
+                        <td>
+                            @if($inventario->certificado)
+                                <a href="{{ asset('storage/' . $inventario->certificado) }}" target="_blank">
+                                    <x-heroicon-o-document-text class="me-1" style="width: 22px; height: 22px;" />
+                                </a>
+                            @else
+                                N/A
+                            @endif
+                        </td>
                         <td class="d-flex align-items-start gap-2">
                             <a class="btn btn-sm btn-primary d-flex align-items-center justify-content-center" 
                                href="{{ url('/inventarios/' . $inventario->id . '/edit') }}" 
@@ -195,7 +205,7 @@
                             <p><strong>Marca/Modelo:</strong> {{ $inventario->marca_modelo }}</p>
                             <p><strong>Activo:</strong> {{ $inventario->activo ? 'Activo' : 'Inactivo' }}</p>
                             {{-- <p><strong>Estado:</strong> {{ $inventario->estado ? 'Libre' : 'Ocupado' }}</p> --}}
-                            <p><strong>Fecha de Calibración:</strong> {{ $inventario->fecha_calibracion }}</p>
+                            <p><strong>Fecha de Calibración (vencimiento):</strong> {{ $inventario->fecha_calibracion }}</p>
                             <a class="btn btn-primary" href="{{ url('/inventarios/' . $inventario->id) }}">
                                 <x-heroicon-o-pencil class="me-1" style="width: 16px; height: 16px;" />
                             </a>

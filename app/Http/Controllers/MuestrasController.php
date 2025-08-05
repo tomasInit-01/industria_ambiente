@@ -649,18 +649,73 @@ public function pasarDirectoAOT(Request $request)
 
 
 
-public function quitarDirectoAOT($cotio_numcoti, $cotio_item, $instance_number)
+public function quitarDirectoAOT($cotio_numcoti, $cotio_item, $instance_number, $isFromCoordinador = false)
 {
+
+    // Verificar si alguna instancia tiene active_ot = true
+    $instanciaActiva = CotioInstancia::where('cotio_numcoti', $cotio_numcoti)
+        ->where('cotio_item', $cotio_item)
+        ->where('instance_number', $instance_number)
+        ->where('active_ot', true)
+        ->exists();
+
+    if ($instanciaActiva) {
+        return response()->json([
+            'success' => false,
+            'message' => 'La muestra está activa en OT, no se puede realizar la acción',
+            'active_ot' => false
+        ], 400);
+    }
+
     // Eliminar instancias correspondientes (muestra + análisis)
     CotioInstancia::where('cotio_numcoti', $cotio_numcoti)
         ->where('cotio_item', $cotio_item)
         ->where('instance_number', $instance_number)
-        ->update(['enable_ot' => false]);
+        ->update([
+            'enable_ot' => false,
+            'cotio_estado_analisis' => null,
+            'active_ot' => false
+        ]);
 
     return response()->json([
         'success' => true,
         'message' => 'Instancias eliminadas correctamente de OT'
     ]);
+}
+
+
+public function quitarDirectoAOTFromCoordinador($cotio_numcoti, $cotio_item, $instance_number)
+{
+    $isFromCoordinador = request()->input('isFromCoordinador', false);
+
+    // Si NO es desde coordinador, verificamos si está activa en OT
+    if (!$isFromCoordinador) {
+        $instanciaActiva = CotioInstancia::where('cotio_numcoti', $cotio_numcoti)
+            ->where('cotio_item', $cotio_item)
+            ->where('instance_number', $instance_number)
+            ->where('active_ot', true)
+            ->exists();
+
+        if ($instanciaActiva) {
+            return back()->with('error', 'La muestra está activa en OT, no se puede realizar la acción');
+        }
+    }
+
+    // Actualizar las instancias (se ejecuta siempre si es desde coordinador)
+    $updated = CotioInstancia::where('cotio_numcoti', $cotio_numcoti)
+        ->where('cotio_item', $cotio_item)
+        ->where('instance_number', $instance_number)
+        ->update([
+            'enable_ot' => false,
+            'cotio_estado_analisis' => $isFromCoordinador ? null : DB::raw('cotio_estado_analisis'),
+            'active_ot' => false
+        ]);
+
+    if ($updated) {
+        return back()->with('success', 'Instancias eliminadas correctamente de OT');
+    }
+
+    return back()->with('error', 'No se pudo realizar la acción');
 }
 
 

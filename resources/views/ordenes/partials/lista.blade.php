@@ -23,7 +23,7 @@
                             $analizadas = $instanciaData['instancias']->where('cotio_estado_analisis', 'analizado')->where('cotio_subitem', '=', 0)->count();
                             $enProceso = $instanciaData['instancias']->where('cotio_estado_analisis', 'en revision analisis')->where('cotio_subitem', '=', 0)->count();
                             $coordinadas = $instanciaData['instancias']->where('cotio_estado_analisis', 'coordinado analisis')->where('cotio_subitem', '=', 0)->count();
-                            $total = $instanciaData['instancias']->where('cotio_subitem', '=', 0)->count();
+                            $total = $instanciaData['instancias']->where('cotio_subitem', '=', 0)->where('enable_ot', '=', 1)->count();
                             
                             $porcentajes = [
                                 'analizadas' => $total > 0 ? ($analizadas / $total) * 100 : 0,

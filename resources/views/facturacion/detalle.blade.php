@@ -5,7 +5,7 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2>Detalle de Factura #{{ $factura->numero_factura }}</h2>
         <div>
-            <a href="{{ route('facturacion.listado') }}" class="btn btn-outline-secondary me-2">
+            <a href="{{ route('facturacion.index') }}" class="btn btn-outline-secondary me-2">
                 <i class="fas fa-arrow-left me-2"></i>Volver al Listado
             </a>
             @if($factura->cotizacion)

@@ -143,6 +143,9 @@
                     <th>Código de Ficha</th>
                     {{-- <th>Estado</th> --}}
                     <th>Observaciones</th>
+                    <th>Activo</th>
+                    <th>Fecha de Calibración (vencimiento)</th>
+                    <th>Certificado</th>
                     <th>Acciones</th>
                 </tr>
             </thead>
@@ -155,6 +158,17 @@
                         <td>{{ $inventario->codigo_ficha }}</td>
                         {{-- <td class="<?php echo $inventario->estado === 'libre' ? 'bg-success' : 'bg-danger'; ?>">{{ $inventario->estado === 'libre' ? 'Libre' : 'Ocupado' }}</td> --}}
                         <td>{{ $inventario->observaciones ?? 'N/A' }}</td>
+                        <td class="<?php echo $inventario->activo === true ? 'bg-success text-white' : 'bg-danger text-white'; ?>">{{ $inventario->activo ? 'Activo' : 'Inactivo' }}</td>
+                        <td>{{ $inventario->fecha_calibracion }}</td>
+                        <td>
+                            @if($inventario->certificado)
+                                <a href="{{ asset('storage/' . $inventario->certificado) }}" target="_blank" rel="noopener noreferrer">
+                                    <x-heroicon-o-document-text style="width: 23px; height: 23px;" />
+                                </a>
+                            @else
+                                <span class="text-muted">N/A</span>
+                            @endif
+                        </td>
                         <td class="d-flex align-items-start gap-2">
                             <a class="btn btn-sm btn-primary d-flex align-items-center justify-content-center" 
                                href="{{ url('/inventarios-muestreo/' . $inventario->id . '/edit') }}" 
@@ -195,7 +209,7 @@
                         <div class="card-body">
                             <h5 class="card-title">{{ $inventario->equipamiento }}</h5>
                             <p><strong>Marca/Modelo:</strong> {{ $inventario->marca_modelo }}</p>
-                            <p><strong>Estado:</strong> {{ $inventario->estado ? 'Activo' : 'Inactivo' }}</p>
+                            <p class="text-{{ $inventario->activo ? 'success' : 'danger' }}"><strong>Activo:</strong> {{ $inventario->activo ? 'Activo' : 'Inactivo' }}</p>
                             
                             <a class="btn btn-primary" href="{{ url('/inventarios-muestreo/' . $inventario->id) }}">
                                 <x-heroicon-o-pencil style="width: 16px; height: 16px;" />

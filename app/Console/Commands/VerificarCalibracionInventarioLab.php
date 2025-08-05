@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Log;
 class VerificarCalibracionInventarioLab extends Command
 {
     protected $signature = 'inventario:verificar-calibracion';
-    protected $description = 'Verifica las fechas de calibración del inventario de laboratorio y genera notificaciones 24 horas antes';
+    protected $description = 'Verifica las fechas de calibración del inventario de laboratorio y muestreo, generando notificaciones 24 horas antes';
 
     public function __construct(
         private CalibracionNotificationService $calibracionService
@@ -25,7 +25,8 @@ class VerificarCalibracionInventarioLab extends Command
             // Verificar calibraciones próximas
             $resultado = $this->calibracionService->verificarCalibracionesProximas();
             
-            $this->info("Encontrados {$resultado['equipos_encontrados']} equipos próximos a calibración");
+            $this->info("Encontrados {$resultado['equipos_lab_encontrados']} equipos de laboratorio próximos a calibración");
+            $this->info("Encontrados {$resultado['equipos_muestreo_encontrados']} equipos de muestreo próximos a calibración");
             $this->info("Se crearon {$resultado['notificaciones_creadas']} notificaciones para {$resultado['coordinadores_notificados']} coordinadores");
             
             if (!empty($resultado['errores'])) {
@@ -37,14 +38,26 @@ class VerificarCalibracionInventarioLab extends Command
             // Verificar equipos con calibración vencida
             $equiposVencidos = $this->calibracionService->verificarCalibracionesVencidas();
             
-            if ($equiposVencidos['equipos_vencidos'] > 0) {
-                $this->warn("⚠️  Se encontraron {$equiposVencidos['equipos_vencidos']} equipos con calibración vencida:");
+            if ($equiposVencidos['equipos_lab_vencidos'] > 0 || $equiposVencidos['equipos_muestreo_vencidos'] > 0) {
+                $this->warn("⚠️  Se encontraron equipos con calibración vencida:");
                 
-                foreach ($equiposVencidos['equipos'] as $equipo) {
-                    $this->warn("- {$equipo['equipamiento']} ({$equipo['marca_modelo']}) - Vencida hace {$equipo['dias_vencida']} días");
+                if ($equiposVencidos['equipos_lab_vencidos'] > 0) {
+                    $this->warn("Laboratorio ({$equiposVencidos['equipos_lab_vencidos']}):");
+                    foreach ($equiposVencidos['equipos_lab'] as $equipo) {
+                        $marcaModelo = $equipo['marca_modelo'] ?? 'Sin marca/modelo';
+                        $this->warn("- {$equipo['equipamiento']} ($marcaModelo) - Vencida hace {$equipo['dias_vencida']} días");
+                    }
+                }
+                
+                if ($equiposVencidos['equipos_muestreo_vencidos'] > 0) {
+                    $this->warn("Muestreo ({$equiposVencidos['equipos_muestreo_vencidos']}):");
+                    foreach ($equiposVencidos['equipos_muestreo'] as $equipo) {
+                        $marcaModelo = $equipo['marca_modelo'] ?? 'Sin marca/modelo';
+                        $this->warn("- {$equipo['equipamiento']} ($marcaModelo) - Vencida hace {$equipo['dias_vencida']} días");
+                    }
                 }
             }
-            
+                    
             // Mostrar estadísticas
             $this->mostrarEstadisticas();
             
@@ -65,10 +78,26 @@ class VerificarCalibracionInventarioLab extends Command
         
         $this->newLine();
         $this->info('📊 ESTADÍSTICAS DE CALIBRACIÓN:');
-        $this->line("Total de equipos activos: {$stats['total_equipos']}");
-        $this->line("Equipos con fecha de calibración: {$stats['equipos_con_calibracion']}");
-        $this->line("Próximos a calibración (24h): {$stats['proximos_24h']}");
-        $this->line("Próximos a calibración (7 días): {$stats['proximos_7dias']}");
-        $this->line("Calibraciones vencidas: {$stats['vencidos']}");
+        
+        $this->line(PHP_EOL.'LABORATORIO:');
+        $this->line("Total de equipos: {$stats['laboratorio']['total_equipos']}");
+        $this->line("Con calibración: {$stats['laboratorio']['equipos_con_calibracion']}");
+        $this->line("Próximos 24h: {$stats['laboratorio']['proximos_24h']}");
+        $this->line("Próximos 7 días: {$stats['laboratorio']['proximos_7dias']}");
+        $this->line("Vencidos: {$stats['laboratorio']['vencidos']}");
+        
+        $this->line(PHP_EOL.'MUESTREO:');
+        $this->line("Total de equipos: {$stats['muestreo']['total_equipos']}");
+        $this->line("Con calibración: {$stats['muestreo']['equipos_con_calibracion']}");
+        $this->line("Próximos 24h: {$stats['muestreo']['proximos_24h']}");
+        $this->line("Próximos 7 días: {$stats['muestreo']['proximos_7dias']}");
+        $this->line("Vencidos: {$stats['muestreo']['vencidos']}");
+        
+        $this->line(PHP_EOL.'TOTALES:');
+        $this->line("Total equipos: {$stats['total']['equipos']}");
+        $this->line("Con calibración: {$stats['total']['con_calibracion']}");
+        $this->line("Próximos 24h: {$stats['total']['proximos_24h']}");
+        $this->line("Próximos 7 días: {$stats['total']['proximos_7dias']}");
+        $this->line("Vencidos: {$stats['total']['vencidos']}");
     }
-} 
+}

@@ -146,16 +146,16 @@
                                             </div>
                     
                                             <!-- Re-coordination Button -->
-                                            @if($muestra->cotio_estado_analisis === 'suspension')
-                                                <div class="ms-2">
-                                                    <button 
+                                            @if($muestra->cotio_estado_analisis === 'suspension' || $muestra->cotio_estado_analisis === 'coordinado analisis')
+                                                    <div style="margin-right: 10px; margin-top: -10px;">
+                                                        <button 
                                                         type="button" 
-                                                        class="btn btn-sm btn-warning text-white"
+                                                        class="btn btn-sm btn-danger text-white"
                                                         onclick="confirmarRecoordinacion({{ $muestra->id }}, '{{ $cotizacion->coti_num }}')"
                                                         title="Recoordinar muestra"
                                                         aria-label="Recoordinar muestra {{ $categoria->cotio_descripcion }} (Instancia {{ $muestra->instance_number }})"
                                                     >
-                                                        <i class="fas fa-sync-alt me-1"></i> Recoordinar
+                                                        <i class="fas fa-sync-alt me-1"></i> Anular
                                                     </button>
                                                 </div>
                                             @endif

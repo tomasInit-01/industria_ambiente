@@ -20,7 +20,7 @@
                     <strong>Formulario de Edición</strong>
                 </div>
                 <div class="card-body">
-                    <form action="{{ url('/inventarios-muestreo/' . $inventario->id) }}" method="POST">
+                    <form action="{{ url('/inventarios-muestreo/' . $inventario->id) }}" method="POST" enctype="multipart/form-data">
                         @csrf
                         @method('PUT')
 
@@ -37,6 +37,35 @@
                         <div class="mb-3">
                             <label for="n_serie_lote" class="form-label">Número de Serie/Lote</label>
                             <input type="text" name="n_serie_lote" id="n_serie_lote" class="form-control" value="{{ old('n_serie_lote', $inventario->n_serie_lote) }}">
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="fecha_calibracion" class="form-label">Fecha de Calibración (vencimiento)</label>
+                            <input type="date" name="fecha_calibracion" id="fecha_calibracion" class="form-control" value="{{ old('fecha_calibracion', $inventario->fecha_calibracion) }}">
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="activo" class="form-label">Activo</label>
+                            <select name="activo" id="activo" class="form-control">
+                                <option value="1" {{ old('activo', $inventario->activo) == 1 ? 'selected' : '' }}>Activo</option>
+                                <option value="0" {{ old('activo', $inventario->activo) == 0 ? 'selected' : '' }}>Inactivo</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="certificado" class="form-label">Certificado de Calibración (PDF)</label>
+                            <input type="file" class="form-control" id="certificado" name="certificado" accept=".pdf">
+                            <small class="text-muted">Tamaño máximo: 5MB</small>
+                            
+                            @if($inventario->certificado)
+                                <div class="mt-2">
+                                    <small>Certificado actual: 
+                                        <a href="{{ Storage::url($inventario->certificado) }}" target="_blank">
+                                            Ver
+                                        </a>
+                                    </small>
+                                </div>
+                            @endif
                         </div>
 
                         <div class="mb-3">

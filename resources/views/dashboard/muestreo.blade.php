@@ -124,7 +124,7 @@
                                     <th>Descripción</th>
                                     <th>Fecha Muestreo</th>
                                     <th>Responsables</th>
-                                    <th class="pe-4">Estado</th>
+                                    <th class="pe-4 d-flex flex-column align-items-center">Estado</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -171,9 +171,17 @@
                                                 default => 'secondary',
                                             };
                                         @endphp
-                                        <span class="badge rounded-pill bg-{{ $badgeColor }}">
-                                            {{ Str::title(str_replace('_', ' ', $muestra->cotio_estado)) }}
-                                        </span>
+                                        <div class="d-flex flex-column justify-content-center align-items-center gap-1">
+                                            <span class="badge rounded-pill bg-{{ $badgeColor }} text-capitalize">
+                                                {{ str_replace('_', ' ', $muestra->cotio_estado) }}
+                                            </span>
+                                            
+                                            @if($muestra->enable_ot)
+                                                <small class="badge bg-info text-white px-2 py-1 rounded-pill">
+                                                    En OT
+                                                </small>
+                                            @endif
+                                        </div>
                                     </td>
                                 </tr>
                                 @empty

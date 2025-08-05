@@ -11,8 +11,8 @@ class InstanciaResponsableAnalisis extends Pivot
     // Indicate that there is no auto-incrementing ID
     public $incrementing = false;
 
-    // Define the composite key (optional, for clarity)
-    protected $primaryKey = ['cotio_instancia_id', 'usu_codigo'];
+    // No definir primaryKey para relaciones pivot sin ID
+    // protected $primaryKey = ['cotio_instancia_id', 'usu_codigo'];
 
     protected $fillable = [
         'cotio_instancia_id',

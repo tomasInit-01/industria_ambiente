@@ -60,7 +60,7 @@
             <h5 class="mb-0">Filtros</h5>
         </div>
         <div class="card-body">
-            <form method="GET" action="{{ route('facturacion.listado') }}">
+            <form method="GET" action="{{ route('facturacion.index') }}">
                 <div class="row">
                     <div class="col-md-3">
                         <label for="estado" class="form-label">Estado</label>
