@@ -53,6 +53,7 @@ class VariableRequeridaController extends Controller
             'variables' => 'required|array',
             'variables.*.nombre' => 'required|string|max:255',
             'variables.*.obligatorio' => 'required|boolean',
+            'variables.*.unidad_medicion' => 'nullable|string|max:255',
         ]);
 
         foreach ($request->cotio_descripciones as $cotioDesc) {
@@ -66,6 +67,7 @@ class VariableRequeridaController extends Controller
                         'cotio_descripcion' => $cotioDesc,
                         'nombre' => $variableData['nombre'],
                         'obligatorio' => $variableData['obligatorio'],
+                        'unidad_medicion' => $variableData['unidad_medicion'] ?? null,
                     ]);
                 }
             }
@@ -102,6 +104,7 @@ class VariableRequeridaController extends Controller
             'cotio_descripcion' => 'required|string|max:255',
             'nombre' => 'required|string|max:255',
             'obligatorio' => 'required|boolean',
+            'unidad_medicion' => 'nullable|string|max:255',
         ]);
 
         $variableRequerida->update($request->all());
@@ -182,6 +185,7 @@ class VariableRequeridaController extends Controller
                  $variable->update([
                      'nombre' => $variableData['nombre'],
                      'obligatorio' => $variableData['obligatorio'],
+                     'unidad_medicion' => $variableData['unidad_medicion'] ?? null,
                  ]);
              }
          }
@@ -195,6 +199,7 @@ class VariableRequeridaController extends Controller
                          'cotio_descripcion' => $groupName,
                          'nombre' => trim($newVariable['nombre']),
                          'obligatorio' => $newVariable['obligatorio'] ?? false,
+                         'unidad_medicion' => $newVariable['unidad_medicion'] ?? null,
                      ]);
                  }
              }

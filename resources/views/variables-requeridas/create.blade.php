@@ -47,7 +47,16 @@
                                 <div class="invalid-feedback d-block">{{ $message }}</div>
                             @enderror
                         </div>
+
                         <div class="col-md-4">
+                            <label for="unidad_medicion_0" class="form-label">Unidad de Medición</label>
+                            <input type="text" name="variables[0][unidad_medicion]" id="unidad_medicion_0" 
+                                   class="form-control" 
+                                   value="{{ old('variables.0.unidad_medicion') }}" 
+                                   maxlength="255">
+                        </div>
+
+                        <div class="col-md-2">
                             <label for="obligatorio_0" class="form-label">Obligatorio</label>
                             <select name="variables[0][obligatorio]" id="obligatorio_0" class="form-select" required>
                                 <option value="1" {{ old('variables.0.obligatorio') == '1' ? 'selected' : '' }}>Sí</option>
@@ -146,6 +155,8 @@ document.addEventListener('DOMContentLoaded', function() {
         template.querySelectorAll('input, select').forEach(el => {
             const name = el.getAttribute('name').replace('[0]', `[${index}]`);
             const id = el.getAttribute('id').replace('_0', `_${index}`);
+            const unidadMedicion = el.getAttribute('name').replace('unidad_medicion', 'unidad_medicion');
+            el.setAttribute('name', unidadMedicion);
             el.setAttribute('name', name);
             el.setAttribute('id', id);
             el.value = '';

@@ -12,7 +12,8 @@ class VariableRequerida extends Model
         'cotio_id',
         'cotio_descripcion',
         'nombre',
-        'obligatorio'
+        'obligatorio',
+        'unidad_medicion'
     ];
 
     protected $casts = [

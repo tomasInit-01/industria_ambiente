@@ -83,6 +83,7 @@
                             <tr>
                                 <th scope="col" class="col-1">ID</th>
                                 <th scope="col" class="col-5">Nombre</th>
+                                <th scope="col" class="col-2">Unidad de Medición</th>
                                 <th scope="col" class="col-2">Obligatorio</th>
                                 <th scope="col" class="col-2">Acciones</th>
                             </tr>
@@ -92,6 +93,7 @@
                             <tr>
                                 <td>{{ $variable->id }}</td>
                                 <td>{{ $variable->nombre }}</td>
+                                <td>{{ $variable->unidad_medicion ?? 'N/A' }}</td>
                                 <td>
                                     <span class="badge {{ $variable->obligatorio ? 'bg-success' : 'bg-warning' }} text-white">
                                         {{ $variable->obligatorio ? 'Sí' : 'No' }}

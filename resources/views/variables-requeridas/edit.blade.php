@@ -61,6 +61,18 @@
                         <div class="invalid-feedback d-block">{{ $message }}</div>
                     @enderror
                 </div>
+
+                <!-- Unidad de Medición -->
+                <div class="mb-3">
+                    <label for="unidad_medicion" class="form-label">Unidad de Medición</label>
+                    <input type="text" name="unidad_medicion" id="unidad_medicion" 
+                           class="form-control" 
+                           value="{{ old('unidad_medicion', $variableRequerida->unidad_medicion) }}" 
+                           maxlength="255">
+                    @error('unidad_medicion')
+                        <div class="invalid-feedback d-block">{{ $message }}</div>
+                    @enderror
+                </div>
             </div>
         </div>
 
@@ -132,7 +144,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const originalValues = {
         cotio_descripcion: '{{ $variableRequerida->cotio_descripcion }}',
         nombre: '{{ $variableRequerida->nombre }}',
-        obligatorio: '{{ $variableRequerida->obligatorio }}'
+        obligatorio: '{{ $variableRequerida->obligatorio }}',
+        unidad_medicion: '{{ $variableRequerida->unidad_medicion }}'
     };
 
     // Validación en tiempo real
@@ -166,7 +179,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const currentValues = {
             cotio_descripcion: form.querySelector('#cotio_descripcion').value,
             nombre: form.querySelector('#nombre').value,
-            obligatorio: form.querySelector('#obligatorio').value
+            obligatorio: form.querySelector('#obligatorio').value,
+            unidad_medicion: form.querySelector('#unidad_medicion').value
         };
         return JSON.stringify(currentValues) !== JSON.stringify(originalValues);
     }
@@ -177,6 +191,7 @@ document.addEventListener('DOMContentLoaded', function() {
         $('#cotio_descripcion').trigger('change');
         form.querySelector('#nombre').value = originalValues.nombre;
         form.querySelector('#obligatorio').value = originalValues.obligatorio;
+        form.querySelector('#unidad_medicion').value = originalValues.unidad_medicion;
         form.querySelectorAll('.form-control, .form-select').forEach(el => el.classList.remove('is-invalid'));
         form.querySelectorAll('.invalid-feedback').forEach(el => el.classList.remove('d-block'));
     });
