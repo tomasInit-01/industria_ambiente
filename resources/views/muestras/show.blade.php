@@ -102,7 +102,7 @@
                                 };
                             @endphp
                                 <div class="mb-4">
-                                    <div class="card shadow-sm mi-tarjeta h-100">
+                                    <div class="card shadow-sm mi-tarjeta h-100" @if($instancia->es_priori) style="border: 1px solid #FFC107;" @endif>
                                         <!-- Encabezado de la tarjeta -->
                                         <div class="card-header text-white d-flex justify-content-between align-items-center flex-wrap {{ $headerClass }} {{ $instancia->active_ot ? 'bg-success' : '' }}">
                                             <div class="d-flex align-items-center gap-2 flex-wrap">
@@ -128,7 +128,12 @@
                                                         ]) }}" 
                                                         class="text-decoration-none {{ $categoria->enable_ot ? 'text-dark' : 'text-white'}}"
                                                     >
-                                                        <strong>{{ $descripcion }} {{ $instancia->id ? '#' . str_pad($instancia->id, 8, '0', STR_PAD_LEFT) : null }}</strong> 
+                                                        <strong @if($instancia->es_priori) style="color: #FFC107;" @endif>
+                                                            @if($instancia->es_priori)
+                                                                <x-heroicon-o-star style="width: 18px; height: 18px;" />
+                                                            @endif
+                                                            {{ $descripcion }} {{ $instancia->id ? '#' . str_pad($instancia->id, 8, '0', STR_PAD_LEFT) : null }}
+                                                        </strong> 
                                                         <span class="ms-2">(Muestra {{ $instancia->instance_number }} / {{ $categoria->cotio_cantidad ?? '-' }})</span>
                                                         @if($instancia->active_ot)
                                                             <span class="ms-2">(Esta muestra se encuentra en una Orden de Trabajo)</span>
@@ -462,6 +467,16 @@
                                 </div>
                             </div>
                         </div>
+
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label" for="es_priori">
+                                    <x-heroicon-o-star style="width: 20px; height: 20px; color: #ffc107;" />
+                                    Marcar como Prioridad
+                                </label>
+                                <input type="checkbox" name="es_priori" id="es_priori" value="1" class="form-check-input" style="width: 20px; height: 20px;">
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -539,9 +554,17 @@
                     </div>
 
                     <div class="mb-4">
+                        <label for="es_priori_recoordinar" class="form-label fw-semibold">
+                            <x-heroicon-o-star style="width: 20px; height: 20px; color: #ffc107;" />
+                            Marcar como Prioridad
+                        </label>
+                        <input type="checkbox" name="es_priori" id="es_priori_recoordinar" class="form-check-input" style="width: 20px; height: 20px;">
+                    </div>
+
+                    {{-- <div class="mb-4">
                         <label for="cotio_observaciones_suspension" class="form-label fw-semibold">Observaciones</label>
                         <textarea class="form-control rounded-3" id="cotio_observaciones_suspension" name="cotio_observaciones_suspension" rows="3"></textarea>
-                    </div>
+                    </div> --}}
                 </form>
             </div>
             <div class="modal-footer bg-light">
@@ -1286,6 +1309,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 $('#fecha_fin_muestreo').val(data.fecha_fin_muestreo);
                 $('#vehiculo_asignado').val(data.vehiculo_asignado).trigger('change');
                 $('#cotio_observaciones_suspension').val(data.cotio_observaciones_suspension);
+                
+                // Establecer el checkbox de prioridad
+                $('#es_priori_recoordinar').prop('checked', data.es_priori == 1);
 
                 // Seleccionar responsables
                 if (data.responsables && data.responsables.length > 0) {
@@ -1386,6 +1412,7 @@ document.addEventListener('DOMContentLoaded', function() {
             variablesSeleccionadas.push(parseInt(checkbox.value));
         });
         jsonData.variables_seleccionadas = variablesSeleccionadas;
+        jsonData.es_priori = $('#es_priori_recoordinar').is(':checked') ? 1 : 0;
 
         // Asegurarse de que los arrays no estén vacíos
         if (jsonData.responsables_muestreo && jsonData.responsables_muestreo.length === 0) {

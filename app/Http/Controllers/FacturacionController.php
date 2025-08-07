@@ -315,8 +315,13 @@ public function generarFacturaArca(Request $request, $coti_num)
 
         if ($resultadoFactura['success']) {
             try {
+                // Obtener la primera muestra para la descripción e instancia
+                $muestraPrincipal = $muestras->first();
+                
                 $factura = $this->guardarFacturacion([
                     'cotizacion_id' => $coti_num,
+                    'cotio_descripcion' => $muestraPrincipal ? $muestraPrincipal->cotio_descripcion : 'Muestra no especificada',
+                    'instance_number' => $muestraPrincipal ? $muestraPrincipal->instance_number : 0,
                     'numero_factura' => $resultadoFactura['numero_factura'],
                     'cae' => $resultadoFactura['cae'],
                     'fecha_vencimiento_cae' => $resultadoFactura['fecha_vencimiento'],
@@ -326,14 +331,12 @@ public function generarFacturaArca(Request $request, $coti_num)
                     'muestras_ids' => $muestrasSeleccionadas,
                     'analisis_ids' => $analisisSeleccionados
                 ]);
-
+        
                 return redirect()->back()->with('success', 'Factura generada exitosamente: ' . $resultadoFactura['numero_factura']);
             } catch (\Exception $e) {
                 Log::error('Error al guardar factura después de generarla en AFIP: ' . $e->getMessage());
                 return redirect()->back()->with('success', 'Factura generada en AFIP: ' . $resultadoFactura['numero_factura'] . ' (Error al guardar en BD: ' . $e->getMessage() . ')');
             }
-        } else {
-            return redirect()->back()->with('error', $resultadoFactura['error']);
         }
     } catch (\Illuminate\Validation\ValidationException $e) {
         Log::error('Errores de validación: ' . json_encode($e->errors()));
@@ -390,6 +393,8 @@ private function guardarFacturacion($data)
         // Preparar datos para crear la factura (incluyendo los nuevos campos)
         $facturaData = [
             'cotizacion_id' => (int) $data['cotizacion_id'],
+            'cotio_descripcion' => $data['cotio_descripcion'] ?? 'Muestra no especificada',
+            'instance_number' => $data['instance_number'] ?? 0,
             'cliente_razon_social' => $cotizacion->coti_empresa ?? 'Cliente no especificado',
             'cliente_cuit' => $cotizacion->coti_cuit ?? '00-00000000-0',
             'numero_factura' => (string) $data['numero_factura'],

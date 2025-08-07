@@ -64,9 +64,9 @@ public function index(Request $request)
         $query = CotioInstancia::with([
             'cotizacion.matriz',
             'tarea',
-            // Cargar todas las instancias de la misma cotización para verificar suspensiones
+            // Cargar todas las instancias de la misma cotización para verificar suspensiones y prioridades
             'cotizacion.instancias' => function ($q) {
-                $q->select('id', 'cotio_numcoti', 'cotio_estado');
+                $q->select('id', 'cotio_numcoti', 'cotio_estado', 'es_priori');
             }
         ])
             ->where('cotio_subitem', 0) // Solo instancias de muestras originales
@@ -122,12 +122,18 @@ public function index(Request $request)
         // Obtención de los resultados
         $instancias = $query->get();
         
-        // Verificar suspensiones para cada instancia
+        // Verificar suspensiones y prioridades para cada instancia
         $instancias->each(function ($instancia) {
             $hasSuspension = $instancia->cotizacion->instancias->contains(function ($relatedInstancia) {
                 return strtolower(trim($relatedInstancia->cotio_estado)) === 'suspension';
             });
-            $instancia->has_suspension = $hasSuspension; // Nueva propiedad
+            
+            $hasPriority = $instancia->cotizacion->instancias->contains(function ($relatedInstancia) {
+                return $relatedInstancia->es_priori && strtolower(trim($relatedInstancia->cotio_estado ?? '')) !== 'muestreado';
+            });
+            
+            $instancia->has_suspension = $hasSuspension;
+            $instancia->has_priority = $hasPriority;
         });
         
         // Agrupamiento por fecha de muestreo
@@ -190,6 +196,8 @@ public function index(Request $request)
     
     $query = Coti::with(['matriz', 'tareas.instancias' => function($q) {
         $q->where('cotio_subitem', 0);
+    }, 'instancias' => function($q) {
+        $q->where('cotio_subitem', 0);
     }])
     ->select('coti.*')
     ->leftJoin('cotio_instancias', function($join) {
@@ -197,9 +205,11 @@ public function index(Request $request)
              ->where('cotio_instancias.cotio_subitem', 0);
     })
     ->groupBy('coti.coti_num')
-    // Ordenar primero por si tiene muestras coordinadas (1 = sí, 0 = no)
+    // Ordenar PRIMERO por prioridad (true = prioritaria, false = normal)
+    ->orderByRaw('MAX(CASE WHEN cotio_instancias.es_priori = true THEN 1 ELSE 0 END) DESC')
+    // Luego por si tiene muestras coordinadas (1 = sí, 0 = no)
     ->orderByRaw('MAX(CASE WHEN cotio_instancias.fecha_inicio_muestreo IS NOT NULL THEN 1 ELSE 0 END) DESC')
-    // Luego por la fecha más reciente de inicio de muestreo
+    // Después por la fecha más reciente de inicio de muestreo
     ->orderByRaw('MAX(cotio_instancias.fecha_inicio_muestreo) DESC NULLS LAST')
     // Finalmente por fecha de aprobación
     ->orderBy('coti_fechaaprobado', 'asc');
@@ -282,7 +292,11 @@ public function index(Request $request)
         $hasSuspension = $instancias->contains(function ($instancia) {
             return strtolower(trim($instancia->cotio_estado ?? '')) === 'suspension';
         });
-    
+
+        $hasPriority = $instancias->contains(function ($instancia) {
+            return $instancia->es_priori && strtolower(trim($instancia->cotio_estado ?? '')) !== 'muestreado';
+        });
+        
         $porcentajes = [
             'muestreadas' => $totalInstancias > 0 ? ($muestreadas / $totalInstancias) * 100 : 0,
             'en_revision' => $totalInstancias > 0 ? ($enRevision / $totalInstancias) * 100 : 0,
@@ -294,6 +308,7 @@ public function index(Request $request)
         $coti->instancias_completadas = $muestreadas + $enRevision + $coordinadas;
         $coti->porcentaje_progreso = $porcentajes;
         $coti->has_suspension = $hasSuspension;
+        $coti->has_priority = $hasPriority;
     });
     
     return view('muestras.index', [
@@ -1034,7 +1049,8 @@ public function asignacionMasiva(Request $request)
         'parametros_seleccionados.*.subitem' => 'required_with:parametros_seleccionados|integer',
         'parametros_seleccionados.*.instance' => 'required_with:parametros_seleccionados|integer',
         'parametros_seleccionados.*.variables' => 'required_with:parametros_seleccionados|array',
-        'parametros_seleccionados.*.variables.*' => 'integer|exists:variables_requeridas,id'
+        'parametros_seleccionados.*.variables.*' => 'integer|exists:variables_requeridas,id',
+        'es_priori' => 'nullable|boolean'
     ]);
 
     DB::beginTransaction();
@@ -1044,7 +1060,7 @@ public function asignacionMasiva(Request $request)
         $parametrosSeleccionados = $parametrosSeleccionados;
         $userId = Auth::user()->usu_codigo;
         $updatedCount = 0;
-
+        $esPrioridad = $request->es_priori ?? false;
         // Mapa de frecuencias a unidades y valores
         $frecuenciaMap = [
             'diario' => ['unit' => 'day', 'value' => 1],
@@ -1081,7 +1097,8 @@ public function asignacionMasiva(Request $request)
             $cotio = $allItems->get($key);
             return [
                 'descripcion' => $cotio?->cotio_descripcion,
-                'precio' => $cotio?->cotio_precio ? $cotio->cotio_precio : null
+                'precio' => $cotio?->cotio_precio ? $cotio->cotio_precio : null,
+                'cotio_codigoum' => $cotio?->cotio_codigoum ? $cotio->cotio_codigoum : null
             ];
         };
 
@@ -1143,11 +1160,15 @@ public function asignacionMasiva(Request $request)
                 if ($cotioData['precio'] !== null) {
                     $instancia->monto = $cotioData['precio'];
                 }
+                if ($cotioData['cotio_codigoum'] !== null) {
+                    $instancia->cotio_codigoum = $cotioData['cotio_codigoum'];
+                }
 
                 $instancia->active_muestreo = $itemData['isManual'];
                 $instancia->fecha_muestreo = $itemData['isManual'] ? now() : null;
                 $instancia->coordinador_codigo = $userId;
                 $instancia->cotio_estado = 'coordinado muestreo';
+                $instancia->es_priori = $esPrioridad;
             }
 
             // Actualizar campos comunes (solo para selecciones manuales)
@@ -1264,7 +1285,8 @@ public function asignacionMasiva(Request $request)
                 $updatedCount,
                 $mainItem['fecha_inicio_muestreo'],
                 $mainItem['fecha_fin_muestreo'],
-                $request->habilitar_frecuencia && $request->frecuencia
+                $request->habilitar_frecuencia && $request->frecuencia,
+                $esPrioridad
             );
         }
 
@@ -1289,7 +1311,7 @@ public function asignacionMasiva(Request $request)
     }
 }
 
-protected function procesarAnalisisDeCategoria($cotioNumcoti, $item, $instance, $allItems, $request, $userId, &$updatedCount, $fechaInicio, $fechaFin, $esFrecuente)
+protected function procesarAnalisisDeCategoria($cotioNumcoti, $item, $instance, $allItems, $request, $userId, &$updatedCount, $fechaInicio, $fechaFin, $esFrecuente, $esPrioridad)
 {
     // Obtener todos los análisis para esta categoría
     $analisisItems = $allItems->filter(function ($cotioItem) use ($item) {
@@ -1313,7 +1335,8 @@ protected function procesarAnalisisDeCategoria($cotioNumcoti, $item, $instance, 
         $cotio = $allItems->get($key);
         return [
             'descripcion' => $cotio?->cotio_descripcion,
-            'precio' => $cotio?->cotio_precio ? $cotio->cotio_precio : null
+            'precio' => $cotio?->cotio_precio ? $cotio->cotio_precio : null,
+            'cotio_codigoum' => $cotio?->cotio_codigoum ? $cotio->cotio_codigoum : null
         ];
     };
 
@@ -1334,6 +1357,9 @@ protected function procesarAnalisisDeCategoria($cotioNumcoti, $item, $instance, 
             if ($cotioData['precio'] !== null) {
                 $instAn->monto = $cotioData['precio'];
             }
+            if ($cotioData['cotio_codigoum'] !== null) {
+                $instAn->cotio_codigoum = $cotioData['cotio_codigoum'];
+            }
 
             $instAn->active_muestreo = false; // Por defecto no activar
             $instAn->cotio_estado = 'coordinado muestreo';
@@ -1342,7 +1368,7 @@ protected function procesarAnalisisDeCategoria($cotioNumcoti, $item, $instance, 
             $instAn->fecha_muestreo = $fechaInicio;
             $instAn->coordinador_codigo = $userId;
             $instAn->es_frecuente = $esFrecuente;
-
+            $instAn->es_priori = $esPrioridad;
             $instAn->save();
             $updatedCount++;
 
@@ -1520,6 +1546,7 @@ public function getDatosRecoordinacion(CotioInstancia $instancia)
         'fecha_fin_muestreo' => $instancia->fecha_fin_muestreo?->format('Y-m-d\TH:i'),
         'vehiculo_asignado' => $instancia->vehiculo_asignado,
         'cotio_observaciones_suspension' => $instancia->cotio_observaciones_suspension,
+        'es_priori' => $instancia->es_priori,
         'responsables' => $instancia->responsablesMuestreo->toArray(),
         'herramientas' => $instancia->herramientas->toArray(),
         'variables_requeridas' => $variablesRequeridas,
@@ -1541,10 +1568,14 @@ public function recoordinar(Request $request)
         'vehiculo_asignado' => 'nullable|exists:vehiculos,id',
         'herramientas' => 'nullable|array',
         'herramientas.*' => 'nullable|exists:inventario_muestreo,id',
-        'cotio_observaciones_suspension' => 'nullable|string',
+        // 'cotio_observaciones_suspension' => 'nullable|string',
         'variables_seleccionadas' => 'nullable|array',
-        'variables_seleccionadas.*' => 'nullable|exists:variables_requeridas,id'
+        'variables_seleccionadas.*' => 'nullable|exists:variables_requeridas,id',
+        'es_priori' => 'nullable|in:0,1,true,false'
     ]);
+
+    Log::info('Validated data', $validated);
+    Log::info('es_priori value:', ['es_priori' => $validated['es_priori'], 'type' => gettype($validated['es_priori'])]);
 
     try {
         DB::beginTransaction();
@@ -1560,10 +1591,14 @@ public function recoordinar(Request $request)
             'fecha_inicio_muestreo' => $validated['fecha_inicio_muestreo'],
             'fecha_fin_muestreo' => $validated['fecha_fin_muestreo'],
             'vehiculo_asignado' => $validated['vehiculo_asignado'],
-            'cotio_observaciones_suspension' => $validated['cotio_observaciones_suspension'],
+            // 'cotio_observaciones_suspension' => $validated['cotio_observaciones_suspension'],
             'cotio_estado' => 'coordinado muestreo',
-            'coordinador_codigo' => Auth::user()->usu_codigo
+            'coordinador_codigo' => Auth::user()->usu_codigo,
+            'es_priori' => $validated['es_priori']
         ]);
+
+        Log::info('Instancia actualizada', $instancia->toArray());
+        Log::info('es_priori después de actualizar:', ['es_priori' => $instancia->es_priori]);
 
         // Eliminar y actualizar responsables
         $instancia->responsablesMuestreo()->detach();
@@ -1625,7 +1660,8 @@ public function recoordinar(Request $request)
         ])->update([
             'cotio_estado' => 'coordinado muestreo',
             'fecha_inicio_muestreo' => $validated['fecha_inicio_muestreo'],
-            'fecha_fin_muestreo' => $validated['fecha_fin_muestreo']
+            'fecha_fin_muestreo' => $validated['fecha_fin_muestreo'],
+            'es_priori' => $validated['es_priori']
         ]);
 
         DB::commit();

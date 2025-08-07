@@ -24,7 +24,7 @@
                             <tr>
                                 <th>ID</th>
                                 <th>Nombre</th>
-                                <th>Unidad de Medición</th>
+                                {{-- <th>Unidad de Medición</th> --}}
                                 <th>Obligatorio</th>
                                 <th>Acciones</th>
                             </tr>
@@ -41,12 +41,12 @@
                                            value="{{ old('variables.'.$loop->index.'.nombre', $variable->nombre) }}" 
                                            class="form-control form-control-sm" required>
                                 </td>
-                                <td>
+                                {{-- <td>
                                     <input type="text" 
                                            name="variables[{{ $loop->index }}][unidad_medicion]" 
                                            value="{{ old('variables.'.$loop->index.'.unidad_medicion', $variable->unidad_medicion) }}" 
                                            class="form-control form-control-sm" placeholder="Unidad de Medición">
-                                </td>
+                                </td> --}}
                                 <td>
                                     <select name="variables[{{ $loop->index }}][obligatorio]" 
                                             class="form-select form-select-sm" required>
@@ -69,12 +69,12 @@
                                            class="form-control form-control-sm new-variable-nombre" 
                                            placeholder="Nombre de la nueva variable">
                                 </td>
-                                <td>
+                                {{-- <td>
                                     <input type="text" 
                                            name="new_variables[0][unidad_medicion]" 
                                            class="form-control form-control-sm new-variable-unidad-medicion" 
                                            placeholder="Unidad de Medición">
-                                </td>
+                                </td> --}}
                                 <td>
                                     <select name="new_variables[0][obligatorio]" class="form-select form-select-sm">
                                         <option value="1">Sí</option>

@@ -1000,6 +1000,7 @@ public function updateResultado(Request $request, $cotio_numcoti, $cotio_item, $
         'observacion_resultado_3' => 'nullable|string|max:255',
         'observacion_resultado_final' => 'nullable|string|max:255',
         'observaciones_ot' => 'nullable|string|max:1000',
+        // 'u_med_resultado' => 'nullable|string|max:255',
     ]);
 
     DB::beginTransaction();
@@ -1050,6 +1051,10 @@ public function updateResultado(Request $request, $cotio_numcoti, $cotio_item, $
             $instancia->responsable_resultado_final = Auth::user()->usu_codigo;
         }
 
+        // if($request->filled('u_med_resultado')) {
+        //     $instancia->u_med_resultado = $request->u_med_resultado;
+        // }
+
         // Actualizar observaciones
         if($request->filled('observacion_resultado')) {
             $instancia->observacion_resultado = $request->observacion_resultado;
@@ -1086,6 +1091,7 @@ public function updateResultado(Request $request, $cotio_numcoti, $cotio_item, $
                     'observacion_resultado_2' => $instancia->observacion_resultado_2,
                     'observacion_resultado_3' => $instancia->observacion_resultado_3,
                     'observacion_resultado_final' => $instancia->observacion_resultado_final,
+                    // 'u_med_resultado' => $instancia->u_med_resultado,
                 ]
             ]);
         }
@@ -1309,6 +1315,7 @@ public function enableOt(Request $request)
         'cotio_item' => 'required|string',
         'cotio_subitem' => 'required|string',
         'instance' => 'required|string',
+        'es_priori' => 'nullable|boolean',
     ]);
 
     try {
@@ -1339,6 +1346,7 @@ public function enableOt(Request $request)
                 'enable_ot' => true,
                 'complete_muestreo' => true,
                 'cotio_estado_analisis' => null,
+                'es_priori' => $request->es_priori ?? false,
             ]);
         
         DB::commit();

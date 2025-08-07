@@ -61,7 +61,9 @@ class CotioInstancia extends Model
         'observaciones_ot',
         'fecha_carga_ot',
         'monto',
-        'facturado'
+        'facturado',
+        'es_priori',
+        'cotio_codigoum'
     ];
 
     protected $casts = [
@@ -74,6 +76,7 @@ class CotioInstancia extends Model
         'fecha_fin_ot' => 'datetime',
         'fecha_carga_ot' => 'datetime',
         'enable_ot' => 'boolean',
+        'es_priori' => 'boolean',
     ];
 
     public function responsablesMuestreo()

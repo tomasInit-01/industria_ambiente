@@ -12,11 +12,17 @@
             </thead>
             <tbody>
                 @foreach($muestras as $coti)
-                    <tr class="@if($coti->has_suspension) table-danger @endif" style="@if($coti->has_suspension) border-left: 4px solid #dc3545; @endif">
+                    <tr class="@if($coti->has_suspension) table-danger @endif @if($coti->has_priority) table-warning @endif" 
+                        style="@if($coti->has_suspension) border-left: 4px solid #dc3545; @elseif($coti->has_priority) border-left: 4px solid #ffc107; @endif">
                         <td>
                             <div class="fw-bold">#{{ $coti->coti_num }}
                                 @if($coti->has_suspension)
                                     <span class="badge bg-danger ms-2">Suspendida</span>
+                                @elseif($coti->has_priority)
+                                    <span class="badge bg-warning text-dark">
+                                        <x-heroicon-o-star style="width: 12px; height: 12px;" class="me-1" />
+                                        Prioritaria
+                                    </span>
                                 @endif
                             </div>
                             <small class="text-muted">{{ $coti->matriz->matriz_descripcion ?? 'N/A' }}</small>
@@ -59,6 +65,9 @@
                                 </div>
                                 @if($coti->porcentaje_progreso['total'] > 0 && $coti->porcentaje_progreso['total'] < 100)
                                     <small class="d-block mt-1 @if($coti->has_suspension) text-danger fw-bold @else text-muted @endif">
+                                        @if($coti->has_priority)
+                                            <x-heroicon-o-star style="width: 14px; height: 14px;" class="text-warning me-1" />
+                                        @endif
                                         {{ round($coti->porcentaje_progreso['total']) }}%
                                         @if($coti->has_suspension)
                                             <x-heroicon-o-exclamation-triangle style="width: 16px; height: 16px;" class="ms-1" />
@@ -124,6 +133,7 @@
             <div class="col-12">
                 <div class="card shadow-sm border-start border-4 
                     @if($coti->has_suspension) border-danger
+                    @elseif($coti->has_priority) border-warning
                     @elseif($coti->coti_estado == 'A') border-success
                     @elseif($coti->coti_estado == 'E') border-warning
                     @elseif($coti->coti_estado == 'S') border-danger
@@ -134,6 +144,11 @@
                                 <h5 class="card-title mb-1">#{{ $coti->coti_num }}
                                     @if($coti->has_suspension)
                                         <span class="badge bg-danger ms-2">Suspendida</span>
+                                    @elseif($coti->has_priority)
+                                        <span class="badge bg-warning text-dark">
+                                            <x-heroicon-o-star style="width: 12px; height: 12px;" class="me-1" />
+                                            Prioritaria
+                                        </span>
                                     @endif
                                 </h5>
                                 <span class="badge 
@@ -159,6 +174,9 @@
                             <div class="d-flex justify-content-between mb-1">
                                 <span class="small">Progreso de muestreo</span>
                                 <span class="small fw-bold @if($coti->has_suspension) text-danger @endif">
+                                    @if($coti->has_priority)
+                                        <x-heroicon-o-star style="width: 14px; height: 14px;" class="text-warning me-1" />
+                                    @endif
                                     {{ round($coti->porcentaje_progreso['total']) }}%
                                     @if($coti->has_suspension)
                                         <x-heroicon-o-exclamation-triangle style="width: 16px; height: 16px;" class="ms-1" />
@@ -258,6 +276,16 @@
         width: 12px;
         height: 12px;
         border-radius: 2px;
+    }
+    
+    /* Estilo para filas prioritarias */
+    tr[style*="border-left: 4px solid #ffc107"] {
+        background-color: rgba(255, 193, 7, 0.05);
+    }
+    
+    /* Estilo para cards prioritarias en móvil */
+    .border-warning {
+        background-color: rgba(255, 193, 7, 0.05);
     }
 </style>
 @endpush

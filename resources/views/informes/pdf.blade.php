@@ -247,7 +247,7 @@
                     @foreach($analisis as $item)
                         <tr>
                             <td>{{ $item->cotio_descripcion }}</td>
-                            <td style="font-weight: bold;">{{ $item->resultado_final }}</td>
+                            <td style="font-weight: bold;">{{ $item->resultado_final . ' ' . ($item->cotio_codigoum ?? '') }}</td>
                             <td>{{ $item->observacion_resultado_final }}</td>
                         </tr>
                     @endforeach

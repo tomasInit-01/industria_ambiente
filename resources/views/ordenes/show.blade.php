@@ -89,7 +89,7 @@
                                     }
                                 @endphp
                                 <div class="mb-4">
-                                    <div class="card shadow-sm h-100">
+                                    <div class="card shadow-sm h-100" @if($muestra->es_priori) style="border: 2px solid #ffd700;" @endif>
                                         <div class="card-header {{ $headerClass }} text-white d-flex align-items-center justify-content-between flex-wrap p-3">
                                             <div class="d-flex align-items-center gap-2 flex-grow-1">
                                                 <!-- Checkbox for Sample -->
@@ -178,6 +178,17 @@
                                                             </span>
                                                         @endforeach
                                                     </div>
+                                                </div>
+                                            @endif
+
+                                            @if($instancia['muestra']->es_priori)
+                                                <div class="mb-2 d-flex align-items-center justify-content-between">
+                                                    <span data-bs-toggle="tooltip" 
+                                                          data-bs-placement="top" 
+                                                          data-bs-html="true"
+                                                          data-bs-title="<i class='fas fa-star text-warning me-1'></i><strong>Muestra Prioritaria</strong><br><small>Esta muestra requiere atención especial</small>">
+                                                        <x-heroicon-o-star style="width: 20px; height: 20px; color: #ffd700; cursor: pointer;" />
+                                                    </span>
                                                 </div>
                                             @endif
                                         </div>

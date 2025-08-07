@@ -116,9 +116,15 @@
                                 </button>
                             @endif --}}
                         </p>
-          
-
                     @endif
+
+                    @if($instanciaActual->es_priori)
+                        <p class="text-muted mb-1">
+                            <strong>Es Prioridad:</strong> 
+                            <span class="badge bg-primary">Sí</span>
+                        </p>
+                    @endif
+
                 </div>
                 <div class="col-md-6">
                     <p class="text-muted mb-1">
@@ -278,19 +284,18 @@
                             <div class="mt-4">
                                 <label for="observaciones" class="form-label"><strong>Observaciones del Coordinador de Muestreo:</strong></label>
                                 <textarea class="form-control" id="observaciones" rows="3" 
-                                        readonly>{{ $instanciaActual->observaciones_medicion_coord_muestreo }}</textarea>
+                                        readonly>{{ trim($instanciaActual->observaciones_medicion_coord_muestreo) }}</textarea>
                             </div>
                         @endif
 
                         @if($instanciaActual->observaciones_medicion_muestreador)
-                            <div class="mt-4">
+                        <div class="mt-4">
                                 <label for="observaciones_muestreador" class="form-label"><strong>Observaciones del Muestreador:</strong></label>
                                 <textarea class="form-control" id="observaciones_muestreador" rows="3" readonly
-                                        style="background-color: #fff8e1; border-left: 4px solid #ffc107; padding-left: 12px;">
-                                    {{ $instanciaActual->observaciones_medicion_muestreador }}
-                                </textarea>
+                                        style="background-color: #fff8e1; border-left: 4px solid #ffc107; padding-left: 12px;">{{ trim($instanciaActual->observaciones_medicion_muestreador) }}</textarea>
                             </div>
                         @endif
+                    
                         @if($instanciaActual->cotio_estado != 'muestreado')
                             <div class="mt-3 text-center">
                                 <button class="btn btn-primary btn-lg save-all-data" 
@@ -479,13 +484,50 @@
                                                             
                                                             @php
                                                                 $resultados = [
-                                                                    ['titulo' => 'Resultado Primario', 'valor' => $tarea->instancia->resultado ?? '', 'obs' => $tarea->instancia->observacion_resultado ?? '', 'badge' => 'primary', 'label' => 'R1', 'field' => 'resultado', 'obs_field' => 'observacion_resultado'],
-                                                                    ['titulo' => 'Resultado Secundario', 'valor' => $tarea->instancia->resultado_2 ?? '', 'obs' => $tarea->instancia->observacion_resultado_2 ?? '', 'badge' => 'info', 'label' => 'R2', 'field' => 'resultado_2', 'obs_field' => 'observacion_resultado_2'],
-                                                                    ['titulo' => 'Resultado Terciario', 'valor' => $tarea->instancia->resultado_3 ?? '', 'obs' => $tarea->instancia->observacion_resultado_3 ?? '', 'badge' => 'warning', 'label' => 'R3', 'field' => 'resultado_3', 'obs_field' => 'observacion_resultado_3'],
-                                                                    ['titulo' => 'Resultado Final', 'valor' => $tarea->instancia->resultado_final ?? '', 'obs' => $tarea->instancia->observacion_resultado_final ?? '', 'badge' => 'dark', 'label' => 'Final', 'field' => 'resultado_final', 'obs_field' => 'observacion_resultado_final']
+                                                                    [
+                                                                        'titulo' => 'Resultado Primario',
+                                                                        'valor' => $tarea->instancia->resultado ?? '',
+                                                                        'obs' => $tarea->instancia->observacion_resultado ?? '',
+                                                                        'badge' => 'primary',
+                                                                        'label' => 'R1',
+                                                                        'field' => 'resultado',
+                                                                        'obs_field' => 'observacion_resultado',
+                                                                        'cotio_codigoum' => $tarea->instancia->cotio_codigoum ?? 'N/A'
+                                                                    ],
+                                                                    [
+                                                                        'titulo' => 'Resultado Secundario',
+                                                                        'valor' => $tarea->instancia->resultado_2 ?? '',
+                                                                        'obs' => $tarea->instancia->observacion_resultado_2 ?? '',
+                                                                        'badge' => 'info',
+                                                                        'label' => 'R2',
+                                                                        'field' => 'resultado_2',
+                                                                        'obs_field' => 'observacion_resultado_2',
+                                                                        'cotio_codigoum' => $tarea->instancia->cotio_codigoum ?? 'N/A'
+                                                                    ],
+                                                                    [
+                                                                        'titulo' => 'Resultado Terciario',
+                                                                        'valor' => $tarea->instancia->resultado_3 ?? '',
+                                                                        'obs' => $tarea->instancia->observacion_resultado_3 ?? '',
+                                                                        'badge' => 'warning',
+                                                                        'label' => 'R3',
+                                                                        'field' => 'resultado_3',
+                                                                        'obs_field' => 'observacion_resultado_3',
+                                                                        'cotio_codigoum' => $tarea->instancia->cotio_codigoum ?? 'N/A'
+                                                                    ],
+                                                                    [
+                                                                        'titulo' => 'Resultado Final',
+                                                                        'valor' => $tarea->instancia->resultado_final ?? '',
+                                                                        'obs' => $tarea->instancia->observacion_resultado_final ?? '',
+                                                                        'badge' => 'dark',
+                                                                        'label' => 'Final',
+                                                                        'field' => 'resultado_final',
+                                                                        'obs_field' => 'observacion_resultado_final',
+                                                                        'cotio_codigoum' => $tarea->instancia->cotio_codigoum ?? 'N/A'
+                                                                    ]
                                                                 ];
                                                             @endphp
                                                             
+
                                                             <div class="row g-3">
                                                                 @foreach ($resultados as $r)
                                                                     <div class="col-12">
@@ -547,7 +589,13 @@
                                                                                                 readonly
                                                                                             @endif
                                                                                         >{{ $r['obs'] }}</textarea>
-                                                                                                                                                                         </div>
+                                                                                    </div>
+                                                                                    @if($r['titulo'] == 'Resultado Final')
+                                                                                        <div>
+                                                                                            <input type="text" class="form-control" name="u_med_resultado" value="{{ $r['cotio_codigoum'] }}"
+                                                                                            readonly>
+                                                                                        </div>
+                                                                                    @endif
                                                                                  </div>
                                                                              </div>
                                                                         </div>

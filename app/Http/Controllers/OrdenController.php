@@ -35,16 +35,12 @@ class OrdenController extends Controller
         $startOfWeek = $request->get('week') ? Carbon::parse($request->get('week'))->startOfWeek() : now()->startOfWeek();
         $endOfWeek = $startOfWeek->copy()->endOfWeek();
     
-        // Consulta base para IDs de cotizaciones
-        $baseQuery = CotioInstancia::query()
-            ->select('cotio_numcoti')
-            ->distinct()
-            ->where('enable_ot', true);
-    
-
+        // Vista de Calendario
         if ($viewType === 'calendario') {
-            $query = clone $baseQuery;
-
+            $query = CotioInstancia::query()
+                ->where('enable_ot', true)
+                ->with(['cotizacion', 'responsablesAnalisis']);
+    
             // Aplicar filtros
             if ($request->has('search') && !empty($request->search)) {
                 $searchTerm = '%'.$request->search.'%';
@@ -54,13 +50,13 @@ class OrdenController extends Controller
                         ->orWhereRaw('LOWER(coti_establecimiento) LIKE ?', [strtolower($searchTerm)]);
                 });
             }
-
+    
             if ($request->has('matriz') && !empty($request->matriz)) {
                 $query->whereHas('cotizacion', function($q) use ($request) {
                     $q->where('coti_matriz', $request->matriz);
                 });
             }
-
+    
             if ($request->has('estado') && !empty($request->estado)) {
                 $query->where('cotio_estado_analisis', $request->estado);
             } elseif (!$verTodas) {
@@ -68,12 +64,12 @@ class OrdenController extends Controller
                     $q->where('coti_estado', 'A');
                 });
             }
-
+    
             // Filtros por rango de fechas
             if ($request->has('fecha_inicio_ot') && !empty($request->fecha_inicio_ot)) {
                 $query->whereDate('fecha_inicio_ot', '>=', $request->fecha_inicio_ot);
             }
-
+    
             if ($request->has('fecha_fin_ot') && !empty($request->fecha_fin_ot)) {
                 $query->whereDate('fecha_fin_ot', '<=', $request->fecha_fin_ot);
             } else {
@@ -83,17 +79,17 @@ class OrdenController extends Controller
                     $currentMonth->copy()->endOfMonth()
                 ]);
             }
-
-            // Obtener resultados
+    
+            // Obtener resultados ordenados por fecha
             $instancias = $query->orderBy('fecha_inicio_ot', 'asc')->get();
-
+    
             // Verificar suspensiones
             $instancias->each(function ($instancia) {
                 $instancia->has_suspension = $instancia->cotizacion->instancias->contains(function ($i) {
                     return strtolower(trim($i->cotio_estado_analisis)) === 'suspension';
                 });
             });
-
+    
             // Agrupar por fecha de inicio
             $tareasCalendario = $instancias
                 ->filter(fn($item) => !empty($item->fecha_inicio_ot))
@@ -103,13 +99,13 @@ class OrdenController extends Controller
                 ->map(function($items) {
                     return $items->sortBy('fecha_inicio_ot');
                 });
-
+    
             // Instancias sin fecha programada
             $unscheduled = $instancias->filter(fn($instancia) => empty($instancia->fecha_inicio_ot));
             if ($unscheduled->isNotEmpty()) {
                 $tareasCalendario->put('sin-fecha', $unscheduled);
             }
-
+    
             // Generar eventos para FullCalendar
             $events = collect();
             foreach ($tareasCalendario as $date => $instancias) {
@@ -135,7 +131,7 @@ class OrdenController extends Controller
                     ]);
                 }
             }
-
+    
             return view('ordenes.index', [
                 'events' => $events,
                 'tareasCalendario' => $tareasCalendario,
@@ -150,7 +146,13 @@ class OrdenController extends Controller
                 'viewTasks' => false
             ]);
         }
-
+    
+        // Vista de Lista/Documento
+        $baseQuery = CotioInstancia::query()
+            ->select('cotio_numcoti')
+            ->distinct()
+            ->where('enable_ot', true);
+    
         if ($request->has('search') && !empty($request->search)) {
             $searchTerm = '%'.$request->search.'%';
             $baseQuery->whereHas('cotizacion', function($q) use ($searchTerm) {
@@ -184,7 +186,7 @@ class OrdenController extends Controller
                 'tarea',
                 'responsablesAnalisis',
                 'cotizacion.instancias' => function ($q) {
-                    $q->select('id', 'cotio_numcoti', 'cotio_estado_analisis');
+                    $q->select('id', 'cotio_numcoti', 'cotio_estado_analisis', 'es_priori', 'fecha_inicio_ot', 'fecha_muestreo');
                 }
             ])
             ->whereIn('cotio_numcoti', $pagination->pluck('cotio_numcoti'))
@@ -197,13 +199,19 @@ class OrdenController extends Controller
         // Agrupar instancias por cotización
         $ordenes = $instancias->groupBy('cotio_numcoti')->map(function ($group) {
             $cotizacion = $group->first()->cotizacion;
-            $total = $group->count();
-            $completadas = $group->where('cotio_estado_analisis', 'analizado')->count();
-            $enProceso = $group->where('cotio_estado_analisis', 'en revision analisis')->count();
-            $coordinadas = $group->where('cotio_estado_analisis', 'coordinado analisis')->count();
-            $suspendidas = $group->where('cotio_estado_analisis', 'suspension')->count();
+            $total = $group->where('cotio_subitem', '=', 0)->where('enable_ot', '=', 1)->count();
+            $completadas = $group->where('cotio_estado_analisis', 'analizado')->where('cotio_subitem', '=', 0)->count();
+            $enProceso = $group->where('cotio_estado_analisis', 'en revision analisis')->where('cotio_subitem', '=', 0)->count();
+            $coordinadas = $group->where('cotio_estado_analisis', 'coordinado analisis')->where('cotio_subitem', '=', 0)->count();
             $porcentaje = $total > 0 ? round(($completadas / $total) * 100) : 0;
-    
+            
+            $fecha_orden = $group->min('fecha_inicio_ot') ?? $group->min('fecha_muestreo');
+            
+            // Modificado: has_priority solo será true si hay muestras prioritarias Y al menos una no está analizada
+            $has_priority = $group->contains(function ($instancia) {
+                return $instancia->es_priori && strtolower(trim($instancia->cotio_estado_analisis ?? '')) != 'analizado';
+            });
+            
             return [
                 'instancias' => $group,
                 'cotizacion' => $cotizacion,
@@ -211,14 +219,21 @@ class OrdenController extends Controller
                 'completadas' => $completadas,
                 'en_proceso' => $enProceso,
                 'coordinadas' => $coordinadas,
-                'suspendidas' => $suspendidas,
                 'porcentaje' => $porcentaje,
                 'has_suspension' => $group->contains(function ($instancia) {
                     return strtolower(trim($instancia->cotio_estado_analisis)) === 'suspension';
-                })
+                }),
+                'has_priority' => $has_priority,
+                'fecha_orden' => $fecha_orden
             ];
         });
 
+            // Ordenar las órdenes: primero las prioritarias no analizadas, luego por fecha
+            $ordenes = $ordenes->sortBy([
+                ['has_priority', 'desc'],
+                ['fecha_orden', 'asc']
+            ]);
+    
         return view('ordenes.index', [
             'ordenes' => $ordenes,
             'viewType' => $viewType,
@@ -264,7 +279,7 @@ public function showOrdenes(Request $request)
         ? Carbon::parse($request->get('month')) 
         : now();
 
-    // Initialize queries with ordering
+    // Initialize queries
     $queryMuestras = CotioInstancia::with([
         'muestra.cotizado',
         'muestra.vehiculo',
@@ -290,14 +305,13 @@ public function showOrdenes(Request $request)
     ->orderBy('fecha_inicio_ot', 'desc')
     ->orderByRaw("CASE WHEN cotio_estado_analisis = 'coordinado' THEN 0 ELSE 1 END");
 
-    // Excluir 'analizado' por defecto, a menos que se filtre por ese estado
+    // Exclude 'analizado' by default
     if (!$estado || $estado !== 'analizado') {
         $queryMuestras->where('cotio_estado_analisis', '!=', 'analizado');
         $queryAnalisis->where('cotio_estado_analisis', '!=', 'analizado');
     }
 
-
-    // Conditions for responsables
+    // Apply filters
     $queryMuestras->where(function ($query) use ($codigo) {
         $query->whereHas('responsablesAnalisis', function ($q) use ($codigo) {
             $q->where('usu.usu_codigo', $codigo);
@@ -322,9 +336,9 @@ public function showOrdenes(Request $request)
                 $searchTerm = '%' . strtolower($term) . '%';
                 $q->where(function ($subQuery) use ($searchTerm) {
                     $subQuery->where('coti_num', 'LIKE', $searchTerm)
-                                ->orWhereRaw('LOWER(coti_empresa) LIKE ?', [$searchTerm])
-                                ->orWhereRaw('LOWER(coti_establecimiento) LIKE ?', [$searchTerm])
-                                ->orWhereRaw('LOWER(coti_descripcion) LIKE ?', [$searchTerm]);
+                            ->orWhereRaw('LOWER(coti_empresa) LIKE ?', [$searchTerm])
+                            ->orWhereRaw('LOWER(coti_establecimiento) LIKE ?', [$searchTerm])
+                            ->orWhereRaw('LOWER(coti_descripcion) LIKE ?', [$searchTerm]);
                 });
             }
         };
@@ -343,45 +357,59 @@ public function showOrdenes(Request $request)
         $queryMuestras->whereDate('fecha_fin_ot', '<=', $fechaFin);
     }
 
-    // Apply status filter if present
+    // Apply status filter
     if ($estado) {
         $queryMuestras->where('cotio_estado_analisis', $estado);
         $queryAnalisis->where('cotio_estado_analisis', $estado);
     }
 
-    // Fetch data
+    // Get data
     $muestras = $queryMuestras->get();
     $todosAnalisis = $queryAnalisis->get();
 
-    // Group tasks
+    // Group data correctly
     $ordenesAgrupadas = collect();
 
     if ($viewType === 'lista') {
-        // Agrupar por cotio_numcoti para la vista de lista
-        foreach ($muestras as $muestra) {
+        // Group by cotio_numcoti
+        $muestras->each(function ($muestra) use (&$ordenesAgrupadas) {
             $key = $muestra->cotio_numcoti;
+            
             if (!$ordenesAgrupadas->has($key)) {
                 $ordenesAgrupadas->put($key, [
                     'instancias' => collect(),
                     'cotizado' => $muestra->muestra->cotizado ?? null,
+                    'has_priority' => false
                 ]);
             }
 
-            $ordenesAgrupadas[$key]['instancias']->push([
+            $grupo = $ordenesAgrupadas->get($key);
+            
+            // Update priority status
+            if ($muestra->es_priori) {
+                $grupo['has_priority'] = true;
+            }
+
+            // Add instance correctly
+            $grupo['instancias']->push([
                 'muestra' => $muestra->muestra,
                 'instancia_muestra' => $muestra,
                 'analisis' => collect(),
                 'vehiculo' => $muestra->vehiculo ?? null,
-                'responsables_muestreo' => $muestra->responsablesAnalisis
+                'responsables_muestreo' => $muestra->responsablesAnalisis,
+                'is_priority' => $muestra->es_priori
             ]);
-        }
 
-        // Asignar análisis a sus instancias correspondientes
-        foreach ($todosAnalisis as $analisis) {
+            $ordenesAgrupadas->put($key, $grupo);
+        });
+
+        // Assign analyses correctly
+        $todosAnalisis->each(function ($analisis) use (&$ordenesAgrupadas) {
             $key = $analisis->cotio_numcoti;
+            
             if ($ordenesAgrupadas->has($key)) {
-                $instancia = $ordenesAgrupadas[$key]['instancias']
-                    ->firstWhere('instancia_muestra.instance_number', $analisis->instance_number);
+                $grupo = $ordenesAgrupadas->get($key);
+                $instancia = $grupo['instancias']->firstWhere('instancia_muestra.instance_number', $analisis->instance_number);
                 
                 if ($instancia) {
                     $instancia['analisis']->push($analisis);
@@ -395,76 +423,48 @@ public function showOrdenes(Request $request)
                     ])->first();
 
                     if ($relatedSample) {
-                        $ordenesAgrupadas[$key]['instancias']->push([
+                        $newInstancia = [
                             'muestra' => $relatedSample->muestra,
                             'instancia_muestra' => $relatedSample,
                             'analisis' => collect([$analisis]),
                             'vehiculo' => $relatedSample->vehiculo ?? null,
-                            'responsables_muestreo' => $relatedSample->responsablesAnalisis
-                        ]);
-                    } else {
-                        Log::warning('No se encontró muestra relacionada para análisis', [
-                            'analisis_id' => $analisis->id,
-                            'cotio_numcoti' => $analisis->cotio_numcoti,
-                            'cotio_item' => $analisis->cotio_item,
-                            'cotio_subitem' => $analisis->cotio_subitem,
-                            'instance_number' => $analisis->instance_number,
-                            'key' => $key
-                        ]);
+                            'responsables_muestreo' => $relatedSample->responsablesAnalisis,
+                            'is_priority' => $relatedSample->es_priori
+                        ];
+                        
+                        $grupo['instancias']->push($newInstancia);
+                        
+                        // Update group priority if needed
+                        if ($relatedSample->es_priori) {
+                            $grupo['has_priority'] = true;
+                        }
+                        
+                        $ordenesAgrupadas->put($key, $grupo);
                     }
                 }
-            } else {
-                $relatedSample = CotioInstancia::where([
-                    'cotio_numcoti' => $analisis->cotio_numcoti,
-                    'cotio_item' => $analisis->cotio_item,
-                    'instance_number' => $analisis->instance_number,
-                    'cotio_subitem' => 0,
-                    'active_ot' => true
-                ])->first();
-
-                if ($relatedSample) {
-                    $ordenesAgrupadas->put($key, [
-                        'instancias' => collect([
-                            [
-                                'muestra' => $relatedSample->muestra,
-                                'instancia_muestra' => $relatedSample,
-                                'analisis' => collect([$analisis]),
-                                'vehiculo' => $relatedSample->vehiculo ?? null,
-                                'responsables_muestreo' => $relatedSample->responsablesAnalisis
-                            ]
-                        ]),
-                        'cotizado' => $relatedSample->muestra->cotizado ?? null,
-                    ]);
-                } else {
-                    Log::warning('No se pudo crear grupo para análisis sin muestra', [
-                        'analisis_id' => $analisis->id,
-                        'cotio_numcoti' => $analisis->cotio_numcoti,
-                        'cotio_item' => $analisis->cotio_item,
-                        'cotio_subitem' => $analisis->cotio_subitem,
-                        'instance_number' => $analisis->instance_number,
-                        'key' => $key
-                    ]);
-                }
             }
-        }
+        });
 
-        // Ordenar ordenesAgrupadas por la fecha más antigua y estado 'analizado' al final
-        $ordenesAgrupadas = $ordenesAgrupadas->sortBy(function ($grupo) {
-            $isAnalizado = $grupo['instancias']->contains(function ($instancia) {
-                return strtolower($instancia['instancia_muestra']->cotio_estado_analisis ?? 'pendiente') === 'analizado';
-            });
+        // Sort groups: priority first, then by date
+        $ordenesAgrupadas = $ordenesAgrupadas->sortBy([
+            ['has_priority', 'desc'],
+            function ($grupo) {
+                return $grupo['instancias']->min(function ($instancia) {
+                    return $instancia['instancia_muestra']->fecha_inicio_ot
+                        ? Carbon::parse($instancia['instancia_muestra']->fecha_inicio_ot)->timestamp
+                        : PHP_INT_MAX;
+                });
+            }
+        ]);
 
-            $fecha = $grupo['instancias']->min(function ($instancia) {
-                return $instancia['instancia_muestra']->fecha_inicio_ot
-                    ? Carbon::parse($instancia['instancia_muestra']->fecha_inicio_ot)->timestamp
-                    : PHP_INT_MAX;
-            });
-
-            return $isAnalizado ? PHP_INT_MAX : $fecha;
+        // Sort instances within each group: priority first
+        $ordenesAgrupadas = $ordenesAgrupadas->map(function ($grupo) {
+            $grupo['instancias'] = $grupo['instancias']->sortByDesc('is_priority');
+            return $grupo;
         });
     } else {
-        // Lógica original para otras vistas
-        foreach ($muestras as $muestra) {
+        // Logic for other view types
+        $muestras->each(function ($muestra) use (&$ordenesAgrupadas) {
             $key = $muestra->cotio_numcoti . '_' . $muestra->instance_number . '_' . $muestra->cotio_item;
             $ordenesAgrupadas->put($key, [
                 'muestra' => $muestra->muestra,
@@ -472,49 +472,23 @@ public function showOrdenes(Request $request)
                 'analisis' => collect(),
                 'cotizado' => $muestra->muestra->cotizado ?? null,
                 'vehiculo' => $muestra->vehiculo ?? null,
-                'responsables_muestreo' => $muestra->responsablesAnalisis
+                'responsables_muestreo' => $muestra->responsablesAnalisis,
+                'is_priority' => $muestra->es_priori
             ]);
-        }
+        });
 
-        foreach ($todosAnalisis as $analisis) {
+        $todosAnalisis->each(function ($analisis) use (&$ordenesAgrupadas) {
             $key = $analisis->cotio_numcoti . '_' . $analisis->instance_number . '_' . $analisis->cotio_item;
+            
             if ($ordenesAgrupadas->has($key)) {
-                $ordenesAgrupadas[$key]['analisis']->push($analisis);
-                $ordenesAgrupadas[$key]['analisis']->last()->responsables_analisis = $analisis->responsablesAnalisis;
-            } else {
-                $relatedSample = CotioInstancia::where([
-                    'cotio_numcoti' => $analisis->cotio_numcoti,
-                    'cotio_item' => $analisis->cotio_item,
-                    'instance_number' => $analisis->instance_number,
-                    'cotio_subitem' => 0,
-                    'active_ot' => true
-                ])->first();
-
-                if ($relatedSample) {
-                    $ordenesAgrupadas->put($key, [
-                        'muestra' => $relatedSample->muestra,
-                        'instancia_muestra' => $relatedSample,
-                        'analisis' => collect([$analisis]),
-                        'cotizado' => $relatedSample->muestra->cotizado ?? null,
-                        'vehiculo' => $relatedSample->vehiculo ?? null,
-                        'responsables_muestreo' => $relatedSample->responsablesAnalisis
-                    ]);
-                    $ordenesAgrupadas[$key]['analisis']->last()->responsables_analisis = $analisis->responsablesAnalisis;
-                } else {
-                    Log::warning('No se encontró muestra relacionada para análisis (vista no lista)', [
-                        'analisis_id' => $analisis->id,
-                        'cotio_numcoti' => $analisis->cotio_numcoti,
-                        'cotio_item' => $analisis->cotio_item,
-                        'cotio_subitem' => $analisis->cotio_subitem,
-                        'instance_number' => $analisis->instance_number,
-                        'key' => $key
-                    ]);
-                }
+                $grupo = $ordenesAgrupadas->get($key);
+                $grupo['analisis']->push($analisis);
+                $ordenesAgrupadas->put($key, $grupo);
             }
-        }
+        });
     }
 
-    // Prepare pagination for analyses
+    // Prepare pagination
     $allTasks = $muestras->merge($todosAnalisis)->values();
     $tareasPaginadas = new LengthAwarePaginator(
         $allTasks->forPage(LengthAwarePaginator::resolveCurrentPage(), $perPage),
@@ -524,16 +498,7 @@ public function showOrdenes(Request $request)
         ['path' => LengthAwarePaginator::resolveCurrentPath()]
     );
 
-    // Prepare calendar data
-    $muestrasCalendario = $muestras->groupBy(function ($muestra) {
-        return $muestra->fecha_inicio_ot 
-            ? Carbon::parse($muestra->fecha_inicio_ot)->format('Y-m-d')
-            : 'sin-fecha';
-    })->map(function ($dayMuestras) {
-        return $dayMuestras->sortByDesc('fecha_inicio_ot');
-    });
-
-    // Prepare events for calendar view
+    // Prepare calendar data if needed
     $events = collect();
     if ($viewType === 'calendario') {
         $events = $muestras->map(function ($muestra) use ($user) {
@@ -550,53 +515,34 @@ public function showOrdenes(Request $request)
                 'suspension' => 'fc-event-danger',
                 default => 'fc-event-primary'
             };
-        
+            
+            if ($muestra->es_priori) {
+                $className .= ' fc-event-priority';
+            }
+            
             return [
                 'id' => $muestra->id,
                 'title' => Str::limit($descripcion, 30),
                 'start' => $muestra->fecha_inicio_ot,
                 'end' => $muestra->fecha_fin_ot,
                 'className' => $className,
-                'url' => $user->rol == 'laboratorio' 
-                    ? route('ordenes.all.show', [
-                        $muestra->cotio_numcoti ?? 'N/A', 
-                        $muestra->cotio_item ?? 'N/A', 
-                        $muestra->cotio_subitem ?? 'N/A', 
-                        $muestra->instance_number ?? 'N/A'
-                    ])
-                    : route('tareas.all.show', [
-                        $muestra->cotio_numcoti ?? 'N/A', 
-                        $muestra->cotio_item ?? 'N/A', 
-                        $muestra->cotio_subitem ?? 'N/A', 
-                        $muestra->instance_number ?? 'N/A'
-                    ]),
+                'url' => route('ordenes.all.show', [
+                    $muestra->cotio_numcoti ?? 'N/A', 
+                    $muestra->cotio_item ?? 'N/A', 
+                    $muestra->cotio_subitem ?? 'N/A', 
+                    $muestra->instance_number ?? 'N/A'
+                ]),
                 'extendedProps' => [
                     'descripcion' => $descripcion,
                     'empresa' => $empresa,
                     'estado' => $estado,
-                    'tipo' => 'muestra',
+                    'priority' => $muestra->es_priori
                 ]
             ];
         });
     }
 
-    // SUGERENCIAS DE ANALITOS POR ESTADO
-    $analitosSugeridos = collect();
-    if ($estado) {
-        $analitosSugeridos = $todosAnalisis->filter(function($analisis) use ($estado, $request) {
-            $matchesEstado = $analisis->cotio_estado_analisis === $estado;
-            
-            if ($request->get('cotio_descripcion_analisis')) {
-                $descripcionMatch = stripos($analisis->cotio_descripcion ?? '', 
-                                            $request->get('cotio_descripcion_analisis')) !== false;
-                return $matchesEstado && $descripcionMatch;
-            }
-            
-            return $matchesEstado;
-        });
-    }
-
-    // Fetch related quotations
+    // Get related quotations
     $cotizacionesIds = $todosAnalisis->pluck('cotio_numcoti')
         ->merge($muestras->pluck('cotio_numcoti'))
         ->unique();
@@ -606,13 +552,10 @@ public function showOrdenes(Request $request)
         'ordenesAgrupadas' => $ordenesAgrupadas,
         'cotizaciones' => $cotizaciones,
         'tareasPaginadas' => $tareasPaginadas,
-        'tareasCalendario' => $muestrasCalendario,
-        'muestras' => $muestras,
         'viewType' => $viewType,
         'request' => $request,
         'currentMonth' => $currentMonth,
-        'events' => $events,
-        'analitosSugeridos' => $analitosSugeridos,
+        'events' => $events
     ]);
 }
 

@@ -345,13 +345,25 @@
                             </div>
                         </div>
           
+                        
                         <div class="mb-3">
                             <label for="resultado_final" class="form-label">Resultado Final</label>
                             <textarea class="form-control" name="resultado_final" rows="4" value="{{ $item->resultado_final }}"
                                 placeholder="Ingrese los resultados del análisis">{{ $item->resultado_final ?? '' }}</textarea>
                         </div>
+                        <div style="display: flex; gap: 1rem; align-items: center;">
+                            <label for="u_med_resultado" class="form-label">Unidad de medición</label>
+                            <input type="text" class="form-control" name="u_med_resultado" value="{{ $item->cotio_codigoum }}"
+                                placeholder="No disponible" readonly>
+                        </div>
+                    
+                        {{-- linea separadora --}}
+                        <div style="margin: 1.5rem 0;">
+                            <hr style="border: 1px solid #52ABDA;">
+                        </div>
                         
                         <div class="mb-3">
+                            <label for="observacion_resultado_final" class="form-label">Observación</label>
                             <textarea class="form-control" name="observacion_resultado_final" rows="4"
                                 placeholder="Observación">{{ $item->observacion_resultado_final ?? '' }}</textarea>
                         </div>

@@ -32,14 +32,20 @@
                                 'total' => $total > 0 ? (($analizadas + $enProceso + $coordinadas) / $total) * 100 : 0
                             ];
                         @endphp
-                        <tr class="@if($instanciaData['has_suspension']) table-danger @endif" 
-                            style="@if($instanciaData['has_suspension']) border-left: 4px solid #dc3545; @endif"
-                            data-order="{{ $numCoti }}">
+                        <tr class="@if($instanciaData['has_suspension']) table-danger @endif @if($instanciaData['has_priority']) table-warning @endif" 
+                        style="@if($instanciaData['has_suspension']) border-left: 4px solid #dc3545; @endif @if($instanciaData['has_priority']) border-left: 4px solid #ffc107; @endif"
+                        data-order="{{ $numCoti }}">
                             <td>
-                                <div class="fw-bold">#{{ $numCoti }}</div>
-                                @if($instanciaData['has_suspension'])
-                                    <span class="badge bg-danger ms-2">Suspendida</span>
-                                @endif
+                                <div class="fw-bold">#{{ $coti->coti_num }}
+                                    @if($instanciaData['has_suspension'])
+                                        <span class="badge bg-danger ms-2">Suspendida</span>
+                                    @elseif($instanciaData['has_priority'])
+                                        <span class="badge bg-warning text-dark">
+                                            <x-heroicon-o-star style="width: 12px; height: 12px;" class="me-1" />
+                                            Prioritaria
+                                        </span>
+                                    @endif
+                                </div>
                                 <small class="text-muted">{{ $coti->coti_descripcion ?? 'N/A' }}</small>
                             </td>
                                 <td>
@@ -137,11 +143,12 @@
             @endphp
             <div class="col-12">
                 <div class="card shadow-sm border-start border-4 
-                    @if($instanciaData['has_suspension']) border-danger
-                    @elseif($coti->coti_estado == 'A') border-success
-                    @elseif($coti->coti_estado == 'E') border-warning
-                    @elseif($coti->coti_estado == 'S') border-danger
-                    @else border-secondary @endif">
+                @if($instanciaData['has_suspension']) border-danger
+                @elseif($instanciaData['has_priority']) border-warning
+                @elseif($coti->coti_estado == 'A') border-success
+                @elseif($coti->coti_estado == 'E') border-warning
+                @elseif($coti->coti_estado == 'S') border-danger
+                @else border-secondary @endif">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-start mb-2">
                             <div>
@@ -246,6 +253,13 @@
     }
     .card:hover {
         transform: translateY(-2px);
+    }
+
+    .table-warning {
+    background-color: #fff3cd;
+    }
+    .table-warning:hover {
+        background-color: #ffeeba !important;
     }
 </style>
 

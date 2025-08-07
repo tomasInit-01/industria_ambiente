@@ -143,6 +143,15 @@
                                 <span class="badge bg-secondary">Sin asignar</span>
                             @endif
                         </p>
+
+                        @if($instanciaActual->enable_ot == true)
+                            <p class="text-muted mb-1">
+                                <strong>Es Prioridad:</strong> 
+                                <span class="badge bg-primary">{{ $instanciaActual->es_priori ? 'Sí' : 'No' }}</span>
+                            </p>
+                        @endif
+
+
                         
                     </div>
                     <div class="col-md-6">
@@ -310,6 +319,10 @@
                         <input type="hidden" name="cotio_item" value="{{ $categoria->cotio_item }}">
                         <input type="hidden" name="cotio_subitem" value="{{ $categoria->cotio_subitem }}">
                         <input type="hidden" name="instance" value="{{ $instance }}">
+                        <div class="p-2">
+                            <label for="es_priori" class="form-label">Es Prioridad?</label>
+                            <input type="checkbox" name="es_priori" id="es_priori" value="1" {{ $instanciaActual->es_priori ? 'checked' : '' }}>
+                        </div>
                         <button class="btn btn-success mt-2">Pasar a OT</button>
                     </form>
                 @endif

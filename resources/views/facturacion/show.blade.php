@@ -225,7 +225,7 @@
                                                     </div>
                                                     @if($analisis->instancia->resultado_final)
                                                         <p><strong>Resultado:</strong> 
-                                                            <span class="badge bg-success">{{ $analisis->instancia->resultado_final }}</span>
+                                                            <span class="badge bg-success">{{ $analisis->instancia->resultado_final . ' ' . ($analisis->instancia->cotio_codigoum ?? '') }}</span>
                                                         </p>
                                                     @endif
                                                     @if($analisis->instancia->resultado || $analisis->instancia->resultado_2 || $analisis->instancia->resultado_3)

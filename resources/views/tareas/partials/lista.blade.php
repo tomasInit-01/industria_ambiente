@@ -1,29 +1,75 @@
 <?php 
-// Ordenar los grupos por estado y fecha
+// Ordenar los grupos por estado y fecha con lógica de jerarquía
+$gruposPrioritarios = [];
 $gruposCoordinados = [];
 $gruposEnRevision = [];
 $gruposFinalizados = [];
 
 foreach ($tareasAgrupadas as $key => $grupo) {
-    $estadoMuestra = strtolower($grupo['instancias'][0]['instancia_muestra']->cotio_estado ?? 'pendiente');
+    // Obtener estados de todas las instancias del grupo
+    $estadosMuestras = $grupo['instancias']->map(function($instancia) {
+        return strtolower($instancia['instancia_muestra']->cotio_estado ?? 'pendiente');
+    })->toArray();
+    
+    // Verificar si al menos una muestra es prioritaria
+    $esPrioritario = $grupo['instancias']->contains(function($instancia) {
+        return (bool) $instancia['instancia_muestra']->es_priori;
+    });
+    
     $fechaMuestreo = $grupo['instancias'][0]['instancia_muestra']->fecha_inicio_muestreo ?? null;
+    
+    // Determinar estado del grupo basado en jerarquía
+    $estadoGrupo = 'pendiente';
+    
+    // Si hay al menos una muestra en "coordinado muestreo", el grupo se mantiene en ese estado
+    if (in_array('coordinado muestreo', $estadosMuestras)) {
+        $estadoGrupo = 'coordinado muestreo';
+    }
+    // Si TODAS están en "en revision muestreo", el grupo pasa a ese estado
+    elseif (count(array_unique($estadosMuestras)) === 1 && $estadosMuestras[0] === 'en revision muestreo') {
+        $estadoGrupo = 'en revision muestreo';
+    }
+    // Si TODAS están en "muestreado", el grupo pasa a ese estado
+    elseif (count(array_unique($estadosMuestras)) === 1 && $estadosMuestras[0] === 'muestreado') {
+        $estadoGrupo = 'muestreado';
+    }
+    // Si hay mezcla de "en revision" y "muestreado", se mantiene en revisión
+    elseif (in_array('en revision muestreo', $estadosMuestras)) {
+        $estadoGrupo = 'en revision muestreo';
+    }
+    // Si hay suspensión, tiene prioridad
+    elseif (in_array('suspension', $estadosMuestras)) {
+        $estadoGrupo = 'suspension';
+    }
     
     $grupoConFecha = [
         'grupo' => $grupo,
         'key' => $key,
-        'fecha' => $fechaMuestreo ? \Carbon\Carbon::parse($fechaMuestreo) : null
+        'fecha' => $fechaMuestreo ? \Carbon\Carbon::parse($fechaMuestreo) : null,
+        'estado_grupo' => $estadoGrupo,
+        'es_prioritario' => $esPrioritario
     ];
     
-    if ($estadoMuestra === 'coordinado muestreo') {
-        $gruposCoordinados[] = $grupoConFecha;
-    } elseif ($estadoMuestra === 'en revision muestreo') {
-        $gruposEnRevision[] = $grupoConFecha;
-    } elseif ($estadoMuestra === 'muestreado') {
+    // Clasificar grupos - Los finalizados van a su sección independientemente de la prioridad
+    if ($estadoGrupo === 'muestreado') {
         $gruposFinalizados[] = $grupoConFecha;
+    } elseif ($esPrioritario) {
+        $gruposPrioritarios[] = $grupoConFecha;
+    } elseif ($estadoGrupo === 'coordinado muestreo') {
+        $gruposCoordinados[] = $grupoConFecha;
+    } elseif ($estadoGrupo === 'en revision muestreo') {
+        $gruposEnRevision[] = $grupoConFecha;
     }
 }
 
 // Función para ordenar por fecha (más recientes primero)
+usort($gruposPrioritarios, function($a, $b) {
+    if ($a['fecha'] && $b['fecha']) {
+        return $b['fecha'] <=> $a['fecha'];
+    }
+    return 0;
+});
+
 usort($gruposCoordinados, function($a, $b) {
     if ($a['fecha'] && $b['fecha']) {
         return $b['fecha'] <=> $a['fecha'];
@@ -47,6 +93,217 @@ usort($gruposFinalizados, function($a, $b) {
 ?>
 
 @if(count($tareasAgrupadas) > 0)
+    <!-- Sección de Muestras Prioritarias -->
+    @if(count($gruposPrioritarios) > 0)
+        <div class="mb-4">
+            <h3 class="text-warning mb-3">
+                <x-heroicon-o-star class="me-2" style="width: 24px; height: 24px; color: #ffc107;" />
+                Muestras Prioritarias ({{ count($gruposPrioritarios) }})
+            </h3>
+            @foreach($gruposPrioritarios as $grupoData)
+                @php
+                    $grupo = $grupoData['grupo'];
+                    $key = $grupoData['key'];
+                    $isHermana = $grupo['is_hermana'];
+                    if ($isHermana) {
+                        [$numCoti, $itemId, $subitemId] = explode('_', $key);
+                    } else {
+                        [$numCoti, $instanceNumber, $itemId] = explode('_', $key);
+                    }
+                    $cotizacion = $cotizaciones->get($numCoti);
+                    
+                    $estadoGrupo = $grupoData['estado_grupo'];
+                    $badgeClassMuestra = match ($estadoGrupo) {
+                        'coordinado muestreo' => 'warning',
+                        'en revision muestreo' => 'info',
+                        'muestreado' => 'success',
+                        'suspension' => 'danger',
+                        default => 'secondary'
+                    };
+                @endphp
+
+                <div class="card mb-4 shadow-sm table-{{ $badgeClassMuestra }}" style="border-left: 4px solid #ffc107 !important;">
+                    <div class="card-header">
+                        <!-- Encabezado -->
+                        <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2">
+                            <div class="d-flex align-items-center">
+                                <button class="btn btn-link text-decoration-none p-0 me-2" 
+                                        data-bs-toggle="collapse" 
+                                        data-bs-target="#tabla-priority-{{ $numCoti }}-{{ $itemId }}-{{ $isHermana ? $subitemId : $instanceNumber }}" 
+                                        aria-expanded="false" 
+                                        aria-controls="tabla-priority-{{ $numCoti }}-{{ $itemId }}-{{ $isHermana ? $subitemId : $instanceNumber }}"
+                                        onclick="toggleChevron('chevron-priority-{{ $numCoti }}-{{ $itemId }}-{{ $isHermana ? $subitemId : $instanceNumber }}')">
+                                    <x-heroicon-o-chevron-up id="chevron-priority-{{ $numCoti }}-{{ $itemId }}-{{ $isHermana ? $subitemId : $instanceNumber }}" class="text-dark chevron-icon" style="width: 20px; height: 20px;" />
+                                </button>
+                                <div>
+                                    <h4 class="mb-0 text-primary">
+                                        Cotización Nº {{ $numCoti }} - {{ $grupo['instancias'][0]['instancia_muestra']->cotio_descripcion ?? 'N/A' }}
+                                        @if($isHermana)
+                                            ({{ $grupo['instancias']->count() }} Muestras)
+                                        @else
+                                            {{ $grupo['instancias'][0]['instancia_muestra']->id ? '#' . str_pad($grupo['instancias'][0]['instancia_muestra']->id, 8, '0', STR_PAD_LEFT) : '' }} (#{{ $grupo['instancias'][0]['instancia_muestra']->instance_number ?? ''}})
+                                        @endif
+                                    </h4>
+                                    <div class="d-flex align-items-center gap-2 mt-1">
+                                        <span class="badge bg-{{ $badgeClassMuestra }} text-dark">
+                                            {{ ucfirst($estadoGrupo) }}
+                                        </span>
+                                        <span class="badge bg-warning text-dark">
+                                            <x-heroicon-o-star class="me-1" style="width: 12px; height: 12px;" />
+                                            Prioridad
+                                        </span>
+                                        @if($grupo['instancias'][0]['instancia_muestra']->es_frecuente && $grupo['instancias'][0]['instancia_muestra']->frecuencia_dias > 0)
+                                            <span class="badge bg-light text-dark border">
+                                                <x-heroicon-o-arrow-path class="me-1" style="width: 14px; height: 14px;" />
+                                                Cada {{ $grupo['instancias'][0]['instancia_muestra']->frecuencia_dias }} días
+                                            </span>
+                                        @endif
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="d-flex gap-2 mt-2 mt-md-0">
+                                <a class="btn btn-outline-dark btn-sm"
+                                   href="https://www.google.com/maps/search/?api=1&query={{ $cotizacion->coti_direccioncli ?? '' }}, {{ $cotizacion->coti_localidad ?? '' }}, {{ $cotizacion->coti_partido ?? '' }}">
+                                    <x-heroicon-o-map class="me-1" style="width: 16px; height: 16px;" />
+                                    <span>Maps</span>
+                                </a>
+                            </div>
+                        </div>
+
+                        <!-- Información de la cotización -->
+                        @if($cotizacion)
+                            <div class="mt-3 small text-dark">
+                                <div class="row g-2">
+                                    <div class="col-md-4 d-flex align-items-center">
+                                        <x-heroicon-o-calendar class="me-2 text-muted" style="width: 14px; height: 14px;" />
+                                        <strong>Fecha: </strong> {{ \Carbon\Carbon::parse($grupo['instancias'][0]['instancia_muestra']->fecha_inicio_muestreo)->format('d/m/Y') ?? 'N/A' }}
+                                    </div>
+                                    <div class="col-md-4 d-flex align-items-center">
+                                        <x-heroicon-o-map-pin class="me-2 text-muted" style="width: 14px; height: 14px;" />
+                                        <strong>Dirección: </strong> {{ $cotizacion->coti_direccioncli ?? 'N/A' }}
+                                    </div>
+                                    <div class="col-md-4 d-flex align-items-center">
+                                        <x-heroicon-o-user-circle class="me-2 text-muted" style="width: 14px; height: 14px;" />
+                                        <strong>Cliente: </strong> {{ $cotizacion->coti_empresa ?? 'N/A' }}
+                                    </div>
+                                </div>
+                            </div>
+                        @endif
+                    </div>
+
+                    <div id="tabla-priority-{{ $numCoti }}-{{ $itemId }}-{{ $isHermana ? $subitemId : $instanceNumber }}" class="collapse">
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-bordered align-middle mb-0">
+                                    <thead class="table-dark">
+                                        <tr>
+                                            <th class="w-60">Descripción</th>
+                                            <th class="w-40">Estado</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach($grupo['instancias'] as $instancia)
+                                            @php
+                                                $muestra = $instancia['muestra'];
+                                                $instanciaMuestra = $instancia['instancia_muestra'];
+                                                $analisis = $instancia['analisis'];
+                                                $vehiculoAsignado = $instanciaMuestra->vehiculo ?? null;
+                                                $esFrecuente = $instanciaMuestra->es_frecuente ?? false;
+                                                $frecuenciaDias = $instanciaMuestra->frecuencia_dias ?? 0;
+                                                $estadoMuestra = strtolower($instanciaMuestra->cotio_estado ?? 'pendiente');
+                                                $badgeClassMuestra = match ($estadoMuestra) {
+                                                    'coordinado muestreo' => 'table-warning',
+                                                    'en revision muestreo' => 'table-info',
+                                                    'muestreado' => 'table-success',
+                                                    'suspension' => 'table-danger text-white',
+                                                    default => 'table-secondary'
+                                                };
+                                            @endphp
+
+                                            <!-- Fila de la muestra -->
+                                            <tr class="fw-bold {{ $badgeClassMuestra }}">
+                                                <td>
+                                                    <div class="d-flex justify-content-between align-items-center">
+                                                        <div>
+                                                            <span>MUESTRA: {{ $instanciaMuestra->cotio_descripcion ?? 'N/A' }} @if($isHermana)(#{{ $instanciaMuestra->instance_number }})@endif
+                                                                @if($instanciaMuestra->es_priori)
+                                                                    <x-heroicon-o-star class="ms-1" style="width: 14px; height: 14px; color: #ffc107;" />
+                                                                @endif
+                                                            </span>
+                                                            <small class="text-muted d-block mt-1">ID: {{ str_pad($instanciaMuestra->id, 8, '0', STR_PAD_LEFT) }}</small>
+                                                            @if($esFrecuente && $frecuenciaDias > 0)
+                                                                <span class="badge bg-light text-dark border mt-1">
+                                                                    <x-heroicon-o-arrow-path class="me-1" style="width: 14px; height: 14px;" />
+                                                                    Cada {{ $frecuenciaDias }} días
+                                                                </span>
+                                                            @endif
+                                                        </div>
+                                                        <a href="{{ Auth::user()->rol == 'laboratorio' ? route('ordenes.all.show', [$instanciaMuestra->cotio_numcoti ?? 'N/A', $instanciaMuestra->cotio_item ?? 'N/A', $instanciaMuestra->cotio_subitem ?? 'N/A', $instanciaMuestra->instance_number ?? 'N/A']) : route('tareas.all.show', [$instanciaMuestra->cotio_numcoti ?? 'N/A', $instanciaMuestra->cotio_item ?? 'N/A', $instanciaMuestra->cotio_subitem ?? 'N/A', $instanciaMuestra->instance_number ?? 'N/A'])}}" 
+                                                           class="btn btn-sm btn-dark">
+                                                            <x-heroicon-o-eye class="me-1" style="width: 16px; height: 16px;" />
+                                                            Ver
+                                                        </a>
+                                                    </div>
+                                                </td>
+                                                <td class="text-center">
+                                                    <span class="badge text-dark {{ str_replace('table-', 'bg-', $badgeClassMuestra) }}">
+                                                        {{ ucfirst($estadoMuestra) }}
+                                                    </span>
+                                                </td>
+                                            </tr>
+
+                                            @if($vehiculoAsignado)
+                                                <tr class="table-light">
+                                                    <td colspan="2" class="text-uppercase small">
+                                                        <x-heroicon-o-truck class="me-1" style="width: 16px; height: 16px;" />
+                                                        <strong>Vehículo asignado:</strong> {{ $vehiculoAsignado->marca }} {{ $vehiculoAsignado->modelo }} ({{ $vehiculoAsignado->patente }})
+                                                    </td>
+                                                </tr>
+                                            @endif
+
+                                            <!-- Filas de análisis -->
+                                            @foreach($analisis as $tarea)
+                                                @php
+                                                    $estado = strtolower($tarea->cotio_estado ?? 'pendiente');
+                                                    $badgeClassAnalisis = match ($estado) {
+                                                        'coordinado muestreo' => 'table-warning',
+                                                        'en revision muestreo' => 'table-info',
+                                                        'muestreado' => 'table-success',
+                                                        'suspension' => 'table-danger text-white',
+                                                        default => 'table-secondary'
+                                                    };
+                                                @endphp
+                                                <tr class="{{ $badgeClassAnalisis }}">
+                                                    <td class="small">
+                                                        <div class="d-flex justify-content-between align-items-center">
+                                                            <div>
+                                                                <span>ANÁLISIS: {{ $tarea->cotio_descripcion }}</span>
+                                                                <small class="text-muted d-block mt-1">ID: {{ $tarea->id }}</small>
+                                                                @if($tarea->resultado)
+                                                                    <span class="badge bg-dark mt-1">RESULTADO: {{ $tarea->resultado }}</span>
+                                                                @endif
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td class="text-center">
+                                                        <span class="badge text-dark {{ str_replace('table-', 'bg-', $badgeClassAnalisis) }}">
+                                                            {{ ucfirst($estado) }}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            @endforeach
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            @endforeach
+        </div>
+    @endif
+
     <!-- Sección de Tareas Coordinadas -->
     @if(count($gruposCoordinados) > 0)
         <div class="mb-4">

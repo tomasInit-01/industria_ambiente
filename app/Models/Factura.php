@@ -12,6 +12,8 @@ class Factura extends Model
     protected $fillable = [
         'cotizacion_id',
         'numero_factura',
+        'cotio_descripcion',
+        'instance_number',
         'cae',
         'fecha_emision',
         'fecha_vencimiento_cae',

@@ -186,12 +186,12 @@
                                 <th>Número Factura</th>
                                 <th>Cotización</th>
                                 <th>Cliente</th>
+                                <th>Muestra</th>
                                 <th>CUIT</th>
                                 <th>CAE</th>
                                 <th>Fecha Emisión</th>
                                 <th>Fecha Venc. CAE</th>
                                 <th>Monto Total</th>
-                                {{-- <th>Estado</th> --}}
                                 <th style="text-align: center;">Acciones</th>
                             </tr>
                         </thead>
@@ -211,29 +211,12 @@
                                         @endif
                                     </td>
                                     <td>{{ $factura->cliente_razon_social ?? 'N/A' }}</td>
+                                    <td>{{ $factura->cotio_descripcion ?? 'N/A' }} {{ $factura->instance_number ?? '' }}</td>
                                     <td>{{ $factura->cliente_cuit ?? 'N/A' }}</td>
                                     <td><small>{{ $factura->cae }}</small></td>
                                     <td>{{ $factura->fecha_emision->format('d/m/Y H:i') }}</td>
                                     <td>{{ $factura->fecha_vencimiento_cae ? \Carbon\Carbon::parse($factura->fecha_vencimiento_cae)->format('d/m/Y') : 'N/A' }}</td>
                                     <td><strong>${{ number_format($factura->monto_total, 2, ',', '.') }}</strong></td>
-                                    {{-- <td>
-                                        @switch($factura->estado)
-                                            @case('aprobada')
-                                                <span class="badge bg-success">{{ $factura->estado_formateado }}</span>
-                                                @break
-                                            @case('pendiente')
-                                                <span class="badge bg-warning">{{ $factura->estado_formateado }}</span>
-                                                @break
-                                            @case('rechazada')
-                                                <span class="badge bg-danger">{{ $factura->estado_formateado }}</span>
-                                                @break
-                                            @case('anulada')
-                                                <span class="badge bg-secondary">{{ $factura->estado_formateado }}</span>
-                                                @break
-                                            @default
-                                                <span class="badge bg-light text-dark">{{ $factura->estado_formateado }}</span>
-                                        @endswitch
-                                    </td> --}}
                                     <td>
                                         <div class="d-flex justify-content-center align-items-center" style="width: 100%; height: 30px;">
                                             <a href="{{ route('facturacion.ver', $factura->id) }}" 

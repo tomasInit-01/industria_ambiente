@@ -62,7 +62,7 @@
                     @enderror
                 </div>
 
-                <!-- Unidad de Medición -->
+                {{-- <!-- Unidad de Medición -->
                 <div class="mb-3">
                     <label for="unidad_medicion" class="form-label">Unidad de Medición</label>
                     <input type="text" name="unidad_medicion" id="unidad_medicion" 
@@ -72,7 +72,7 @@
                     @error('unidad_medicion')
                         <div class="invalid-feedback d-block">{{ $message }}</div>
                     @enderror
-                </div>
+                </div> --}}
             </div>
         </div>
 
@@ -191,7 +191,7 @@ document.addEventListener('DOMContentLoaded', function() {
         $('#cotio_descripcion').trigger('change');
         form.querySelector('#nombre').value = originalValues.nombre;
         form.querySelector('#obligatorio').value = originalValues.obligatorio;
-        form.querySelector('#unidad_medicion').value = originalValues.unidad_medicion;
+        // form.querySelector('#unidad_medicion').value = originalValues.unidad_medicion;
         form.querySelectorAll('.form-control, .form-select').forEach(el => el.classList.remove('is-invalid'));
         form.querySelectorAll('.invalid-feedback').forEach(el => el.classList.remove('d-block'));
     });

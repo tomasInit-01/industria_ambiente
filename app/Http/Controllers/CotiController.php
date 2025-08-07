@@ -325,6 +325,7 @@ public function showTareas(Request $request)
                     });
             });
         })
+        ->orderByRaw("CASE WHEN es_priori = true THEN 0 ELSE 1 END")
         ->orderBy('fecha_inicio_muestreo', 'desc')
         ->orderByRaw("CASE WHEN cotio_estado = 'coordinado muestreo' THEN 0 ELSE 1 END");
 
@@ -332,6 +333,7 @@ public function showTareas(Request $request)
         ->whereHas('responsablesMuestreo', function ($q) use ($codigo) {
             $q->where('usu.usu_codigo', $codigo);
         })
+        ->orderByRaw("CASE WHEN es_priori = true THEN 0 ELSE 1 END")
         ->orderBy('fecha_inicio_muestreo', 'desc');
 
     // Aplicar filtros de búsqueda

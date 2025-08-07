@@ -48,13 +48,13 @@
                             @enderror
                         </div>
 
-                        <div class="col-md-4">
+                        {{-- <div class="col-md-4">
                             <label for="unidad_medicion_0" class="form-label">Unidad de Medición</label>
                             <input type="text" name="variables[0][unidad_medicion]" id="unidad_medicion_0" 
                                    class="form-control" 
                                    value="{{ old('variables.0.unidad_medicion') }}" 
                                    maxlength="255">
-                        </div>
+                        </div> --}}
 
                         <div class="col-md-2">
                             <label for="obligatorio_0" class="form-label">Obligatorio</label>
