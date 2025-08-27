@@ -114,6 +114,7 @@ public function facturar($coti_num)
     // Filtrar solo las muestras (cotio_subitem = 0) que tienen enable_inform = true
     $muestrasParaFacturar = CotioInstancia::where('cotio_numcoti', $coti_num)
                         ->where('enable_inform', true)
+                        ->where('aprobado_informe', true)
                         ->where('cotio_subitem', 0)
                         ->with(['responsablesMuestreo', 'responsablesAnalisis'])
                         ->get()

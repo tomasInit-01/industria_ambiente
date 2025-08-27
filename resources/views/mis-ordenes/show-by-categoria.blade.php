@@ -153,7 +153,7 @@
                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                            <button type="submit" class="btn btn-primary">Guardar Cambios</button>
+                            <button type="submit" class="btn btn-primary">Guardar y Enviar</button>
                         </div>
                     </form>
                 </div>
@@ -228,9 +228,17 @@
                                     data-bs-target="#collapse{{ $item->cotio_subitem }}" aria-expanded="false" 
                                     aria-controls="collapse{{ $item->cotio_subitem }}">
                                     <div class="d-flex justify-content-between w-100 pe-3">
-                                        <div>
+                                        <div class="d-flex align-items-center">
                                             <span class="badge bg-primary me-2">#{{ $item->cotio_subitem }}</span>
                                             {{ $item->cotio_descripcion }}
+                                            @if($item->request_review)
+                                                <div class="bg-warning rounded-pill ms-2 d-flex align-items-center justify-content-center" style="width: 1.8rem; height: 1.8rem;"
+                                                data-bs-toggle="tooltip" 
+                                                data-bs-placement="bottom"
+                                                title="Revisión de Resultados Pendiente. Se necesita recalcular los resultados para confirmar los valores.">
+                                                    <x-heroicon-o-exclamation-triangle style="width: 1rem; height: 1rem; color: black;" />
+                                                </div>
+                                            @endif
                                         </div>
                                         <div>
                                             @php
@@ -293,7 +301,19 @@
 
 
                 <div class="modal-body">
-                    <form method="POST" action="{{ route('tareas.updateResultado', [
+                    <form method="POST" action="{{ route('tareas.onlyUpdateResultado', [
+                        'cotio_numcoti' => $instancia->cotio_numcoti,
+                        'cotio_item' => $instancia->cotio_item,
+                        'cotio_subitem' => $item->cotio_subitem,
+                        'instance' => $instanceNumber
+                    ]) }}"
+                    data-update-url="{{ route('tareas.updateResultado', [
+                        'cotio_numcoti' => $instancia->cotio_numcoti,
+                        'cotio_item' => $instancia->cotio_item,
+                        'cotio_subitem' => $item->cotio_subitem,
+                        'instance' => $instanceNumber
+                    ]) }}"
+                    data-only-url="{{ route('tareas.onlyUpdateResultado', [
                         'cotio_numcoti' => $instancia->cotio_numcoti,
                         'cotio_item' => $instancia->cotio_item,
                         'cotio_subitem' => $item->cotio_subitem,
@@ -390,9 +410,8 @@
                         
                         <div class="d-flex justify-content-end">
                             <button type="button" class="btn btn-secondary me-2" data-bs-dismiss="modal">Cancelar</button>
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-save me-1"></i> Guardar Cambios
-                            </button>
+                            <button type="button" class="btn btn-primary me-2 btn-only-save">Guardar</button>
+                            <button type="button" class="btn btn-primary btn-save-send">Guardar y Enviar</button>
                         </div>
                     </form>
                 </div>
@@ -430,6 +449,66 @@
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 
 <script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // Manejar botones Guardar y Guardar y Enviar en modales de análisis
+        document.querySelectorAll('form[action*="resultado"]').forEach(form => {
+            const btnOnly = form.querySelector('.btn-only-save');
+            const btnSend = form.querySelector('.btn-save-send');
+            if (!btnOnly || !btnSend) return;
+
+            const onlyUrl = form.dataset.onlyUrl;
+            const updateUrl = form.dataset.updateUrl;
+
+            function submitAjax(url) {
+                const formData = new FormData(form);
+                formData.set('_method', 'PUT');
+
+                return fetch(url, {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                        'Accept': 'application/json'
+                    }
+                }).then(async (res) => {
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) throw new Error(data.message || 'Error en la solicitud');
+                    return data;
+                });
+            }
+
+            btnOnly.addEventListener('click', async (e) => {
+                e.preventDefault();
+                try {
+                    const result = await submitAjax(onlyUrl);
+                    Swal.fire({ icon: 'success', title: 'Guardado', text: result.message || 'Guardado correctamente', timer: 1200, showConfirmButton: false });
+                    setTimeout(() => window.location.reload(), 1200);
+                } catch (err) {
+                    Swal.fire({ icon: 'error', title: 'Error', text: err.message || 'No se pudo guardar' });
+                }
+            });
+
+            btnSend.addEventListener('click', async (e) => {
+                e.preventDefault();
+                const { isConfirmed } = await Swal.fire({
+                    title: 'Confirmar envío',
+                    text: '¿Deseas guardar y enviar este análisis para revisión?',
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonText: 'Sí, enviar',
+                    cancelButtonText: 'Cancelar'
+                });
+                if (!isConfirmed) return;
+                try {
+                    const result = await submitAjax(updateUrl);
+                    Swal.fire({ icon: 'success', title: 'Enviado', text: result.message || 'Guardado y enviado correctamente', timer: 1200, showConfirmButton: false });
+                    window.location.reload();
+                } catch (err) {
+                    Swal.fire({ icon: 'error', title: 'Error', text: err.message || 'No se pudo enviar' });
+                }
+            });
+        });
+    });
     document.addEventListener('DOMContentLoaded', function () {
         const herramientasModal = document.getElementById('editHerramientasModal');
         const instanciaId = {{ $instancia->id }};

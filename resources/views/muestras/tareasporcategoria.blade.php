@@ -73,7 +73,7 @@
                 </div>
 
                 <div class="d-flex justify-content-between align-items-center">
-                    <h2 class="fw-bold">{{ $categoria->cotio_descripcion }} {{ $instanciaActual->id ? '#' . str_pad($instanciaActual->id, 8, '0', STR_PAD_LEFT) : null }} ({{ $instanciaActual->instance_number ?? ''}} / {{ $categoria->cotio_cantidad ?? ''}})</h2>
+                    <h2 class="fw-bold">{{ $categoria->cotio_descripcion }} ({{ $instanciaActual->instance_number ?? ''}} / {{ $categoria->cotio_cantidad ?? ''}})</h2>
                     <div class="d-flex gap-2">
                         <a class="btn btn-outline-primary"
                             href="https://www.google.com/maps/search/?api=1&query={{ $cotizacion->coti_direccioncli }}, {{ $cotizacion->coti_localidad }}, {{ $cotizacion->coti_partido }}">
@@ -131,8 +131,8 @@
                                         <button type="button" 
                                             class="btn btn-sm btn-link text-danger p-0 ms-1" 
                                             style="font-size: 0.75rem; line-height: 1;"
-                                            onclick="eliminarResponsableTodasTareas('{{ $responsable->usu_codigo }}')"
-                                            title="Eliminar de todas las tareas">
+                                            onclick="quitarResponsableMuestreo('{{ $responsable->usu_codigo }}')"
+                                            title="Quitar responsable de muestreo">
                                             <x-heroicon-o-x-mark style="width: 12px; height: 12px;" />
                                         </button>
                                     @endif
@@ -141,6 +141,18 @@
                                 @endforeach
                             @else
                                 <span class="badge bg-secondary">Sin asignar</span>
+                            @endif
+                            
+                            @if($instanciaActual->enable_ot == false)
+                                <button type="button" 
+                                        class="btn btn-sm btn-outline-primary ms-2"
+                                        data-bs-toggle="modal" 
+                                        data-bs-target="#gestionarResponsablesMuestreoModal"
+                                        data-instancia-id="{{ $instanciaActual->id }}"
+                                        title="Gestionar responsables de muestreo">
+                                    <x-heroicon-o-user-plus style="width: 0.875rem; height: 0.875rem;" />
+                                    <span class="d-none d-md-inline ms-1">Gestionar</span>
+                                </button>
                             @endif
                         </p>
 
@@ -606,6 +618,67 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para gestionar responsables de muestreo -->
+    <div class="modal fade" id="gestionarResponsablesMuestreoModal" tabindex="-1" aria-labelledby="gestionarResponsablesMuestreoModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="gestionarResponsablesMuestreoModalLabel">Gestionar Responsables de Muestreo</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- Responsables actuales -->
+                    <div class="mb-4">
+                        <h6 class="fw-bold mb-3">Responsables Actuales</h6>
+                        <div id="responsablesActualesMuestreo">
+                            <div class="text-center">
+                                <div class="spinner-border spinner-border-sm" role="status">
+                                    <span class="visually-hidden">Cargando...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <!-- Agregar nuevos responsables -->
+                    <div class="mb-3">
+                        <h6 class="fw-bold mb-3">Agregar Responsables</h6>
+                        <form id="agregarResponsablesMuestreoForm">
+                            <div class="mb-3">
+                                <label for="nuevosResponsablesMuestreo" class="form-label fw-semibold">
+                                    <i class="fas fa-users me-2"></i>Seleccionar Muestreadores
+                                </label>
+                                <select id="nuevosResponsablesMuestreo" name="nuevos_responsables[]" class="form-select select-muestreadores" multiple>
+                                    @foreach($usuariosMuestreo as $usuario)
+                                        @if($usuario->rol === 'muestreador')
+                                            <option value="{{ trim($usuario->usu_codigo) }}" data-role="muestreador">
+                                                {{ $usuario->usu_descripcion }} ({{ trim($usuario->usu_codigo) }})
+                                            </option>
+                                        @endif
+                                    @endforeach
+                                </select>
+                                <small class="form-text text-muted mt-1">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    Selecciona uno o más muestreadores para agregar a esta instancia
+                                </small>
+                            </div>
+                            <input type="hidden" id="instanciaIdMuestreo" name="instancia_id" value="">
+                        </form>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-1"></i>Cancelar
+                    </button>
+                    <button type="button" class="btn btn-primary" onclick="agregarResponsablesMuestreo()" id="btnAgregarResponsables">
+                        <i class="fas fa-user-plus me-1"></i>Agregar Seleccionados
+                    </button>
                 </div>
             </div>
         </div>
@@ -1496,6 +1569,258 @@ document.addEventListener('DOMContentLoaded', function () {
 
 </script>
 
+<script>
+// Funciones para gestionar responsables de muestreo
+document.addEventListener('DOMContentLoaded', function() {
+    // Event listener para cuando se abre el modal
+    const modal = document.getElementById('gestionarResponsablesMuestreoModal');
+    if (modal) {
+        modal.addEventListener('show.bs.modal', function(event) {
+            const button = event.relatedTarget;
+            const instanciaId = button.getAttribute('data-instancia-id');
+            
+            // Establecer el ID de instancia en el formulario
+            document.getElementById('instanciaIdMuestreo').value = instanciaId;
+            
+            // Cargar responsables actuales
+            cargarResponsablesActualesMuestreo(instanciaId);
+            
+            // Destruir Select2 existente si existe
+            if ($('#nuevosResponsablesMuestreo').hasClass('select2-hidden-accessible')) {
+                $('#nuevosResponsablesMuestreo').select2('destroy');
+            }
+            
+            // Inicializar Select2 con configuración mejorada
+            $('#nuevosResponsablesMuestreo').select2({
+                placeholder: "🔍 Buscar y seleccionar muestreadores...",
+                width: '100%',
+                dropdownParent: $('#gestionarResponsablesMuestreoModal'),
+                theme: 'bootstrap-5',
+                allowClear: true,
+                closeOnSelect: false,
+                templateResult: function(data) {
+                    if (!data.id) return data.text;
+                    
+                    // Crear elemento personalizado para cada opción
+                    var $result = $(
+                        '<div class="d-flex align-items-center">' +
+                            '<div class="me-2">' +
+                                '<i class="fas fa-user-hard-hat text-primary"></i>' +
+                            '</div>' +
+                            '<div>' +
+                                '<div class="fw-semibold">' + data.text.split(' (')[0] + '</div>' +
+                                '<small class="text-muted">Código: ' + data.text.match(/\(([^)]+)\)/)?.[1] + '</small>' +
+                            '</div>' +
+                        '</div>'
+                    );
+                    return $result;
+                },
+                templateSelection: function(data) {
+                    if (!data.id) return data.text;
+                    
+                    // Formato para elementos seleccionados
+                    return '👤 ' + data.text.split(' (')[0];
+                }
+            });
+            
+            // Limpiar selección
+            $('#nuevosResponsablesMuestreo').val(null).trigger('change');
+        });
+    }
+});
+
+function cargarResponsablesActualesMuestreo(instanciaId) {
+    const container = document.getElementById('responsablesActualesMuestreo');
+    
+    fetch(`/api/get-responsables-muestreo`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+        },
+        body: JSON.stringify({
+            instancia_id: instanciaId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            if (data.responsables.length === 0) {
+                container.innerHTML = '<div class="alert alert-info">No hay responsables asignados</div>';
+            } else {
+                const responsablesHtml = data.responsables.map(responsable => `
+                    <div class="d-flex justify-content-between align-items-center mb-2 p-2 border rounded">
+                        <span>
+                            <strong>${responsable.usu_descripcion}</strong>
+                            <small class="text-muted">(${responsable.usu_codigo.trim()})</small>
+                        </span>
+                        <button type="button" 
+                                class="btn btn-sm btn-outline-danger"
+                                onclick="quitarResponsableMuestreoModal('${responsable.usu_codigo.trim()}')"
+                                title="Quitar responsable">
+                            ×
+                        </button>
+                    </div>
+                `).join('');
+                
+                container.innerHTML = responsablesHtml;
+            }
+        } else {
+            container.innerHTML = '<div class="alert alert-danger">Error al cargar responsables</div>';
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        container.innerHTML = '<div class="alert alert-danger">Error al cargar responsables</div>';
+    });
+}
+
+function agregarResponsablesMuestreo() {
+    const instanciaId = document.getElementById('instanciaIdMuestreo').value;
+    const nuevosResponsables = $('#nuevosResponsablesMuestreo').val();
+    const btn = document.getElementById('btnAgregarResponsables');
+    
+    if (!nuevosResponsables || nuevosResponsables.length === 0) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'Advertencia',
+            text: 'Debes seleccionar al menos un muestreador',
+            confirmButtonColor: '#3085d6'
+        });
+        return;
+    }
+    
+    // Mostrar indicador de carga
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Agregando...';
+    
+    fetch(`/muestras/editar-responsables`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+        },
+        body: JSON.stringify({
+            instancia_id: instanciaId,
+            responsables: nuevosResponsables
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        // Restaurar botón
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-user-plus me-1"></i>Agregar Seleccionados';
+        
+        if (data.success) {
+            Swal.fire({
+                icon: 'success',
+                title: '¡Éxito!',
+                text: data.message,
+                confirmButtonColor: '#3085d6',
+                timer: 2000
+            }).then(() => {
+                // Recargar responsables actuales
+                cargarResponsablesActualesMuestreo(instanciaId);
+                // Limpiar selección
+                $('#nuevosResponsablesMuestreo').val(null).trigger('change');
+                // Recargar página para mostrar cambios
+                setTimeout(() => window.location.reload(), 1000);
+            });
+        } else {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: data.message,
+                confirmButtonColor: '#3085d6'
+            });
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        // Restaurar botón
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-user-plus me-1"></i>Agregar Seleccionados';
+        
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Error al agregar responsables',
+            confirmButtonColor: '#3085d6'
+        });
+    });
+}
+
+function quitarResponsableMuestreo(responsableCodigo) {
+    const instanciaId = document.getElementById('instanciaIdMuestreo').value || '{{ $instanciaActual->id ?? "" }}';
+    
+    Swal.fire({
+        title: '¿Estás seguro?',
+        text: '¿Quieres quitar este responsable del muestreo?',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: 'Sí, quitar',
+        cancelButtonText: 'Cancelar'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            fetch(`/muestras/quitar-responsable-muestreo`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                },
+                body: JSON.stringify({
+                    instancia_id: instanciaId,
+                    responsable_codigo: responsableCodigo
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Éxito',
+                        text: data.message,
+                        confirmButtonColor: '#3085d6'
+                    }).then(() => {
+                        // Si estamos en el modal, recargar responsables actuales
+                        if (document.getElementById('gestionarResponsablesMuestreoModal').classList.contains('show')) {
+                            cargarResponsablesActualesMuestreo(instanciaId);
+                        }
+                        // Recargar página para mostrar cambios
+                        setTimeout(() => window.location.reload(), 1000);
+                    });
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: data.message,
+                        confirmButtonColor: '#3085d6'
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'Error al quitar responsable',
+                    confirmButtonColor: '#3085d6'
+                });
+            });
+        }
+    });
+}
+
+function quitarResponsableMuestreoModal(responsableCodigo) {
+    quitarResponsableMuestreo(responsableCodigo);
+}
+</script>
+
 <style>
     .fecha-verde {
         background-color: #d4edda !important;
@@ -1529,11 +1854,82 @@ document.addEventListener('DOMContentLoaded', function () {
     
     .select2-container {
         width: 100% !important;
-        display: none !important;
     }
     
     .select2-container--bootstrap-5 .select2-selection {
         min-height: 38px;
+    }
+    
+    /* Estilos para el select de muestreadores */
+    .select-muestreadores {
+        border: 2px solid #e9ecef;
+        border-radius: 8px;
+        transition: all 0.3s ease;
+    }
+    
+    .select-muestreadores:focus {
+        border-color: #0d6efd;
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+    }
+    
+    /* Estilos para Select2 del modal de muestreadores */
+    .select2-container--bootstrap-5 .select2-selection--multiple {
+        min-height: 100px !important;
+        border: 2px solid #e9ecef !important;
+        border-radius: 8px !important;
+        padding: 8px !important;
+    }
+    
+    .select2-container--bootstrap-5.select2-container--focus .select2-selection--multiple {
+        border-color: #0d6efd !important;
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25) !important;
+    }
+    
+    /* Estilo para las opciones seleccionadas */
+    .select2-container--bootstrap-5 .select2-selection__choice {
+        background-color: #0d6efd !important;
+        border-color: #0d6efd !important;
+        color: white !important;
+        border-radius: 6px !important;
+        padding: 4px 8px !important;
+        margin: 2px !important;
+        font-weight: 500 !important;
+    }
+    
+    .select2-container--bootstrap-5 .select2-selection__choice__remove {
+        color: white !important;
+        margin-right: 5px !important;
+    }
+    
+    .select2-container--bootstrap-5 .select2-selection__choice__remove:hover {
+        color: #ffdddd !important;
+    }
+    
+    /* Estilo para el dropdown */
+    .select2-container--bootstrap-5 .select2-dropdown {
+        border: 2px solid #e9ecef;
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    
+    .select2-container--bootstrap-5 .select2-results__option {
+        padding: 10px 15px;
+        border-bottom: 1px solid #f8f9fa;
+    }
+    
+    .select2-container--bootstrap-5 .select2-results__option:hover {
+        background-color: #f8f9fa !important;
+        color: #0d6efd !important;
+    }
+    
+    .select2-container--bootstrap-5 .select2-results__option--highlighted {
+        background-color: #0d6efd !important;
+        color: white !important;
+    }
+    
+    .select2-container--bootstrap-5 .select2-results__option[data-role="muestreador"]::before {
+        content: "👤 ";
+        margin-right: 5px;
     }
     
     .form-control:focus, .form-select:focus {

@@ -117,12 +117,18 @@
     <div class="calendar-header">
         <div>
             <h2 class="mb-0">
-                @if($viewTasks)
+                {{-- @if($viewTasks)
                     Tareas de: <strong>{{ $userToView }}</strong>
                     <small class="text-muted">({{ count($events) }} tareas)</small>
-                @else
-                    Calendario de Ordenes
-                @endif
+                @else --}}
+                    Calendario de Órdenes
+                    @if(request('matriz'))
+                        <small class="text-muted">
+                            ({{ collect($events)->where('cotio_subitem', 0)->count() }}
+                            {{ collect($events)->where('cotio_subitem', 0)->count() === 1 ? 'orden' : 'ordenes' }})
+                        </small>                        
+                    @endif
+                {{-- @endif --}}
             </h2>
         </div>
         
@@ -133,6 +139,34 @@
                    <i class="fas fa-arrow-left"></i> Volver
                 </a>
             @endif
+
+            {{-- añadir filtro por matriz en el calendario --}}
+            <form action="{{ route('ordenes.index') }}" method="GET" class="d-flex align-items-center gap-2" style="margin: 0px !important;">
+                <input type="hidden" name="view" value="calendario">
+                @if(request('view_tasks'))
+                    <input type="hidden" name="view_tasks" value="{{ request('view_tasks') }}">
+                @endif
+                @if(request('user_to_view'))
+                    <input type="hidden" name="user_to_view" value="{{ request('user_to_view') }}">
+                @endif
+                @foreach(request()->except(['matriz', 'view', 'view_tasks', 'user_to_view']) as $key => $value)
+                    <input type="hidden" name="{{ $key }}" value="{{ $value }}">
+                @endforeach
+                
+                <select name="matriz" class="form-select form-select-sm" style="width: 100%; max-width: 150px;">
+                    <option value="">Todas las matrices</option>
+                    @foreach($matrices as $matriz)
+                        <option value="{{ $matriz->matriz_codigo }}" {{ request('matriz') == $matriz->matriz_codigo ? 'selected' : '' }}>
+                            {{ $matriz->matriz_descripcion }}
+                        </option>
+                    @endforeach
+                </select>
+                <button type="submit" class="btn btn-sm btn-outline-secondary">
+                    <i class="fas fa-filter"></i> Filtrar
+                </button>
+            </form>
+          
+          
             
             <button id="current-week-btn" class="btn btn-sm btn-primary">
                 <i class="fas fa-calendar-day"></i> Hoy
@@ -151,13 +185,13 @@
             
             @if(auth()->user()->usu_nivel >= 900)
                 <div class="dropdown ms-2">
-                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" 
+                    {{-- <button class="btn btn-sm btn-outline-secondary dropdown-toggle" 
                             type="button" 
                             id="userDropdownMenu" 
                             data-bs-toggle="dropdown" 
                             aria-expanded="false">
                         <i class="fas fa-user"></i> Ver tareas de
-                    </button>
+                    </button> --}}
                     <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdownMenu">
                         @foreach($usuarios as $usuario)
                         <li>
@@ -180,15 +214,28 @@
         </div>
     </div>
 
-    @if($events->isNotEmpty())
     <div id="calendar"></div>
-    @else
-    <div class="alert alert-info">
+    
+    @if($events->isEmpty())
+    <div class="alert alert-info mt-3">
         @if($viewTasks)
-            No hay tareas asignadas a este usuario en el período seleccionado.
+            <i class="fas fa-info-circle me-2"></i>
+            No hay tareas asignadas a <strong>{{ $userToView }}</strong> en el período seleccionado.
         @else
-            No hay muestras programadas para mostrar en el calendario.
+            <i class="fas fa-info-circle me-2"></i>
+            @if(request('matriz'))
+                @php
+                    $matrizSeleccionada = $matrices->firstWhere('matriz_codigo', request('matriz'));
+                @endphp
+                No hay muestras programadas para la matriz 
+                <strong>{{ $matrizSeleccionada ? $matrizSeleccionada->matriz_descripcion : 'seleccionada' }}</strong> 
+                en el período actual.
+            @else
+                No hay muestras programadas para mostrar en el calendario.
+            @endif
         @endif
+        <br>
+        <small class="text-muted">El calendario se mostrará cuando haya eventos programados en las fechas visibles.</small>
     </div>
     @endif
 </div>
@@ -203,9 +250,12 @@ document.addEventListener('DOMContentLoaded', function() {
     const calendarEl = document.getElementById('calendar');
     
     if(calendarEl) {
+        // Obtener la vista guardada del localStorage o usar por defecto
+        const savedView = localStorage.getItem('calendar_view') || 'timeGridWeek';
+        
         const calendar = new FullCalendar.Calendar(calendarEl, {
             locale: 'es',
-            initialView: 'timeGridWeek',
+            initialView: savedView,
             headerToolbar: {
                 left: 'prev,next today',
                 center: 'title',
@@ -277,6 +327,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 dayGridMonth: {
                     dayMaxEventRows: 4
                 }
+            },
+            viewDidMount: function(info) {
+                // Guardar la vista actual en localStorage
+                localStorage.setItem('calendar_view', info.view.type);
             }
         });
         

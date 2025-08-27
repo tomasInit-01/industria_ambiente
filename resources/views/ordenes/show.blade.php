@@ -97,21 +97,36 @@
                                                     $muestraActiva = $muestra->active_ot;
                                                     $muestraTieneResultado = $muestra->resultado !== null;
                                                 @endphp
-                                                <input
-                                                    type="checkbox"
-                                                    class="form-check-input instancia-checkbox"
-                                                    data-id="{{ $muestra->id }}"
-                                                    data-item="{{ $categoria->cotio_item }}"
-                                                    data-subitem="0"
-                                                    data-instance="{{ $muestra->instance_number }}"
-                                                    data-numcoti="{{ $muestra->cotio_numcoti }}"
-                                                    data-descripcion="{{ $categoria->cotio_descripcion }}"
-                                                    @checked($muestra->active_ot)
-                                                    data-user-toggled="false"
-                                                    onchange="toggleInstancia(this)"
-                                                    @disabled($muestraActiva || $muestraTieneResultado)
-                                                    aria-label="Activar/Desactivar muestra {{ $categoria->cotio_descripcion }} (Instancia {{ $muestra->instance_number }})"
-                                                />
+                                                <div class="d-flex flex-column gap-1">
+                                                    <input
+                                                        type="checkbox"
+                                                        class="form-check-input instancia-checkbox"
+                                                        data-id="{{ $muestra->id }}"
+                                                        data-item="{{ $categoria->cotio_item }}"
+                                                        data-subitem="0"
+                                                        data-instance="{{ $muestra->instance_number }}"
+                                                        data-numcoti="{{ $muestra->cotio_numcoti }}"
+                                                        data-descripcion="{{ $categoria->cotio_descripcion }}"
+                                                        @checked($muestra->active_ot)
+                                                        data-user-toggled="false"
+                                                        onchange="toggleInstancia(this)"
+                                                        @disabled($muestraActiva || $muestraTieneResultado)
+                                                        aria-label="Activar/Desactivar muestra {{ $categoria->cotio_descripcion }} (Instancia {{ $muestra->instance_number }})"
+                                                    />
+                                                    <!-- Checkbox auxiliar para seleccionar todos los restantes -->
+                                                    <input
+                                                        type="checkbox"
+                                                        class="form-check-input checkbox-auxiliar"
+                                                        data-id="{{ $muestra->id }}"
+                                                        data-item="{{ $categoria->cotio_item }}"
+                                                        data-instance="{{ $muestra->instance_number }}"
+                                                        data-numcoti="{{ $muestra->cotio_numcoti }}"
+                                                        onchange="seleccionarTodosRestantes(this)"
+                                                        style="display: none; transform: scale(0.8);"
+                                                        title="Seleccionar todos los análisis restantes"
+                                                        aria-label="Seleccionar todos los análisis restantes de {{ $categoria->cotio_descripcion }}"
+                                                    />
+                                                </div>
                                                 <!-- Title and Link -->
                                                 <div class="flex-grow-1">
                                                     <a 
@@ -184,13 +199,35 @@
                                             @if($instancia['muestra']->es_priori)
                                                 <div class="mb-2 d-flex align-items-center justify-content-between">
                                                     <span data-bs-toggle="tooltip" 
-                                                          data-bs-placement="top" 
+                                                          data-bs-placement="bottom" 
                                                           data-bs-html="true"
                                                           data-bs-title="<i class='fas fa-star text-warning me-1'></i><strong>Muestra Prioritaria</strong><br><small>Esta muestra requiere atención especial</small>">
                                                         <x-heroicon-o-star style="width: 20px; height: 20px; color: #ffd700; cursor: pointer;" />
                                                     </span>
                                                 </div>
                                             @endif
+
+                                            <!-- QR Code Icon -->
+                                            <div class="d-flex align-items-center gap-2">
+                                                <a 
+                                                    href="#"
+                                                    class="text-decoration-none text-white"
+                                                    title="Generar QR para esta muestra"
+                                                    data-url="{{ route('qr.universal', [
+                                                        'cotio_numcoti' => $cotizacion->coti_num, 
+                                                        'cotio_item' => $categoria->cotio_item, 
+                                                        'cotio_subitem' => 0,
+                                                        'instance' => $muestra->instance_number
+                                                    ]) }}"
+                                                    data-coti="{{ $cotizacion->coti_num }}"
+                                                    data-categoria="{{ $categoria->cotio_descripcion }}"
+                                                    data-instance="{{ $muestra->instance_number }}"
+                                                    data-fechaanalisis="{{ $muestra->fecha_ot ?? $muestra->fecha_inicio_ot }}"
+                                                    onclick="generateQr(this)"
+                                                >
+                                                    <x-heroicon-o-qr-code class="text-white" style="width: 24px; height: 24px;"/>
+                                                </a>
+                                            </div>
                                         </div>
                                         <div class="card-body">
                                             @foreach($instancia['analisis'] as $tarea)
@@ -415,6 +452,21 @@
     .disabled-checkbox:checked {
         background-color: #6c757d;
         border-color: #6c757d;
+    }
+
+    .checkbox-auxiliar {
+        border: 2px solid #28a745 !important;
+        background-color: rgba(40, 167, 69, 0.1) !important;
+    }
+
+    .checkbox-auxiliar:hover {
+        background-color: rgba(40, 167, 69, 0.2) !important;
+        transform: scale(0.85) !important;
+    }
+
+    .checkbox-auxiliar:checked {
+        background-color: #28a745 !important;
+        border-color: #28a745 !important;
     }
 </style>
 
@@ -720,6 +772,8 @@
             toggleTarea(tareaCheckbox);
         });
 
+        // Actualizar el checkbox auxiliar después de cambiar la instancia
+        actualizarCheckboxAuxiliar(item, instance, numcoti);
         actualizarBotonAsignacionMasiva();
     }
 
@@ -749,18 +803,100 @@
         const numcoti = checkbox.dataset.numcoti;
         const instanciaCheckbox = document.querySelector(`.instancia-checkbox[data-item="${item}"][data-instance="${instance}"][data-numcoti="${numcoti}"]`);
 
-        if (instanciaCheckbox) {
-            const allTareas = document.querySelectorAll(`.tarea-checkbox[data-item="${item}"][data-instance="${instance}"][data-numcoti="${numcoti}"]:not(:disabled)`);
-            const checkedTareas = document.querySelectorAll(`.tarea-checkbox[data-item="${item}"][data-instance="${instance}"][data-numcoti="${numcoti}"]:not(:disabled):checked`);
+        if (instanciaCheckbox && !instanciaCheckbox.disabled) {
+            // Para el estado del checkbox principal, solo considerar tareas habilitadas
+            const allTareasHabilitadas = document.querySelectorAll(`.tarea-checkbox[data-item="${item}"][data-instance="${instance}"][data-numcoti="${numcoti}"]:not(:disabled)`);
+            const checkedTareasHabilitadas = document.querySelectorAll(`.tarea-checkbox[data-item="${item}"][data-instance="${instance}"][data-numcoti="${numcoti}"]:not(:disabled):checked`);
 
-            instanciaCheckbox.checked = checkedTareas.length === allTareas.length;
-            instanciaCheckbox.indeterminate = checkedTareas.length > 0 && checkedTareas.length < allTareas.length;
+            instanciaCheckbox.checked = checkedTareasHabilitadas.length === allTareasHabilitadas.length && allTareasHabilitadas.length > 0;
+            instanciaCheckbox.indeterminate = checkedTareasHabilitadas.length > 0 && checkedTareasHabilitadas.length < allTareasHabilitadas.length;
         }
+        
+        // Siempre actualizar el checkbox auxiliar (independiente del estado del principal)
+        actualizarCheckboxAuxiliar(item, instance, numcoti);
     }
 
     function actualizarBotonAsignacionMasiva() {
         const btnAsignacionMasiva = document.getElementById('btn-asignacion-masiva');
         btnAsignacionMasiva.disabled = seleccionesInstancias.length === 0 && seleccionesTareas.length === 0;
+    }
+
+    function actualizarCheckboxAuxiliar(item, instance, numcoti) {
+        const checkboxAuxiliar = document.querySelector(`.checkbox-auxiliar[data-item="${item}"][data-instance="${instance}"][data-numcoti="${numcoti}"]`);
+        const instanciaCheckbox = document.querySelector(`.instancia-checkbox[data-item="${item}"][data-instance="${instance}"][data-numcoti="${numcoti}"]`);
+        
+        if (!checkboxAuxiliar || !instanciaCheckbox) return;
+
+        // Solo mostrar el checkbox auxiliar si la categoría ya está activa (active_ot = true)
+        const categoriaEstaActiva = instanciaCheckbox.checked && instanciaCheckbox.disabled;
+        
+        if (!categoriaEstaActiva) {
+            checkboxAuxiliar.style.display = 'none';
+            checkboxAuxiliar.checked = false;
+            return;
+        }
+
+        // Considerar TODAS las tareas (habilitadas y deshabilitadas) para determinar selección parcial
+        const allTareas = document.querySelectorAll(`.tarea-checkbox[data-item="${item}"][data-instance="${instance}"][data-numcoti="${numcoti}"]`);
+        const checkedTareas = document.querySelectorAll(`.tarea-checkbox[data-item="${item}"][data-instance="${instance}"][data-numcoti="${numcoti}"]:checked`);
+        
+        // Solo considerar tareas no marcadas y habilitadas para el auxiliar
+        const tareasRestantesSeleccionables = document.querySelectorAll(`.tarea-checkbox[data-item="${item}"][data-instance="${instance}"][data-numcoti="${numcoti}"]:not(:disabled):not(:checked)`);
+        
+        // Mostrar checkbox auxiliar si:
+        // 1. La categoría está activa (ya verificado arriba)
+        // 2. Hay al menos una tarea marcada (checkedTareas.length > 0)
+        // 3. No están todas marcadas (checkedTareas.length < allTareas.length)  
+        // 4. Hay tareas restantes que se pueden seleccionar (tareasRestantesSeleccionables.length > 0)
+        const haySeleccionParcial = checkedTareas.length > 0 && 
+                                   checkedTareas.length < allTareas.length && 
+                                   tareasRestantesSeleccionables.length > 0;
+        
+        if (haySeleccionParcial) {
+            checkboxAuxiliar.style.display = 'block';
+            checkboxAuxiliar.checked = false; // Siempre empieza desmarcado
+            // Actualizar el tooltip para mostrar cuántas tareas se pueden seleccionar
+            checkboxAuxiliar.title = `Seleccionar ${tareasRestantesSeleccionables.length} análisis restantes`;
+        } else {
+            checkboxAuxiliar.style.display = 'none';
+            checkboxAuxiliar.checked = false;
+        }
+    }
+
+    function seleccionarTodosRestantes(checkbox) {
+        const item = checkbox.dataset.item;
+        const instance = checkbox.dataset.instance;
+        const numcoti = checkbox.dataset.numcoti;
+        const isChecked = checkbox.checked;
+        
+        // Seleccionar todas las tareas no marcadas
+        document.querySelectorAll(`.tarea-checkbox[data-item="${item}"][data-instance="${instance}"][data-numcoti="${numcoti}"]:not(:disabled):not(:checked)`).forEach(tareaCheckbox => {
+            if (isChecked) {
+                tareaCheckbox.checked = true;
+                toggleTarea(tareaCheckbox);
+            }
+        });
+        
+        // Si se seleccionan todos los restantes, actualizar el checkbox principal
+        if (isChecked) {
+            const instanciaCheckbox = document.querySelector(`.instancia-checkbox[data-item="${item}"][data-instance="${instance}"][data-numcoti="${numcoti}"]`);
+            if (instanciaCheckbox && !instanciaCheckbox.disabled) {
+                instanciaCheckbox.checked = true;
+                instanciaCheckbox.indeterminate = false;
+                
+                // Actualizar la selección de la instancia
+                const id = instanciaCheckbox.dataset.id;
+                if (!seleccionesInstancias.includes(id)) {
+                    seleccionesInstancias.push(id);
+                }
+            }
+        }
+        
+        // Ocultar el checkbox auxiliar después de usarlo
+        checkbox.style.display = 'none';
+        checkbox.checked = false;
+        
+        actualizarBotonAsignacionMasiva();
     }
 
     function mostrarModalAsignacionMasiva() {
@@ -928,6 +1064,14 @@
         // Date validation in real-time
         document.getElementById('fecha_inicio_ot').addEventListener('change', validarFechas);
         document.getElementById('fecha_fin_ot').addEventListener('change', validarFechas);
+
+        // Inicializar estado de checkboxes auxiliares para todas las instancias
+        document.querySelectorAll('.checkbox-auxiliar').forEach(checkboxAuxiliar => {
+            const item = checkboxAuxiliar.dataset.item;
+            const instance = checkboxAuxiliar.dataset.instance;
+            const numcoti = checkboxAuxiliar.dataset.numcoti;
+            actualizarCheckboxAuxiliar(item, instance, numcoti);
+        });
     });
 
     function confirmarRecoordinacion(instanciaId, cotizacionId) {
@@ -984,5 +1128,163 @@
                 icon: 'error'
             });
         });
+    }
+</script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+<script>
+    window.generateQr = function(element) {
+        const url = element.dataset.url;
+        const coti = element.dataset.coti;
+        const categoria = element.dataset.categoria;
+        const instance = element.dataset.instance;
+        const fechaAnalisis = element.dataset.fechaanalisis;  
+        const existing = document.getElementById('dynamicQrModal');
+        if (existing) existing.remove();
+
+        console.log(fechaAnalisis);
+
+        const modal = document.createElement('div');
+        modal.id = 'dynamicQrModal';
+        modal.className = 'modal fade';
+        modal.tabIndex = -1;
+        modal.setAttribute('aria-hidden', 'true');
+        modal.innerHTML = `
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">QR ${coti} - Categoría: ${categoria} - Fecha: ${fechaAnalisis || 'No asignada'}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div style="display: flex; justify-content: center; align-items: center; min-height: 250px;">
+                            <div id="qrContainer" style="margin: 0 auto;"></div>
+                        </div>
+                    </div>
+                    <div style="width: 100%; max-width: 60%; border: 1px solid #dee2e6; padding: 10px; border-radius: 8px; margin: 10px auto;">
+                        <p></p>
+                    </div>
+
+                    <div style="width: 100%; max-width: 60%; border: 1px solid #dee2e6; padding: 10px; border-radius: 8px; margin: 10px auto;">
+                        <p></p>
+                    </div>
+                    <div class="modal-footer justify-content-center">
+                        <button onclick="printQr('${url}', '${coti}', '${categoria}', '${instance}', '${fechaAnalisis}')" class="btn btn-primary">
+                            Imprimir QR 
+                        </button>
+                        <a href="${url}" class="btn btn-primary">
+                            Ver Formulario
+                        </a>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+        const bsModal = new bootstrap.Modal(modal);
+        bsModal.show();
+
+        // Limpiar contenedor si ya existe un QR
+        const container = document.getElementById('qrContainer');
+        container.innerHTML = '';
+        
+        new QRCode(container, {
+            text: url,
+            width: 200,
+            height: 200,
+            colorDark: "#000000",
+            colorLight: "#ffffff",
+            correctLevel: QRCode.CorrectLevel.H
+        });
+    }
+
+    window.printQr = function(url, coti, categoria, instance, fechaAnalisis) {
+        const win = window.open('', '_blank');
+        win.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Imprimir QR - Orden ${coti}</title>
+                <style>
+                    body {
+                        display: flex;
+                        flex-direction: column;
+                        justify-content: center;
+                        align-items: center;
+                        height: 100vh;
+                        margin: 0;
+                        font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+                    }
+                    .print-container {
+                        text-align: center;
+                        padding: 20px;
+                    }
+                    .qr-wrapper {
+                        margin: 20px auto;
+                        padding: 10px;
+                        border: 1px dashed #ccc;
+                        display: inline-block;
+                    }
+                    h1 {
+                        font-size: 24px;
+                        margin-bottom: 20px;
+                        color: #333;
+                    }
+                    .info {
+                        margin-top: 20px;
+                        font-size: 14px;
+                        color: #666;
+                    }
+                    @media print {
+                        body {
+                            height: auto;
+                        }
+                        .no-print {
+                            display: none;
+                        }
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="print-container">
+                    <h1>QR ${coti}</h1>
+                    <p><strong>Análisis:</strong> ${categoria}</p>
+                    <p><strong>Muestra:</strong> ${instance}</p>
+                    <p><strong>Fecha de análisis:</strong> ${fechaAnalisis}</p>
+                    
+                    <div class="qr-wrapper">
+                        <div id="qr"></div>
+                        <div style="width: 100%; max-width: 90%; border: 1px solid #dee2e6; padding: 10px; border-radius: 8px; margin: 10px auto;">
+                            <p></p>
+                        </div>
+                        <div style="width: 100%; max-width: 90%; border: 1px solid #dee2e6; padding: 10px; border-radius: 8px; margin: 10px auto;">
+                            <p></p>
+                        </div>
+                    </div>
+                    
+                    <p class="info">Escanee este código QR para ver los detalles</p>
+                    <p class="info no-print">Esta ventana se cerrará automáticamente después de imprimir</p>
+                </div>
+                
+                <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script>
+                <script>
+                    new QRCode(document.getElementById("qr"), {
+                        text: "${url}",
+                        width: 200,
+                        height: 200,
+                        colorDark: "#000000",
+                        colorLight: "#ffffff",
+                        correctLevel: QRCode.CorrectLevel.H
+                    });
+                    setTimeout(() => {
+                        window.print();
+                        setTimeout(() => window.close(), 100);
+                    }, 500);
+                <\/script>
+            </body>
+            </html>
+        `);
+        win.document.close();
     }
 </script>

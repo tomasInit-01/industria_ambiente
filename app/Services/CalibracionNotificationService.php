@@ -274,6 +274,7 @@ class CalibracionNotificationService
                         'sender_codigo' => 'SISTEMA',
                         'instancia_id' => null,
                         'mensaje' => $mensaje,
+                        'url' => null, // Las notificaciones de calibración no tienen URL específica por ahora
                         'leida' => false,
                         'created_at' => now(),
                         'updated_at' => now()

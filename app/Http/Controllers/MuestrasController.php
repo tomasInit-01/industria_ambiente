@@ -26,6 +26,76 @@ class MuestrasController extends Controller {
 
 protected $cotioController;
 
+/**
+ * Determina la prioridad numérica de un estado de muestra.
+ * Menor número = mayor prioridad en el ordenamiento.
+ */
+private function getEstadoPriority($cotio_estado, $es_priori = false)
+{
+    $estado = strtolower(trim($cotio_estado ?? ''));
+    
+    // 1. Grupos con al menos una muestra prioritaria distinta de "muestreado"
+    if ($es_priori && $estado != 'muestreado') {
+        return 1;
+    }
+    
+    // 2. Grupos con al menos una muestra en suspensión
+    if ($estado == 'suspension') {
+        return 2;
+    }
+    
+    // 3. Grupos con al menos una muestra inexistente (null o vacío)
+    if (empty($estado)) {
+        return 3;
+    }
+    
+    // 4. Grupos con muestras en revisión de muestreo (turquesa)
+    if ($estado == 'en revision muestreo') {
+        return 4;
+    }
+    
+    // 5. Grupos con muestras coordinado muestreo (amarillas)
+    if ($estado == 'coordinado muestreo') {
+        return 5;
+    }
+    
+    // 6. Grupos donde todas las muestras están muestreadas (verdes)
+    if ($estado == 'muestreado') {
+        return 6;
+    }
+    
+    // Estados no reconocidos van al final
+    return 7;
+}
+
+/**
+ * Determina el estado de mayor jerarquía de un grupo de muestras.
+ * Retorna la prioridad más alta (número más bajo) encontrada en el grupo.
+ */
+private function getGrupoMaxPriority($instancias)
+{
+    $maxPriority = 7; // Valor por defecto (menor prioridad)
+    
+    foreach ($instancias as $instancia) {
+        $priority = $this->getEstadoPriority(
+            $instancia->cotio_estado ?? null, 
+            $instancia->es_priori ?? false
+        );
+        
+        // Si encontramos una prioridad mayor (número menor), la usamos
+        if ($priority < $maxPriority) {
+            $maxPriority = $priority;
+        }
+        
+        // Si ya encontramos la máxima prioridad posible, no necesitamos seguir
+        if ($maxPriority === 1) {
+            break;
+        }
+    }
+    
+    return $maxPriority;
+}
+
 public function __construct(CotioController $cotioController)
 {
     $this->cotioController = $cotioController;
@@ -204,15 +274,7 @@ public function index(Request $request)
         $join->on('coti.coti_num', '=', 'cotio_instancias.cotio_numcoti')
              ->where('cotio_instancias.cotio_subitem', 0);
     })
-    ->groupBy('coti.coti_num')
-    // Ordenar PRIMERO por prioridad (true = prioritaria, false = normal)
-    ->orderByRaw('MAX(CASE WHEN cotio_instancias.es_priori = true THEN 1 ELSE 0 END) DESC')
-    // Luego por si tiene muestras coordinadas (1 = sí, 0 = no)
-    ->orderByRaw('MAX(CASE WHEN cotio_instancias.fecha_inicio_muestreo IS NOT NULL THEN 1 ELSE 0 END) DESC')
-    // Después por la fecha más reciente de inicio de muestreo
-    ->orderByRaw('MAX(cotio_instancias.fecha_inicio_muestreo) DESC NULLS LAST')
-    // Finalmente por fecha de aprobación
-    ->orderBy('coti_fechaaprobado', 'asc');
+    ->groupBy('coti.coti_num');
 
     // Filtros (se mantienen igual)
     if ($request->has('search') && !empty($request->search)) {
@@ -255,12 +317,108 @@ public function index(Request $request)
         $query->whereDate('coti_fechaalta', '<=', $request->fecha_fin_muestreo);
     }
 
-    // Si hay filtros de fecha, mantener el orden original
-    if (!empty($request->fecha_inicio_muestreo) || !empty($request->fecha_fin_muestreo)) {
-        $query->orderBy('coti_fechaalta', 'desc');
-    }
 
-    $muestras = $query->paginate(20)->appends($request->query());
+
+    // Aplicar ordenamiento jerárquico optimizado a nivel de base de datos
+    if (empty($request->fecha_inicio_muestreo) && empty($request->fecha_fin_muestreo)) {
+        // Aplicar ordenamiento jerárquico considerando instancias faltantes como inexistentes
+        $query->orderByRaw('(
+            CASE 
+                -- Verificar si faltan instancias por crear (total esperado > instancias creadas)
+                WHEN (
+                    SELECT COALESCE(SUM(cotio_cantidad), 0) 
+                    FROM cotio 
+                    WHERE cotio_numcoti = coti.coti_num 
+                    AND cotio_subitem = 0
+                    AND cotio_descripcion NOT IN (\'TRABAJO TECNICO EN CAMPO\', \'TRABAJOS EN CAMPO NOCTURNO - VIATICOS\', \'VIATICOS\')
+                ) > (
+                    SELECT COUNT(*) 
+                    FROM cotio_instancias ci_count 
+                    WHERE ci_count.cotio_numcoti = coti.coti_num 
+                    AND ci_count.cotio_subitem = 0
+                ) THEN 3 -- Prioridad 3: Inexistente (faltan instancias)
+                
+                -- Si todas las instancias existen, evaluar sus estados
+                ELSE COALESCE((
+                    SELECT MIN(
+                        CASE 
+                            -- 1. Prioritario no muestreado (mayor prioridad)
+                            WHEN ci.es_priori = true AND LOWER(TRIM(COALESCE(ci.cotio_estado, \'\'))) != \'muestreado\' THEN 1
+                            -- 2. Suspensión
+                            WHEN LOWER(TRIM(COALESCE(ci.cotio_estado, \'\'))) = \'suspension\' THEN 2
+                            -- 3. Inexistente (estado vacío o null)
+                            WHEN ci.cotio_estado IS NULL OR TRIM(COALESCE(ci.cotio_estado, \'\')) = \'\' THEN 3
+                            -- 4. En revisión muestreo
+                            WHEN LOWER(TRIM(COALESCE(ci.cotio_estado, \'\'))) = \'en revision muestreo\' THEN 4
+                            -- 5. Coordinado muestreo
+                            WHEN LOWER(TRIM(COALESCE(ci.cotio_estado, \'\'))) = \'coordinado muestreo\' THEN 5
+                            -- 6. Muestreado
+                            WHEN LOWER(TRIM(COALESCE(ci.cotio_estado, \'\'))) = \'muestreado\' THEN 6
+                            -- Estados no reconocidos
+                            ELSE 7
+                        END
+                    )
+                    FROM cotio_instancias ci 
+                    WHERE ci.cotio_numcoti = coti.coti_num 
+                    AND ci.cotio_subitem = 0
+                ), 3) -- Si no hay instancias, considera como inexistente
+            END
+        ) ASC'
+        )
+        // Ordenamiento secundario por fecha de aprobación (más antigua primero)
+        ->orderBy('coti_fechaaprobado', 'asc');
+        
+        $muestras = $query->paginate(20)->appends($request->query());
+    } else {
+        // Si hay filtros de fecha, aplicar ordenamiento jerárquico considerando instancias faltantes
+        $query->orderByRaw('(
+            CASE 
+                -- Verificar si faltan instancias por crear (total esperado > instancias creadas)
+                WHEN (
+                    SELECT COALESCE(SUM(cotio_cantidad), 0) 
+                    FROM cotio 
+                    WHERE cotio_numcoti = coti.coti_num 
+                    AND cotio_subitem = 0
+                    AND cotio_descripcion NOT IN (\'TRABAJO TECNICO EN CAMPO\', \'TRABAJOS EN CAMPO NOCTURNO - VIATICOS\', \'VIATICOS\')
+                ) > (
+                    SELECT COUNT(*) 
+                    FROM cotio_instancias ci_count 
+                    WHERE ci_count.cotio_numcoti = coti.coti_num 
+                    AND ci_count.cotio_subitem = 0
+                ) THEN 3 -- Prioridad 3: Inexistente (faltan instancias)
+                
+                -- Si todas las instancias existen, evaluar sus estados
+                ELSE COALESCE((
+                    SELECT MIN(
+                        CASE 
+                            -- 1. Prioritario no muestreado (mayor prioridad)
+                            WHEN ci.es_priori = true AND LOWER(TRIM(COALESCE(ci.cotio_estado, \'\'))) != \'muestreado\' THEN 1
+                            -- 2. Suspensión
+                            WHEN LOWER(TRIM(COALESCE(ci.cotio_estado, \'\'))) = \'suspension\' THEN 2
+                            -- 3. Inexistente (estado vacío o null)
+                            WHEN ci.cotio_estado IS NULL OR TRIM(COALESCE(ci.cotio_estado, \'\')) = \'\' THEN 3
+                            -- 4. En revisión muestreo
+                            WHEN LOWER(TRIM(COALESCE(ci.cotio_estado, \'\'))) = \'en revision muestreo\' THEN 4
+                            -- 5. Coordinado muestreo
+                            WHEN LOWER(TRIM(COALESCE(ci.cotio_estado, \'\'))) = \'coordinado muestreo\' THEN 5
+                            -- 6. Muestreado
+                            WHEN LOWER(TRIM(COALESCE(ci.cotio_estado, \'\'))) = \'muestreado\' THEN 6
+                            -- Estados no reconocidos
+                            ELSE 7
+                        END
+                    )
+                    FROM cotio_instancias ci 
+                    WHERE ci.cotio_numcoti = coti.coti_num 
+                    AND ci.cotio_subitem = 0
+                ), 3) -- Si no hay instancias, considera como inexistente
+            END
+        ) ASC'
+        )
+        // Con filtros de fecha, ordenar por fecha como criterio secundario
+        ->orderBy('coti_fechaalta', 'desc');
+        
+        $muestras = $query->paginate(20)->appends($request->query());
+    }
 
     // Procesamiento de las muestras (se mantiene igual)
     $muestras->each(function($coti) {
@@ -789,6 +947,9 @@ public function verMuestra($cotizacion, $item, $instance = null)
 {
     $cotizacion = Coti::findOrFail($cotizacion);
     $instance = $instance ?? 1;
+    $usuariosMuestreo = User::where('rol', 'muestreador')
+                ->orderBy('usu_descripcion')
+                ->get();
     
     // Obtener la muestra principal
     $categoria = Cotio::where('cotio_numcoti', $cotizacion->coti_num)
@@ -845,11 +1006,16 @@ public function verMuestra($cotizacion, $item, $instance = null)
         }
     
     if (!$instanciaMuestra) {
+        $usuariosAnalistas = User::where('rol', '!=', 'sector')
+                    ->orderBy('usu_descripcion')
+                    ->get();
+        
         return view('muestras.tareasporcategoria', [
             'cotizacion' => $cotizacion,
             'categoria' => $categoria,
             'tareas' => collect(),
             'usuarios' => collect(),
+            'usuariosMuestreo' => $usuariosMuestreo,
             'inventario' => collect(),
             'instance' => $instance,
             'instanciaActual' => null, 
@@ -926,6 +1092,7 @@ public function verMuestra($cotizacion, $item, $instance = null)
         'categoria' => $categoria,
         'tareas' => $tareasConInstancias,
         'usuarios' => $usuarios,
+        'usuariosMuestreo' => $usuariosMuestreo,
         'inventario' => $inventario,
         'instance' => $instance,
         'vehiculos' => $vehiculos,
@@ -1684,5 +1851,236 @@ public function recoordinar(Request $request)
         ], 500);
     }
 }
+
+    // Endpoints para gestionar responsables de muestreo
+public function editarResponsablesMuestreo(Request $request)
+{
+    try {
+        $validated = $request->validate([
+            'instancia_id' => 'required|exists:cotio_instancias,id',
+            'responsables' => 'required|array|min:1',
+            'responsables.*' => 'exists:usu,usu_codigo'
+        ]);
+
+        DB::beginTransaction();
+
+        $instancia = CotioInstancia::findOrFail($validated['instancia_id']);
+        
+        Log::info('DEBUG - Editando responsables de muestreo', [
+            'instancia_id' => $instancia->id,
+            'responsables_nuevos' => $validated['responsables']
+        ]);
+
+        // Obtener responsables actuales (con trim para comparación)
+        $responsablesActuales = $instancia->responsablesMuestreo()
+            ->select('usu.usu_codigo', 'usu.usu_descripcion')
+            ->get()
+            ->map(function($responsable) {
+                return trim($responsable->usu_codigo);
+            })
+            ->toArray();
+
+        Log::info('DEBUG - Responsables actuales', [
+            'responsables_actuales' => $responsablesActuales
+        ]);
+
+        // Obtener códigos exactos (con padding) para sync
+        $codigosExactos = User::whereIn('usu_codigo', function($query) use ($validated) {
+            $query->select('usu_codigo')
+                    ->from('usu')
+                    ->whereIn(DB::raw('TRIM(usu_codigo)'), array_map('trim', $validated['responsables']));
+        })->pluck('usu_codigo')->toArray();
+
+        Log::info('DEBUG - Códigos exactos para sync', [
+            'codigos_exactos' => $codigosExactos
+        ]);
+
+        // Obtener responsables actuales exactos (especificando la tabla para evitar ambigüedad)
+        $responsablesActualesExactos = $instancia->responsablesMuestreo()
+            ->pluck('usu.usu_codigo')
+            ->toArray();
+
+        // Filtrar solo los responsables que no están ya asignados
+        $nuevosResponsables = array_diff($codigosExactos, $responsablesActualesExactos);
+
+        if (!empty($nuevosResponsables)) {
+            // Agregar solo los nuevos responsables
+            $instancia->responsablesMuestreo()->attach($nuevosResponsables);
+            
+            Log::info('DEBUG - Responsables agregados', [
+                'nuevos_responsables' => $nuevosResponsables
+            ]);
+        } else {
+            Log::info('DEBUG - No hay nuevos responsables para agregar');
+        }
+
+        DB::commit();
+
+        $mensaje = !empty($nuevosResponsables) 
+            ? 'Responsables agregados correctamente'
+            : 'Los responsables seleccionados ya estaban asignados';
+
+        return response()->json([
+            'success' => true,
+            'message' => $mensaje
+        ]);
+
+    } catch (\Exception $e) {
+        DB::rollBack();
+        Log::error('Error al editar responsables de muestreo: ' . $e->getMessage());
+        
+        return response()->json([
+            'success' => false,
+            'message' => 'Error al actualizar responsables: ' . $e->getMessage()
+        ]);
+    }
+}
+
+public function quitarResponsableMuestreo(Request $request)
+{
+    try {
+        $validated = $request->validate([
+            'instancia_id' => 'required|exists:cotio_instancias,id',
+            'responsable_codigo' => 'required|string'
+        ]);
+
+        DB::beginTransaction();
+
+        $instancia = CotioInstancia::findOrFail($validated['instancia_id']);
+        $responsableCodigo = trim($validated['responsable_codigo']);
+
+        Log::info('DEBUG - Quitando responsable de muestreo', [
+            'instancia_id' => $instancia->id,
+            'responsable_codigo' => $responsableCodigo
+        ]);
+
+        // Obtener responsables actuales con información completa
+        $responsablesActuales = $instancia->responsablesMuestreo()->get();
+        
+        Log::info('DEBUG - Responsables actuales muestreo', [
+            'total_responsables' => $responsablesActuales->count(),
+            'responsables' => $responsablesActuales->map(function($responsable) {
+                return [
+                    'usu_codigo' => $responsable->usu_codigo,
+                    'usu_codigo_trimmed' => trim($responsable->usu_codigo),
+                    'usu_descripcion' => $responsable->usu_descripcion
+                ];
+            })->toArray()
+        ]);
+
+        // Encontrar el responsable exacto (con padding)
+        $responsableExacto = $responsablesActuales->first(function($responsable) use ($responsableCodigo) {
+            return trim($responsable->usu_codigo) === $responsableCodigo;
+        });
+
+        if (!$responsableExacto) {
+            return response()->json([
+                'success' => false,
+                'message' => 'El responsable no está asignado a esta muestra'
+            ]);
+        }
+
+        $codigoExacto = $responsableExacto->usu_codigo;
+
+        Log::info('DEBUG - Código exacto encontrado', [
+            'codigo_recibido' => "'{$responsableCodigo}'",
+            'codigo_exacto_bd' => "'{$codigoExacto}'"
+        ]);
+
+        // Intentar detach con el código exacto
+        $resultadoDetach = $instancia->responsablesMuestreo()->detach($codigoExacto);
+
+        Log::info('DEBUG - Resultado detach muestreo', [
+            'resultado' => $resultadoDetach,
+            'responsable_quitado_exacto' => $codigoExacto
+        ]);
+
+        // Si detach no funciona, usar SQL directo
+        if ($resultadoDetach == 0) {
+            Log::info('DEBUG - Detach devolvió 0, usando SQL directo para muestreo');
+            
+            $resultadoSQL = DB::table('instancia_responsable_muestreo')
+                ->where('cotio_instancia_id', $instancia->id)
+                ->where('usu_codigo', $codigoExacto)
+                ->delete();
+            
+            Log::info('DEBUG - Resultado SQL directo muestreo', [
+                'resultado' => $resultadoSQL,
+                'instancia_id' => $instancia->id,
+                'codigo_exacto' => $codigoExacto
+            ]);
+
+            if ($resultadoSQL == 0) {
+                // Intentar con LIKE como último recurso
+                $resultadoLike = DB::table('instancia_responsable_muestreo')
+                    ->where('cotio_instancia_id', $instancia->id)
+                    ->where('usu_codigo', 'LIKE', $responsableCodigo . '%')
+                    ->delete();
+                
+                Log::info('DEBUG - Resultado LIKE muestreo', [
+                    'resultado' => $resultadoLike,
+                    'patron_like' => "'{$responsableCodigo}%'"
+                ]);
+                
+                $resultadoDetach = $resultadoLike;
+            } else {
+                $resultadoDetach = $resultadoSQL;
+            }
+        }
+
+        DB::commit();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Responsable de muestreo eliminado correctamente'
+        ]);
+
+    } catch (\Exception $e) {
+        DB::rollBack();
+        Log::error('Error al quitar responsable de muestreo: ' . $e->getMessage());
+        
+        return response()->json([
+            'success' => false,
+            'message' => 'Error al quitar responsable: ' . $e->getMessage()
+        ]);
+    }
+}
+
+public function getResponsablesMuestreo(Request $request)
+{
+    try {
+        $validated = $request->validate([
+            'instancia_id' => 'required|exists:cotio_instancias,id'
+        ]);
+
+        $instancia = CotioInstancia::findOrFail($validated['instancia_id']);
+        
+        // Obtener responsables con información completa, especificando tablas para evitar ambigüedad
+        $responsables = $instancia->responsablesMuestreo()
+            ->select('usu.usu_codigo', 'usu.usu_descripcion')
+            ->get()
+            ->map(function($responsable) {
+                return [
+                    'usu_codigo' => $responsable->usu_codigo,
+                    'usu_descripcion' => $responsable->usu_descripcion
+                ];
+            })
+            ->toArray();
+
+        return response()->json([
+            'success' => true,
+            'responsables' => $responsables
+        ]);
+
+    } catch (\Exception $e) {
+        Log::error('Error al obtener responsables de muestreo: ' . $e->getMessage());
+        
+        return response()->json([
+            'success' => false,
+            'message' => 'Error al obtener responsables: ' . $e->getMessage()
+        ]);
+    }
+}
+
 
 }

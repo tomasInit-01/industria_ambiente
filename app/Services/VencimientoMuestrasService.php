@@ -135,6 +135,7 @@ class VencimientoMuestrasService {
                     'sender_codigo' => 'SISTEMA',
                     'instancia_id' => $muestra ? $muestra->id : null,
                     'mensaje' => $mensaje,
+                    'url' => $muestra ? SimpleNotification::generarUrlPorRol($coordinador->usu_codigo, $muestra->id) : null,
                     'created_at' => Carbon::now(),
                     'updated_at' => Carbon::now()
                 ]);

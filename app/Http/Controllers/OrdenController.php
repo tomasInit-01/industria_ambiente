@@ -19,6 +19,7 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Str;
+use App\Models\SimpleNotification;
 
 class OrdenController extends Controller
 {
@@ -27,6 +28,8 @@ class OrdenController extends Controller
 
     public function index(Request $request)
     {
+        // dd($request);
+
         $verTodas = $request->query('ver_todas');
         $viewType = $request->get('view', 'lista');
         $matrices = Matriz::orderBy('matriz_descripcion')->get();
@@ -43,17 +46,34 @@ class OrdenController extends Controller
     
             // Aplicar filtros
             if ($request->has('search') && !empty($request->search)) {
-                $searchTerm = '%'.$request->search.'%';
-                $query->whereHas('cotizacion', function($q) use ($searchTerm) {
-                    $q->where('coti_num', 'like', $searchTerm)
-                        ->orWhereRaw('LOWER(coti_empresa) LIKE ?', [strtolower($searchTerm)])
-                        ->orWhereRaw('LOWER(coti_establecimiento) LIKE ?', [strtolower($searchTerm)]);
+                $searchTerm = $request->search;
+                $searchTermLike = '%'.$searchTerm.'%';
+                $cleanedIdSearch = ltrim(preg_replace('/[^0-9]/', '', $searchTerm), '0');
+                
+                $query->where(function($q) use ($searchTermLike, $cleanedIdSearch) {
+                    // Búsqueda normal en campos de cotización
+                    $q->whereHas('cotizacion', function($subQuery) use ($searchTermLike) {
+                        $subQuery->where('coti_num', 'like', $searchTermLike)
+                            ->orWhereRaw('LOWER(coti_empresa) LIKE ?', [strtolower($searchTermLike)])
+                            ->orWhereRaw('LOWER(coti_establecimiento) LIKE ?', [strtolower($searchTermLike)]);
+                    });
+                    
+                    // Si es búsqueda por ID de instancia
+                    if (is_numeric($cleanedIdSearch)) {
+                        $q->orWhereIn('cotio_numcoti', function($subQuery) use ($cleanedIdSearch) {
+                            $subQuery->select('cotio_numcoti')
+                                ->from('cotio_instancias')
+                                ->where('id', $cleanedIdSearch);
+                        });
+                    }
+                    
+                    $q->orWhere('cotio_codigoum', 'like', $searchTermLike);
                 });
             }
     
-            if ($request->has('matriz') && !empty($request->matriz)) {
+            if ($request->has(trim('matriz')) && !empty($request->matriz)) {
                 $query->whereHas('cotizacion', function($q) use ($request) {
-                    $q->where('coti_matriz', $request->matriz);
+                    $q->where('coti_codigomatriz', $request->matriz);
                 });
             }
     
@@ -113,6 +133,7 @@ class OrdenController extends Controller
                     $events->push([
                         'title' => $instancia->cotizacion->coti_empresa . ' - ' . $instancia->cotio_numcoti,
                         'start' => $instancia->fecha_inicio_ot,
+                        'cotio_subitem' => $instancia->cotio_subitem,
                         'end' => $instancia->fecha_fin_ot ?? null,
                         'url' => route('categoria.verOrden', [
                             'cotizacion' => $instancia->cotio_numcoti,
@@ -153,18 +174,35 @@ class OrdenController extends Controller
             ->distinct()
             ->where('enable_ot', true);
     
-        if ($request->has('search') && !empty($request->search)) {
-            $searchTerm = '%'.$request->search.'%';
-            $baseQuery->whereHas('cotizacion', function($q) use ($searchTerm) {
-                $q->where('coti_num', 'like', $searchTerm)
-                    ->orWhereRaw('LOWER(coti_empresa) LIKE ?', [strtolower($searchTerm)])
-                    ->orWhereRaw('LOWER(coti_establecimiento) LIKE ?', [strtolower($searchTerm)]);
-            });
-        }
+            if ($request->has('search') && !empty($request->search)) {
+                $searchTerm = $request->search;
+                $searchTermLike = '%'.$searchTerm.'%';
+                $cleanedIdSearch = ltrim(preg_replace('/[^0-9]/', '', $searchTerm), '0');
+                
+                $baseQuery->where(function($q) use ($searchTermLike, $cleanedIdSearch) {
+                    // Búsqueda normal en campos de cotización
+                    $q->whereHas('cotizacion', function($subQuery) use ($searchTermLike) {
+                        $subQuery->where('coti_num', 'like', $searchTermLike)
+                            ->orWhereRaw('LOWER(coti_empresa) LIKE ?', [strtolower($searchTermLike)])
+                            ->orWhereRaw('LOWER(coti_establecimiento) LIKE ?', [strtolower($searchTermLike)]);
+                    });
+                    
+                    // Si es búsqueda por ID de instancia
+                    if (is_numeric($cleanedIdSearch)) {
+                        $q->orWhereIn('cotio_numcoti', function($subQuery) use ($cleanedIdSearch) {
+                            $subQuery->select('cotio_numcoti')
+                                ->from('cotio_instancias')
+                                ->where('id', $cleanedIdSearch);
+                        });
+                    }
+                    
+                    $q->orWhere('cotio_codigoum', 'like', $searchTermLike);
+                });
+            }
     
         if ($request->has('matriz') && !empty($request->matriz)) {
             $baseQuery->whereHas('cotizacion', function($q) use ($request) {
-                $q->where('coti_matriz', $request->matriz);
+                $q->where('coti_codigomatriz', $request->matriz);
             });
         }
     
@@ -212,6 +250,10 @@ class OrdenController extends Controller
                 return $instancia->es_priori && strtolower(trim($instancia->cotio_estado_analisis ?? '')) != 'analizado';
             });
             
+            // Determinar el estado predominante de la orden para ordenamiento
+            $muestrasDelGrupo = $group->where('cotio_subitem', 0);
+            $estadoPredominante = $this->determinarEstadoPredominanteConActiveOt($muestrasDelGrupo);
+            
             return [
                 'instancias' => $group,
                 'cotizacion' => $cotizacion,
@@ -224,15 +266,21 @@ class OrdenController extends Controller
                     return strtolower(trim($instancia->cotio_estado_analisis)) === 'suspension';
                 }),
                 'has_priority' => $has_priority,
-                'fecha_orden' => $fecha_orden
+                'fecha_orden' => $fecha_orden,
+                'estado_predominante' => $estadoPredominante
             ];
         });
 
-            // Ordenar las órdenes: primero las prioritarias no analizadas, luego por fecha
-            $ordenes = $ordenes->sortBy([
-                ['has_priority', 'desc'],
-                ['fecha_orden', 'asc']
-            ]);
+        // Ordenar las órdenes según el criterio mejorado
+        $ordenes = $ordenes->sortBy(function($orden) {
+            $esPrioritaria = $orden['has_priority'];
+            $estadoPredominante = $orden['estado_predominante'];
+            $fechaOrden = $orden['fecha_orden'];
+            
+
+            
+            return $this->calcularOrdenValorSimple($esPrioritaria, $estadoPredominante);
+        });
     
         return view('ordenes.index', [
             'ordenes' => $ordenes,
@@ -258,6 +306,186 @@ class OrdenController extends Controller
             default:
                 return 'fc-event-primary';
         }
+    }
+
+    /**
+     * Determina el estado predominante de una orden basado en los estados de sus muestras
+     */
+    protected function determinarEstadoPredominante($estadosMuestras)
+    {
+        if ($estadosMuestras->isEmpty()) {
+            return 'pendiente_coordinar';
+        }
+        
+        $estadosUnicos = $estadosMuestras->unique()->filter();
+        
+        // Si hay suspensión, tiene prioridad
+        if ($estadosUnicos->contains('suspension')) {
+            return 'suspension';
+        }
+        
+        // Si hay al menos una sin coordinar (null o vacío), el estado es pendiente
+        if ($estadosMuestras->contains(null) || $estadosMuestras->contains('')) {
+            return 'pendiente_coordinar';
+        }
+        
+        // Si hay al menos una en "coordinado analisis", el grupo se mantiene en ese estado
+        if ($estadosUnicos->contains('coordinado analisis')) {
+            return 'coordinado analisis';
+        }
+        
+        // Si TODAS están en "en revision analisis", el grupo pasa a ese estado
+        if ($estadosUnicos->count() === 1 && $estadosUnicos->first() === 'en revision analisis') {
+            return 'en revision analisis';
+        }
+        
+        // Si TODAS están en "analizado", el grupo pasa a ese estado
+        if ($estadosUnicos->count() === 1 && $estadosUnicos->first() === 'analizado') {
+            return 'analizado';
+        }
+        
+        // Si hay mezcla de "en revision" y "analizado", se mantiene en revisión
+        if ($estadosUnicos->contains('en revision analisis')) {
+            return 'en revision analisis';
+        }
+        
+        // Por defecto, tomar el primer estado encontrado
+        return $estadosUnicos->first() ?? 'pendiente_coordinar';
+    }
+
+    /**
+     * Determina el estado predominante considerando tanto cotio_estado_analisis como active_ot
+     */
+    protected function determinarEstadoPredominanteConActiveOt($muestras)
+    {
+        if ($muestras->isEmpty()) {
+            return 'pendiente_coordinar';
+        }
+        
+
+        
+        // Primero verificar si hay suspensiones
+        if ($muestras->contains(function ($muestra) {
+            return strtolower(trim($muestra->cotio_estado_analisis ?? '')) === 'suspension';
+        })) {
+            return 'suspension';
+        }
+        
+        // Verificar si hay muestras pendientes por coordinar (active_ot = false)
+        if ($muestras->contains(function ($muestra) {
+            return !$muestra->active_ot;
+        })) {
+            return 'pendiente_coordinar';
+        }
+        
+        // Si todas tienen active_ot = true, usar la lógica de estados normal
+        $estadosAnalisisFiltrados = $muestras->pluck('cotio_estado_analisis')->filter();
+        $resultado = $this->determinarEstadoPredominante($estadosAnalisisFiltrados);
+        return $resultado;
+    }
+
+    /**
+     * Obtiene el valor numérico para ordenar por estado
+     */
+    protected function getEstadoOrden($estado)
+    {
+        switch ($estado) {
+            case 'pendiente_coordinar':
+            case null:
+            case '':
+                return 10; // Pendientes por coordinar - segundo lugar (después de prioritarias)
+            case 'en revision analisis':
+                return 20; // En revisión (turquesas) - tercer lugar
+            case 'coordinado analisis':
+                return 30; // Coordinadas (amarillas) - cuarto lugar
+            case 'analizado':
+                return 40; // Analizadas al final
+            case 'suspension':
+                return 5; // Suspendidas tienen prioridad especial
+            default:
+                return 50;
+        }
+    }
+
+    // Método temporal para debuggear el ordenamiento
+    public function debugOrdenamiento(Request $request)
+    {
+        $verTodas = $request->query('ver_todas');
+        
+        // Obtener las órdenes específicas que vemos en la imagen
+        $cotizacionesEspecificas = ['372', '87', '185', '373'];
+        
+        $instancias = CotioInstancia::with(['cotizacion'])
+            ->whereIn('cotio_numcoti', $cotizacionesEspecificas)
+            ->orderBy('cotio_numcoti', 'desc')
+            ->get();
+
+        $ordenes = $instancias->groupBy('cotio_numcoti')->map(function ($group) {
+            $muestrasDelGrupo = $group->where('cotio_subitem', 0);
+            $estadoPredominante = $this->determinarEstadoPredominanteConActiveOt($muestrasDelGrupo);
+            
+            $has_priority = $group->contains(function ($instancia) {
+                return $instancia->es_priori && strtolower(trim($instancia->cotio_estado_analisis ?? '')) != 'analizado';
+            });
+            
+            return [
+                'cotio_numcoti' => $group->first()->cotio_numcoti,
+                'cotizacion' => $group->first()->cotizacion->coti_empresa ?? 'N/A',
+                'estado_predominante' => $estadoPredominante,
+                'has_priority' => $has_priority,
+                'muestras_active_ot' => $muestrasDelGrupo->pluck('active_ot')->toArray(),
+                'estados_analisis' => $muestrasDelGrupo->pluck('cotio_estado_analisis')->toArray(),
+                'enable_ot' => $muestrasDelGrupo->pluck('enable_ot')->toArray(),
+                'orden_valor' => $this->calcularOrdenValor($has_priority, $estadoPredominante)
+            ];
+        });
+
+        // Mostrar antes y después del ordenamiento
+        $ordenesAntes = $ordenes->sortBy('cotio_numcoti');
+        $ordenesDespues = $ordenes->sortBy('orden_valor');
+
+        return response()->json([
+            'antes_del_ordenamiento' => $ordenesAntes->values(),
+            'despues_del_ordenamiento' => $ordenesDespues->values(),
+            'valores_orden_estado' => [
+                'pendiente_coordinar' => $this->getEstadoOrden('pendiente_coordinar'),
+                'coordinado_analisis' => $this->getEstadoOrden('coordinado analisis'),
+                'en_revision_analisis' => $this->getEstadoOrden('en revision analisis'),
+                'analizado' => $this->getEstadoOrden('analizado')
+            ]
+        ]);
+    }
+
+    private function calcularOrdenValor($esPrioritaria, $estadoPredominante)
+    {
+        // Si está analizada y es prioritaria, no va primero
+        if ($estadoPredominante === 'analizado' && $esPrioritaria) {
+            return 500;
+        }
+        
+        // Orden de prioridad
+        if ($esPrioritaria && $estadoPredominante !== 'analizado') {
+            return 100 + $this->getEstadoOrden($estadoPredominante);
+        }
+        
+        // Orden por estado
+        return 200 + $this->getEstadoOrden($estadoPredominante);
+    }
+
+    private function calcularOrdenValorSimple($esPrioritaria, $estadoPredominante)
+    {
+        // Si está analizada y es prioritaria, no va primero
+        if ($estadoPredominante === 'analizado' && $esPrioritaria) {
+            return 500;
+        }
+        
+        // Orden de prioridad
+        if ($esPrioritaria && $estadoPredominante !== 'analizado') {
+            return 100 + $this->getEstadoOrden($estadoPredominante);
+        }
+        
+        // Orden por estado
+        return 200 + $this->getEstadoOrden($estadoPredominante);
     }
 
 
@@ -305,13 +533,19 @@ public function showOrdenes(Request $request)
     ->orderBy('fecha_inicio_ot', 'desc')
     ->orderByRaw("CASE WHEN cotio_estado_analisis = 'coordinado' THEN 0 ELSE 1 END");
 
-    // Exclude 'analizado' by default
+    // Exclude 'analizado' by default only if not specifically requested
     if (!$estado || $estado !== 'analizado') {
-        $queryMuestras->where('cotio_estado_analisis', '!=', 'analizado');
-        $queryAnalisis->where('cotio_estado_analisis', '!=', 'analizado');
+        // Solo excluir si no es la vista lista y no se solicita específicamente
+        if ($viewType !== 'lista') {
+            $queryMuestras->where('cotio_estado_analisis', '!=', 'analizado');
+            $queryAnalisis->where('cotio_estado_analisis', '!=', 'analizado');
+        }
     }
 
-    // Apply filters
+    // Apply filters - usar lógica de documento para consistencia
+    $esPrivilegiado = ((int) $user->usu_nivel >= 900) || ($user->rol === 'coordinador_lab');
+    
+    // Para muestras: solo si el usuario es responsable de muestreo O tiene análisis asignados
     $queryMuestras->where(function ($query) use ($codigo) {
         $query->whereHas('responsablesAnalisis', function ($q) use ($codigo) {
             $q->where('usu.usu_codigo', $codigo);
@@ -324,9 +558,12 @@ public function showOrdenes(Request $request)
         });
     });
 
-    $queryAnalisis->whereHas('responsablesAnalisis', function ($q) use ($codigo) {
-        $q->where('usu.usu_codigo', $codigo);
-    });
+    // Para análisis: aplicar filtro solo si no es privilegiado (igual que documento)
+    if (!$esPrivilegiado) {
+        $queryAnalisis->whereHas('responsablesAnalisis', function ($q) use ($codigo) {
+            $q->where('usu.usu_codigo', $codigo);
+        });
+    }
 
     // Apply search filter
     if ($searchTerm) {
@@ -366,6 +603,40 @@ public function showOrdenes(Request $request)
     // Get data
     $muestras = $queryMuestras->get();
     $todosAnalisis = $queryAnalisis->get();
+
+    // Build suggested analytes list when filtering by status
+    $analitosSugeridos = collect();
+    if ($estado) {
+        // "$todosAnalisis" ya viene filtrado por estado si se envió "estado",
+        // pero aplicamos un filtro defensivo y normalizamos para evitar discrepancias de mayúsculas.
+        $estadoLower = strtolower($estado);
+        $analitosSugeridos = $todosAnalisis
+            ->filter(function ($analito) use ($estadoLower) {
+                return strtolower($analito->cotio_estado_analisis ?? '') === $estadoLower;
+            })
+            // Filtrar por descripción si viene el parámetro
+            ->when($request->filled('cotio_descripcion_analisis'), function ($collection) use ($request) {
+                $needle = mb_strtolower(trim($request->get('cotio_descripcion_analisis')));
+                return $collection->filter(function ($a) use ($needle) {
+                    $descripcion = mb_strtolower($a->cotio_descripcion ?? '');
+                    return $needle === '' || str_contains($descripcion, $needle);
+                });
+            })
+            // Mantener orden consistente: por descripción y luego por cotización
+            ->sortBy([
+                fn ($a) => strtolower($a->cotio_descripcion ?? ''),
+                fn ($a) => $a->cotio_numcoti,
+            ])
+            // Evitar duplicados exactos por clave compuesta relevante para el link de detalle
+            ->unique(function ($a) {
+                return strtolower($a->cotio_descripcion ?? '') . '|' .
+                    ($a->cotio_numcoti ?? '') . '|' .
+                    ($a->cotio_item ?? '') . '|' .
+                    ($a->cotio_subitem ?? '') . '|' .
+                    ($a->instance_number ?? '');
+            })
+            ->values();
+    }
 
     // Group data correctly
     $ordenesAgrupadas = collect();
@@ -414,13 +685,14 @@ public function showOrdenes(Request $request)
                 if ($instancia) {
                     $instancia['analisis']->push($analisis);
                 } else {
-                    $relatedSample = CotioInstancia::where([
-                        'cotio_numcoti' => $analisis->cotio_numcoti,
-                        'cotio_item' => $analisis->cotio_item,
-                        'instance_number' => $analisis->instance_number,
-                        'cotio_subitem' => 0,
-                        'active_ot' => true
-                    ])->first();
+                    $relatedSample = CotioInstancia::with(['muestra.cotizado', 'vehiculo', 'responsablesAnalisis'])
+                        ->where([
+                            'cotio_numcoti' => $analisis->cotio_numcoti,
+                            'cotio_item' => $analisis->cotio_item,
+                            'instance_number' => $analisis->instance_number,
+                            'cotio_subitem' => 0,
+                            'active_ot' => true
+                        ])->first();
 
                     if ($relatedSample) {
                         $newInstancia = [
@@ -442,20 +714,54 @@ public function showOrdenes(Request $request)
                         $ordenesAgrupadas->put($key, $grupo);
                     }
                 }
+            } else {
+                // Si no existe el grupo de la cotización (no había muestras por falta de asignación), crearlo
+                $relatedSample = CotioInstancia::with(['muestra.cotizado', 'vehiculo', 'responsablesAnalisis'])
+                    ->where([
+                        'cotio_numcoti' => $analisis->cotio_numcoti,
+                        'cotio_item' => $analisis->cotio_item,
+                        'instance_number' => $analisis->instance_number,
+                        'cotio_subitem' => 0,
+                        'active_ot' => true
+                    ])->first();
+
+                if ($relatedSample) {
+                    $ordenesAgrupadas->put($key, [
+                        'instancias' => collect([
+                            [
+                                'muestra' => $relatedSample->muestra,
+                                'instancia_muestra' => $relatedSample,
+                                'analisis' => collect([$analisis]),
+                                'vehiculo' => $relatedSample->vehiculo ?? null,
+                                'responsables_muestreo' => $relatedSample->responsablesAnalisis,
+                                'is_priority' => $relatedSample->es_priori
+                            ]
+                        ]),
+                        'cotizado' => $relatedSample->muestra->cotizado ?? null,
+                        'has_priority' => (bool) $relatedSample->es_priori
+                    ]);
+                }
             }
         });
 
-        // Sort groups: priority first, then by date
-        $ordenesAgrupadas = $ordenesAgrupadas->sortBy([
-            ['has_priority', 'desc'],
-            function ($grupo) {
-                return $grupo['instancias']->min(function ($instancia) {
-                    return $instancia['instancia_muestra']->fecha_inicio_ot
-                        ? Carbon::parse($instancia['instancia_muestra']->fecha_inicio_ot)->timestamp
-                        : PHP_INT_MAX;
-                });
-            }
-        ]);
+        // Aplicar el mismo criterio de ordenamiento que en el dashboard
+        $ordenesAgrupadas = $ordenesAgrupadas->map(function ($grupo) {
+            // Determinar el estado predominante del grupo considerando active_ot
+            $muestrasDelGrupo = $grupo['instancias']->pluck('instancia_muestra');
+            $estadoPredominante = $this->determinarEstadoPredominanteConActiveOt($muestrasDelGrupo);
+            $grupo['estado_predominante'] = $estadoPredominante;
+            return $grupo;
+        });
+
+        // Ordenar grupos según el criterio mejorado
+        $ordenesAgrupadas = $ordenesAgrupadas->sortBy(function($grupo) {
+            $esPrioritario = $grupo['has_priority'];
+            $estadoPredominante = $grupo['estado_predominante'];
+            
+
+            
+            return $this->calcularOrdenValorSimple($esPrioritario, $estadoPredominante);
+        });
 
         // Sort instances within each group: priority first
         $ordenesAgrupadas = $ordenesAgrupadas->map(function ($grupo) {
@@ -484,6 +790,29 @@ public function showOrdenes(Request $request)
                 $grupo = $ordenesAgrupadas->get($key);
                 $grupo['analisis']->push($analisis);
                 $ordenesAgrupadas->put($key, $grupo);
+            } else {
+                // Si la muestra no está presente (p.ej., no asignada explícitamente),
+                // intentar traer la instancia de muestra relacionada para poder agrupar el análisis asignado
+                $relatedSample = CotioInstancia::with(['muestra.cotizado', 'vehiculo', 'responsablesAnalisis'])
+                    ->where([
+                        'cotio_numcoti' => $analisis->cotio_numcoti,
+                        'cotio_item' => $analisis->cotio_item,
+                        'instance_number' => $analisis->instance_number,
+                        'cotio_subitem' => 0,
+                        'active_ot' => true
+                    ])->first();
+
+                if ($relatedSample) {
+                    $ordenesAgrupadas->put($key, [
+                        'muestra' => $relatedSample->muestra,
+                        'instancia_muestra' => $relatedSample,
+                        'analisis' => collect([$analisis]),
+                        'cotizado' => $relatedSample->muestra->cotizado ?? null,
+                        'vehiculo' => $relatedSample->vehiculo ?? null,
+                        'responsables_muestreo' => $relatedSample->responsablesAnalisis,
+                        'is_priority' => $relatedSample->es_priori
+                    ]);
+                }
             }
         });
     }
@@ -548,6 +877,7 @@ public function showOrdenes(Request $request)
         ->unique();
     $cotizaciones = Coti::whereIn('coti_num', $cotizacionesIds)->get()->keyBy('coti_num');
 
+    $userCode = Auth::user()->usu_codigo;
     return view('mis-ordenes.index', [
         'ordenesAgrupadas' => $ordenesAgrupadas,
         'cotizaciones' => $cotizaciones,
@@ -555,7 +885,10 @@ public function showOrdenes(Request $request)
         'viewType' => $viewType,
         'request' => $request,
         'currentMonth' => $currentMonth,
-        'events' => $events
+        'events' => $events,
+        'analitosSugeridos' => $analitosSugeridos,
+        'currentUserCode' => $userCode
+
     ]);
 }
 
@@ -654,6 +987,9 @@ public function verOrden($cotizacion, $item, $instance = null)
 {
     $cotizacion = Coti::findOrFail($cotizacion);
     $instance = $instance ?? 1;
+    $usuariosAnalistas = User::where('rol', '!=', 'sector')
+                ->orderBy('usu_descripcion')
+                ->get();
 
     // Obtener la muestra principal
     $categoria = Cotio::where('cotio_numcoti', $cotizacion->coti_num)
@@ -693,7 +1029,8 @@ public function verOrden($cotizacion, $item, $instance = null)
             )
             ->get();
 
-        $instanciaMuestra->herramientas = $herramientasMuestra;
+        // Evitar propiedades dinámicas: exponer como relación en memoria
+        $instanciaMuestra->setRelation('herramientas', $herramientasMuestra);
     }
 
     // Obtener historial de cambios para los resultados de análisis
@@ -739,7 +1076,8 @@ public function verOrden($cotizacion, $item, $instance = null)
             'instanciaActual' => null,
             'variablesMuestra' => $variablesOrdenadas,
             'instanciasMuestra' => collect(),
-            'historialCambios' => collect()
+            'historialCambios' => collect(),
+            'usuariosAnalistas' => $usuariosAnalistas
         ]);
     }
 
@@ -775,7 +1113,8 @@ public function verOrden($cotizacion, $item, $instance = null)
                 )
                 ->get();
 
-            $instancia->herramientas = $herramientasAnalisis;
+            // Evitar propiedades dinámicas: exponer como relación en memoria
+            $instancia->setRelation('herramientasLab', $herramientasAnalisis);
             $tarea->instancia = $instancia;
             return $tarea;
         }
@@ -818,7 +1157,8 @@ public function verOrden($cotizacion, $item, $instance = null)
         'instanciasMuestra' => $instanciasMuestra,
         'variablesMuestra' => $variablesOrdenadas,
         'todosResponsablesTareas' => $todosResponsablesTareas,
-        'historialCambios' => $historialCambios
+        'historialCambios' => $historialCambios,
+        'usuariosAnalistas' => $usuariosAnalistas
     ]);
 }
 
@@ -1037,7 +1377,9 @@ public function pasarAnalisis(Request $request)
 public function showOrdenesAll($cotio_numcoti, $cotio_item, $cotio_subitem = 0, $instance = null)
 {
     $instance = $instance ?? 1;
-    $usuarioActual = trim(Auth::user()->usu_codigo);
+    $usuario = Auth::user();
+    $usuarioActual = trim($usuario->usu_codigo);
+    $esPrivilegiado = ((int) $usuario->usu_nivel >= 900) || ($usuario->rol === 'coordinador_lab');
     $allHerramientas = InventarioLab::all();
 
     try {
@@ -1100,8 +1442,8 @@ public function showOrdenesAll($cotio_numcoti, $cotio_item, $cotio_subitem = 0, 
             'responsables' => $instanciaMuestra->responsablesAnalisis->pluck('usu_codigo')->toArray()
         ]);
 
-        // Obtener análisis asignados al usuario
-        $analisis = CotioInstancia::with([
+        // Obtener análisis - coordinadores pueden ver todos, otros solo los asignados
+        $analisisQuery = CotioInstancia::with([
             'tarea.vehiculo',
             'tarea.cotizacion',
             'responsablesAnalisis',
@@ -1114,12 +1456,16 @@ public function showOrdenesAll($cotio_numcoti, $cotio_item, $cotio_subitem = 0, 
         ->where('cotio_item', $cotio_item)
         ->where('cotio_subitem', '>', 0)
         ->where('active_ot', true)
-        ->where('instance_number', $instance)
-        ->whereHas('responsablesAnalisis', function ($query) use ($usuarioActual) {
-            $query->whereRaw('TRIM(instancia_responsable_analisis.usu_codigo) = ?', [$usuarioActual]);
-        })
-        ->orderBy('cotio_subitem')
-        ->get();
+        ->where('instance_number', $instance);
+
+        // Si no es privilegiado, filtrar solo análisis asignados al usuario
+        if (!$esPrivilegiado) {
+            $analisisQuery->whereHas('responsablesAnalisis', function ($query) use ($usuarioActual) {
+                $query->whereRaw('TRIM(instancia_responsable_analisis.usu_codigo) = ?', [$usuarioActual]);
+            });
+        }
+
+        $analisis = $analisisQuery->orderBy('cotio_subitem')->get();
 
         Log::debug('Análisis encontrados', [
             'count' => $analisis->count(),
@@ -1300,6 +1646,7 @@ public function asignacionMasiva(Request $request, $ordenId)
                 if ($muestra && !$muestrasActualizadas->contains($muestra->id)) {
                     $muestra->active_ot = true;
                     $muestra->cotio_estado_analisis = 'coordinado analisis';
+                    $muestra->coordinador_codigo_lab = Auth::user()->usu_codigo;
                     $muestra->save();
                     $muestrasActualizadas->push($muestra->id);
                     $updatedCount++;
@@ -1795,8 +2142,382 @@ public function disableInforme(Request $request)
     }
 }
 
+/**
+ * Ver informe preliminar de una instancia
+ */
+public function verInformePreliminar($instancia_id)
+{
+    try {
+        $instancia = CotioInstancia::with([
+            'cotizacion.matriz',
+            'valoresVariables' => function($query) {
+                $query->orderBy('variable');
+            },
+            'responsablesAnalisis',
+            'herramientasLab' => function($query) {
+                $query->select('inventario_lab.*', 'cotio_inventario_lab.cantidad',
+                    'cotio_inventario_lab.observaciones as pivot_observaciones');
+            },
+            'vehiculo'
+        ])->findOrFail($instancia_id);
 
+        // Obtener todos los análisis de esta muestra (cotio_subitem > 0)
+        $analisis = CotioInstancia::with(['responsablesAnalisis'])
+            ->where('cotio_numcoti', $instancia->cotio_numcoti)
+            ->where('cotio_item', $instancia->cotio_item)
+            ->where('instance_number', $instancia->instance_number)
+            ->where('cotio_subitem', '>', 0)
+            ->orderBy('cotio_subitem')
+            ->get();
 
+        // Obtener las descripciones de los análisis desde la tabla cotio
+        foreach ($analisis as $analisisItem) {
+            $cotio = \App\Models\Cotio::where('cotio_numcoti', $analisisItem->cotio_numcoti)
+                ->where('cotio_item', $analisisItem->cotio_item)
+                ->where('cotio_subitem', $analisisItem->cotio_subitem)
+                ->first();
+            
+            $analisisItem->cotio_descripcion = $cotio ? $cotio->cotio_descripcion : 'Análisis #' . $analisisItem->cotio_subitem;
+        }
+
+        if (!$instancia->enable_inform) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Esta instancia no tiene el informe habilitado.'
+            ], 400);
+        }
+
+        // Generar el contenido HTML del informe
+        $contenidoInforme = $this->generarContenidoInforme($instancia, $analisis);
+
+        return response()->json([
+            'success' => true,
+            'informe' => $contenidoInforme
+        ]);
+
+    } catch (\Exception $e) {
+        Log::error('Error al generar informe preliminar: ' . $e->getMessage());
+        return response()->json([
+            'success' => false,
+            'message' => 'Error al generar el informe preliminar: ' . $e->getMessage()
+        ], 500);
+    }
+}
+
+/**
+ * Aprobar informe de una instancia
+ */
+public function aprobarInforme($instancia_id)
+{
+    try {
+        $instancia = CotioInstancia::findOrFail($instancia_id);
+
+        if (!$instancia->enable_inform) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Esta instancia no tiene el informe habilitado.'
+            ], 400);
+        }
+
+        if ($instancia->aprobado_informe) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Este informe ya está aprobado.'
+            ], 400);
+        }
+
+        DB::beginTransaction();
+
+        $instancia->aprobado_informe = true;
+        $instancia->fecha_aprobacion_informe = now();
+        $instancia->save();
+
+        DB::commit();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Informe aprobado correctamente.'
+        ]);
+
+    } catch (\Exception $e) {
+        DB::rollBack();
+        Log::error('Error al aprobar informe: ' . $e->getMessage());
+        return response()->json([
+            'success' => false,
+            'message' => 'Error al aprobar el informe: ' . $e->getMessage()
+        ], 500);
+    }
+}
+
+/**
+ * Generar contenido HTML del informe
+ */
+private function generarContenidoInforme($instancia, $analisis)
+{
+    $cotizacion = $instancia->cotizacion;
+    $matriz = $cotizacion->matriz;
+    
+    $html = '<div class="informe-preliminar">';
+    
+    // Encabezado del informe
+    $html .= '<div class="mb-4">';
+    $html .= '<h4 class="text-primary mb-3">📋 Informe de Análisis</h4>';
+    $html .= '<div class="row">';
+    $html .= '<div class="col-md-6">';
+    $html .= '<p><strong>Cotización:</strong> ' . $cotizacion->coti_num . '</p>';
+    $html .= '<p><strong>Empresa:</strong> ' . $cotizacion->coti_empresa . '</p>';
+    $html .= '<p><strong>Establecimiento:</strong> ' . $cotizacion->coti_establecimiento . '</p>';
+    $html .= '</div>';
+    $html .= '<div class="col-md-6">';
+    $html .= '<p><strong>Matriz:</strong> ' . ($matriz ? $matriz->matriz_descripcion : 'N/A') . '</p>';
+    $fechaMuestreoFormateada = 'N/A';
+    if ($instancia->fecha_muestreo) {
+        try {
+            $fechaMuestreo = is_string($instancia->fecha_muestreo) ? \Carbon\Carbon::parse($instancia->fecha_muestreo) : $instancia->fecha_muestreo;
+            $fechaMuestreoFormateada = $fechaMuestreo->format('d/m/Y');
+        } catch (\Exception $e) {
+            $fechaMuestreoFormateada = 'Fecha inválida';
+        }
+    }
+    $html .= '<p><strong>Fecha de Muestreo:</strong> ' . $fechaMuestreoFormateada . '</p>';
+    $html .= '<p><strong>ID de Muestra:</strong> #' . str_pad($instancia->id, 8, '0', STR_PAD_LEFT) . '</p>';
+    $html .= '</div>';
+    $html .= '</div>';
+    $html .= '</div>';
+
+    // Variables de medición
+    if ($instancia->valoresVariables && $instancia->valoresVariables->count() > 0) {
+        $html .= '<div class="mb-4">';
+        $html .= '<h5 class="text-secondary mb-3">🔬 Variables de Medición</h5>';
+        $html .= '<table class="table table-bordered table-sm">';
+        $html .= '<thead class="table-light"><tr><th>Variable</th><th>Valor</th></tr></thead>';
+        $html .= '<tbody>';
+        foreach ($instancia->valoresVariables as $variable) {
+            $html .= '<tr>';
+            $html .= '<td>' . htmlspecialchars($variable->variable) . '</td>';
+            $html .= '<td>' . htmlspecialchars($variable->valor) . '</td>';
+            $html .= '</tr>';
+        }
+        $html .= '</tbody>';
+        $html .= '</table>';
+        $html .= '</div>';
+    }
+
+    // Análisis de la muestra
+    if ($analisis && $analisis->count() > 0) {
+        $html .= '<div class="mb-4">';
+        $html .= '<h5 class="text-secondary mb-3">📊 Análisis de la Muestra</h5>';
+        
+        foreach ($analisis as $tarea) {
+            // Determinar el estado del análisis
+            $estadoAnalisis = $tarea->cotio_estado_analisis ?? 'pendiente';
+            $badgeClass = match (strtolower($estadoAnalisis)) {
+                'analizado' => 'success',
+                'en proceso' => 'info',
+                'coordinado analisis' => 'warning',
+                'en revision analisis' => 'info',
+                'suspension' => 'danger',
+                default => 'secondary'
+            };
+            
+            $html .= '<div class="card mb-3 border-start border-4 border-' . $badgeClass . '">';
+            $html .= '<div class="card-header bg-light d-flex justify-content-between align-items-center">';
+            $html .= '<div>';
+            $html .= '<h6 class="mb-0">' . htmlspecialchars($tarea->cotio_descripcion) . '</h6>';
+            $html .= '<small class="text-muted">Análisis #' . $tarea->cotio_subitem . '</small>';
+            $html .= '</div>';
+            $html .= '<span class="badge bg-' . $badgeClass . '">' . ucfirst($estadoAnalisis) . '</span>';
+            $html .= '</div>';
+            $html .= '<div class="card-body">';
+            
+            // Información del análisis
+            $html .= '<div class="row mb-3">';
+            $html .= '<div class="col-md-6">';
+            $html .= '<small class="text-muted"><strong>Fechas:</strong></small><br>';
+            if ($tarea->fecha_inicio_ot) {
+                try {
+                    $fechaInicio = is_string($tarea->fecha_inicio_ot) ? \Carbon\Carbon::parse($tarea->fecha_inicio_ot) : $tarea->fecha_inicio_ot;
+                    $html .= '<small>📅 <strong>Inicio:</strong> ' . $fechaInicio->format('d/m/Y H:i') . '</small><br>';
+                } catch (\Exception $e) {
+                    $html .= '<small>📅 <strong>Inicio:</strong> Fecha inválida</small><br>';
+                }
+            }
+            if ($tarea->fecha_fin_ot) {
+                try {
+                    $fechaFin = is_string($tarea->fecha_fin_ot) ? \Carbon\Carbon::parse($tarea->fecha_fin_ot) : $tarea->fecha_fin_ot;
+                    $html .= '<small>🏁 <strong>Fin:</strong> ' . $fechaFin->format('d/m/Y H:i') . '</small><br>';
+                } catch (\Exception $e) {
+                    $html .= '<small>🏁 <strong>Fin:</strong> Fecha inválida</small><br>';
+                }
+            }
+            if ($tarea->fecha_carga_ot) {
+                try {
+                    $fechaCarga = is_string($tarea->fecha_carga_ot) ? \Carbon\Carbon::parse($tarea->fecha_carga_ot) : $tarea->fecha_carga_ot;
+                    $html .= '<small>💾 <strong>Carga:</strong> ' . $fechaCarga->format('d/m/Y H:i') . '</small>';
+                } catch (\Exception $e) {
+                    $html .= '<small>💾 <strong>Carga:</strong> Fecha inválida</small>';
+                }
+            }
+            $html .= '</div>';
+            $html .= '<div class="col-md-6">';
+            
+            // Responsables del análisis
+            if ($tarea->responsablesAnalisis && $tarea->responsablesAnalisis->count() > 0) {
+                $html .= '<small class="text-muted"><strong>👥 Responsables:</strong></small><br>';
+                foreach ($tarea->responsablesAnalisis as $responsable) {
+                    $html .= '<span class="badge bg-primary me-1 mb-1">' . htmlspecialchars($responsable->usu_descripcion) . '</span>';
+                }
+            } else {
+                $html .= '<small class="text-muted">👥 <strong>Responsables:</strong> Sin asignar</small>';
+            }
+            
+            $html .= '</div>';
+            $html .= '</div>';
+            
+            // Observaciones del coordinador
+            if ($tarea->observaciones_ot) {
+                $html .= '<div class="alert alert-info py-2 mb-3">';
+                $html .= '<small><strong>💬 Observaciones del Coordinador:</strong><br>';
+                $html .= htmlspecialchars($tarea->observaciones_ot) . '</small>';
+                $html .= '</div>';
+            }
+            
+            // Tabla de resultados
+            $resultados = [
+                ['tipo' => '🔬 Resultado Primario', 'valor' => $tarea->resultado, 'obs' => $tarea->observacion_resultado, 'fecha' => $tarea->fecha_carga_resultado_1],
+                ['tipo' => '🔬 Resultado Secundario', 'valor' => $tarea->resultado_2, 'obs' => $tarea->observacion_resultado_2, 'fecha' => $tarea->fecha_carga_resultado_2],
+                ['tipo' => '🔬 Resultado Terciario', 'valor' => $tarea->resultado_3, 'obs' => $tarea->observacion_resultado_3, 'fecha' => $tarea->fecha_carga_resultado_3],
+                ['tipo' => '🏆 Resultado Final', 'valor' => $tarea->resultado_final, 'obs' => $tarea->observacion_resultado_final, 'fecha' => $tarea->fecha_carga_ot]
+            ];
+            
+            $tieneResultados = false;
+            foreach ($resultados as $resultado) {
+                if (!empty($resultado['valor'])) {
+                    $tieneResultados = true;
+                    break;
+                }
+            }
+            
+            if ($tieneResultados) {
+                $html .= '<div class="table-responsive">';
+                $html .= '<table class="table table-sm table-striped mb-0">';
+                $html .= '<thead class="table-dark"><tr><th>Tipo de Resultado</th><th>Valor</th><th>Observaciones</th><th>Fecha de Carga</th></tr></thead>';
+                $html .= '<tbody>';
+                
+                foreach ($resultados as $resultado) {
+                    if (!empty($resultado['valor'])) {
+                        $html .= '<tr>';
+                        $html .= '<td><strong>' . $resultado['tipo'] . '</strong></td>';
+                        $html .= '<td class="fw-bold text-primary">' . htmlspecialchars($resultado['valor']) . '</td>';
+                        $html .= '<td>' . htmlspecialchars($resultado['obs'] ?? 'Sin observaciones') . '</td>';
+                        $fechaFormateada = 'N/A';
+                        if ($resultado['fecha']) {
+                            try {
+                                $fecha = is_string($resultado['fecha']) ? \Carbon\Carbon::parse($resultado['fecha']) : $resultado['fecha'];
+                                $fechaFormateada = $fecha->format('d/m/Y H:i');
+                            } catch (\Exception $e) {
+                                $fechaFormateada = 'Fecha inválida';
+                            }
+                        }
+                        $html .= '<td><small>' . $fechaFormateada . '</small></td>';
+                        $html .= '</tr>';
+                    }
+                }
+                
+                $html .= '</tbody>';
+                $html .= '</table>';
+                $html .= '</div>';
+            } else {
+                $html .= '<div class="alert alert-warning py-2">';
+                $html .= '<small><strong>⚠️ Sin resultados:</strong> Este análisis aún no tiene resultados cargados.</small>';
+                $html .= '</div>';
+            }
+            
+            // Información adicional si está habilitado para informe
+            if ($tarea->enable_inform) {
+                $html .= '<div class="mt-2">';
+                $html .= '<span class="badge bg-success"><i class="fas fa-check"></i> Habilitado para informe</span>';
+                $html .= '</div>';
+            } else {
+                $html .= '<div class="mt-2">';
+                $html .= '</div>';
+            }
+            
+            $html .= '</div>';
+            $html .= '</div>';
+        }
+        $html .= '</div>';
+    } else {
+        $html .= '<div class="mb-4">';
+        $html .= '<h5 class="text-secondary mb-3">📊 Análisis de la Muestra</h5>';
+        $html .= '<div class="alert alert-info">';
+        $html .= '<strong>ℹ️ Sin análisis:</strong> Esta muestra no tiene análisis asociados.';
+        $html .= '</div>';
+        $html .= '</div>';
+    }
+
+    // Herramientas utilizadas
+    if ($instancia->herramientasLab && $instancia->herramientasLab->count() > 0) {
+        $html .= '<div class="mb-4">';
+        $html .= '<h5 class="text-secondary mb-3">🔧 Herramientas Utilizadas</h5>';
+        $html .= '<ul class="list-group">';
+        foreach ($instancia->herramientasLab as $herramienta) {
+            $html .= '<li class="list-group-item d-flex justify-content-between align-items-center">';
+            $html .= '<span>' . htmlspecialchars($herramienta->equipamiento);
+            if ($herramienta->marca_modelo) {
+                $html .= ' <small class="text-muted">(' . htmlspecialchars($herramienta->marca_modelo) . ')</small>';
+            }
+            $html .= '</span>';
+            if (isset($herramienta->cantidad) && $herramienta->cantidad > 1) {
+                $html .= '<span class="badge bg-primary rounded-pill">' . $herramienta->cantidad . '</span>';
+            }
+            $html .= '</li>';
+        }
+        $html .= '</ul>';
+        $html .= '</div>';
+    }
+
+    // Observaciones
+    if ($instancia->observaciones_medicion_coord_muestreo || $instancia->observaciones_medicion_muestreador) {
+        $html .= '<div class="mb-4">';
+        $html .= '<h5 class="text-secondary mb-3">💬 Observaciones</h5>';
+        
+        if ($instancia->observaciones_medicion_coord_muestreo) {
+            $html .= '<div class="alert alert-info">';
+            $html .= '<strong>Coordinador de Muestreo:</strong><br>';
+            $html .= htmlspecialchars($instancia->observaciones_medicion_coord_muestreo);
+            $html .= '</div>';
+        }
+        
+        if ($instancia->observaciones_medicion_muestreador) {
+            $html .= '<div class="alert alert-warning">';
+            $html .= '<strong>Muestreador:</strong><br>';
+            $html .= htmlspecialchars($instancia->observaciones_medicion_muestreador);
+            $html .= '</div>';
+        }
+        $html .= '</div>';
+    }
+
+    // Pie del informe
+    $html .= '<div class="mt-4 pt-3 border-top">';
+    $html .= '<div class="row">';
+    $html .= '<div class="col-md-6">';
+    $html .= '<small class="text-muted">';
+    $html .= '<strong>Fecha de generación:</strong> ' . now()->format('d/m/Y H:i');
+    $html .= '</small>';
+    $html .= '</div>';
+    $html .= '<div class="col-md-6 text-end">';
+    $html .= '<small class="text-muted">';
+    $html .= '<strong>Estado:</strong> ' . ucfirst($instancia->cotio_estado_analisis);
+    $html .= '</small>';
+    $html .= '</div>';
+    $html .= '</div>';
+    $html .= '</div>';
+    
+    $html .= '</div>'; // Cierre del div principal
+    
+    return $html;
+}
 
 public function finalizarTodas(Request $request)
 {
@@ -1816,32 +2537,32 @@ public function finalizarTodas(Request $request)
             'active_ot' => true
         ];
 
+            // Base query para muestra principal + análisis asociados
+            $baseQuery = CotioInstancia::where($params)
+                ->where(function($query) use ($request) {
+                    $query->where('cotio_subitem', $request->cotio_subitem)
+                          ->orWhere('cotio_subitem', '>', 0);
+                });
 
-        $instancias = CotioInstancia::where($params)
-            ->where(function($query) use ($request) {
-                $query->where('cotio_subitem', $request->cotio_subitem) // Muestra principal
-                      ->orWhere('cotio_subitem', '>', 0); // Análisis asociados
-            })
-            ->get();
-
-
-        if ($instancias->isEmpty()) {
-            return redirect()->back()->with('info', 'No hay muestras o análisis activos para finalizar.');
-        }
-
-        $updatedCount = 0;
-        foreach ($instancias as $instancia) {
-            
-            $result = $instancia->update([
-                'cotio_estado_analisis' => 'analizado',
-            ]);
-
-            if ($result) {
-                $updatedCount++;
+            // Verificar si existen registros a afectar
+            $total = (clone $baseQuery)->count();
+            if ($total === 0) {
+                return redirect()->back()->with('info', 'No hay muestras o análisis activos para finalizar.');
             }
-        }
 
-        return redirect()->back()->with('success', 'Todas las muestras y análisis activos han sido finalizados correctamente.');
+            // Actualizar solo pendientes (toggle efectivo)
+            $updatedCount = (clone $baseQuery)
+                ->where(function ($q) {
+                    $q->whereNull('cotio_estado_analisis')
+                      ->orWhere('cotio_estado_analisis', '!=', 'analizado');
+                })
+                ->update(['cotio_estado_analisis' => 'analizado']);
+
+            if ($updatedCount === 0) {
+                return redirect()->back()->with('info', 'Todas las muestras y análisis ya se encontraban finalizados.');
+            }
+
+            return redirect()->back()->with('success', 'Se finalizaron correctamente ' . $updatedCount . ' registros.');
 
     } catch (\Exception $e) {
         return redirect()->back()->with('error', 'Error al finalizar muestras y análisis: ' . $e->getMessage());
@@ -2032,7 +2753,7 @@ public function apiHerramientasInstancia($instanciaId)
                     'coordinador_codigo' => null,
                     'fecha_coordinacion' => null,
                     'fecha_inicio_ot' => null,
-                    'fecha_fin_ot' => null
+                    'fecha_fin_ot' => null,
                 ]);
 
                 DB::table('instancia_responsable_analisis')
@@ -2051,7 +2772,8 @@ public function apiHerramientasInstancia($instanciaId)
                 'coordinador_codigo' => null,
                 'fecha_coordinacion' => null,
                 'fecha_inicio_ot' => null,
-                'fecha_fin_ot' => null
+                'fecha_fin_ot' => null,
+                'time_annulled' => $instanciaMuestra->time_annulled + 1,
             ]);
             
             DB::table('instancia_responsable_analisis')
@@ -2084,26 +2806,30 @@ public function apiHerramientasInstancia($instanciaId)
             $validated = $request->validate([
                 'cotio_numcoti' => 'required',
                 'cotio_item' => 'required',
+                'cotio_subitem' => 'required',
                 'instance_number' => 'required'
             ]);
 
-            // Obtener responsables de la muestra principal
-            $instanciaMuestra = CotioInstancia::where([
+            // Obtener el análisis específico
+            $instanciaAnalisis = CotioInstancia::where([
                 'cotio_numcoti' => $validated['cotio_numcoti'],
                 'cotio_item' => $validated['cotio_item'],
-                'cotio_subitem' => 0,
+                'cotio_subitem' => $validated['cotio_subitem'],
                 'instance_number' => $validated['instance_number']
             ])->first();
 
-            if (!$instanciaMuestra) {
+            if (!$instanciaAnalisis) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Muestra no encontrada'
+                    'message' => 'Análisis no encontrado'
                 ]);
             }
 
-            $responsables = $instanciaMuestra->responsablesAnalisis()
-                ->pluck('usu_codigo')
+            $responsables = $instanciaAnalisis->responsablesAnalisis()
+                ->get()
+                ->map(function($responsable) {
+                    return trim($responsable->usu_codigo); // Quitar espacios para la respuesta
+                })
                 ->toArray();
 
             return response()->json([
@@ -2123,6 +2849,7 @@ public function apiHerramientasInstancia($instanciaId)
         try {
             $validated = $request->validate([
                 'cotio_item' => 'required',
+                'cotio_subitem' => 'required',
                 'instance_number' => 'required',
                 'responsables_analisis' => 'nullable|array',
                 'responsables_analisis.*' => 'exists:usu,usu_codigo'
@@ -2130,24 +2857,17 @@ public function apiHerramientasInstancia($instanciaId)
 
             DB::beginTransaction();
 
-            // Obtener la muestra principal
-            $instanciaMuestra = CotioInstancia::where([
+            // Obtener el análisis específico
+            $instanciaAnalisis = CotioInstancia::where([
                 'cotio_numcoti' => $cotio_numcoti,
                 'cotio_item' => $validated['cotio_item'],
-                'cotio_subitem' => 0,
+                'cotio_subitem' => $validated['cotio_subitem'],
                 'instance_number' => $validated['instance_number']
             ])->first();
 
-            if (!$instanciaMuestra) {
-                throw new \Exception('Muestra no encontrada');
+            if (!$instanciaAnalisis) {
+                throw new \Exception('Análisis no encontrado');
             }
-
-            // Obtener todos los análisis relacionados
-            $analisis = CotioInstancia::where([
-                'cotio_numcoti' => $cotio_numcoti,
-                'cotio_item' => $validated['cotio_item'],
-                'instance_number' => $validated['instance_number']
-            ])->where('cotio_subitem', '>', 0)->get();
 
             // Obtener responsables enviados, asegurándonos de que sea un array válido
             $nuevosResponsables = $validated['responsables_analisis'] ?? [];
@@ -2157,50 +2877,54 @@ public function apiHerramientasInstancia($instanciaId)
                 return !empty(trim($responsable));
             });
 
-            // Obtener responsables actuales de la muestra principal
-            $responsablesActualesMuestra = $instanciaMuestra->responsablesAnalisis()
-                ->pluck('usu_codigo')
+            // Obtener responsables actuales del análisis específico
+            $responsablesActualesAnalisis = $instanciaAnalisis->responsablesAnalisis()
+                ->get()
+                ->map(function($responsable) {
+                    return trim($responsable->usu_codigo); // Normalizar quitando espacios
+                })
                 ->toArray();
 
-            // Combinar responsables actuales con los nuevos (sin duplicados)
-            $responsablesFinales = array_unique(array_merge($responsablesActualesMuestra, $nuevosResponsables));
+            // Combinar responsables actuales con los nuevos (sin duplicados, comparando sin espacios)
+            $todosLosResponsables = array_merge($responsablesActualesAnalisis, $nuevosResponsables);
+            $responsablesFinales = array_unique(array_map('trim', $todosLosResponsables));
 
-            Log::info('Editando responsables', [
+            // Buscar los códigos exactos en la base de datos para el sync
+            $usuariosExactos = User::whereIn('usu_codigo', function($query) use ($responsablesFinales) {
+                $query->select('usu_codigo')->from('usu');
+                foreach ($responsablesFinales as $codigo) {
+                    $query->orWhere('usu_codigo', 'LIKE', trim($codigo) . '%');
+                }
+            })->get();
+
+            $codigosExactos = $usuariosExactos->pluck('usu_codigo')->toArray();
+
+            Log::info('Editando responsables de análisis específico', [
                 'cotio_numcoti' => $cotio_numcoti,
                 'cotio_item' => $validated['cotio_item'],
+                'cotio_subitem' => $validated['cotio_subitem'],
                 'instance_number' => $validated['instance_number'],
                 'responsables_recibidos' => $validated['responsables_analisis'] ?? 'null',
-                'responsables_actuales_muestra' => $responsablesActualesMuestra,
+                'responsables_actuales' => $responsablesActualesAnalisis,
                 'nuevos_responsables' => $nuevosResponsables,
-                'responsables_finales' => $responsablesFinales
+                'responsables_finales_trimmed' => $responsablesFinales,
+                'codigos_exactos_bd' => $codigosExactos,
+                'instancia_id' => $instanciaAnalisis->id
             ]);
 
-            // Actualizar responsables de la muestra principal (mantener existentes + agregar nuevos)
-            $instanciaMuestra->responsablesAnalisis()->sync($responsablesFinales);
-
-            // Actualizar responsables de todos los análisis
-            foreach ($analisis as $analisisItem) {
-                // Obtener responsables actuales de cada análisis
-                $responsablesActualesAnalisis = $analisisItem->responsablesAnalisis()
-                    ->pluck('usu_codigo')
-                    ->toArray();
-                
-                // Combinar responsables actuales del análisis con los nuevos
-                $responsablesFinalesAnalisis = array_unique(array_merge($responsablesActualesAnalisis, $nuevosResponsables));
-                
-                $analisisItem->responsablesAnalisis()->sync($responsablesFinalesAnalisis);
-            }
+            // Actualizar responsables del análisis específico usando códigos exactos
+            $instanciaAnalisis->responsablesAnalisis()->sync($codigosExactos);
 
             DB::commit();
 
             return response()->json([
                 'success' => true,
-                'message' => 'Responsables agregados correctamente. Se mantuvieron los responsables existentes.',
+                'message' => 'Responsables agregados correctamente al análisis.',
                 'debug' => [
-                    'responsables_anteriores' => $responsablesActualesMuestra,
+                    'responsables_anteriores' => $responsablesActualesAnalisis,
                     'nuevos_responsables' => $nuevosResponsables,
-                    'responsables_finales' => $responsablesFinales,
-                    'total_analisis_actualizados' => $analisis->count()
+                    'responsables_finales_trimmed' => $responsablesFinales,
+                    'codigos_exactos_usados' => $codigosExactos
                 ]
             ]);
 
@@ -2215,5 +2939,464 @@ public function apiHerramientasInstancia($instanciaId)
                 'message' => 'Error al actualizar responsables: ' . $e->getMessage()
             ]);
         }
+    }
+
+    public function quitarResponsable(Request $request, $cotio_numcoti)
+    {
+        try {
+            $validated = $request->validate([
+                'cotio_item' => 'required',
+                'cotio_subitem' => 'required',
+                'instance_number' => 'required',
+                'responsable_codigo' => 'required|exists:usu,usu_codigo'
+            ]);
+
+            Log::info('DEBUG - Iniciando quitarResponsable', [
+                'datos_recibidos' => $validated,
+                'cotio_numcoti' => $cotio_numcoti
+            ]);
+
+            DB::beginTransaction();
+
+            // Obtener el análisis específico
+            $instanciaAnalisis = CotioInstancia::where([
+                'cotio_numcoti' => $cotio_numcoti,
+                'cotio_item' => $validated['cotio_item'],
+                'cotio_subitem' => $validated['cotio_subitem'],
+                'instance_number' => $validated['instance_number']
+            ])->first();
+
+            Log::info('DEBUG - Búsqueda de instancia', [
+                'instancia_encontrada' => $instanciaAnalisis ? true : false,
+                'instancia_id' => $instanciaAnalisis ? $instanciaAnalisis->id : null,
+                'criterios_busqueda' => [
+                    'cotio_numcoti' => $cotio_numcoti,
+                    'cotio_item' => $validated['cotio_item'],
+                    'cotio_subitem' => $validated['cotio_subitem'],
+                    'instance_number' => $validated['instance_number']
+                ]
+            ]);
+
+            if (!$instanciaAnalisis) {
+                throw new \Exception('Análisis no encontrado');
+            }
+
+            $responsableCodigo = $validated['responsable_codigo'];
+
+            // Obtener todos los responsables actuales ANTES de verificar
+            $responsablesActuales = $instanciaAnalisis->responsablesAnalisis()->get();
+            Log::info('DEBUG - Responsables actuales', [
+                'total_responsables' => $responsablesActuales->count(),
+                'responsables' => $responsablesActuales->map(function($r) {
+                    return [
+                        'usu_codigo' => $r->usu_codigo,
+                        'usu_codigo_trimmed' => trim($r->usu_codigo),
+                        'usu_descripcion' => $r->usu_descripcion
+                    ];
+                })->toArray()
+            ]);
+
+            // SOLUCIÓN: Buscar el código exacto con espacios incluidos
+            $responsableExacto = $responsablesActuales->first(function($responsable) use ($responsableCodigo) {
+                return trim($responsable->usu_codigo) === trim($responsableCodigo);
+            });
+
+            if (!$responsableExacto) {
+                Log::info('DEBUG - Responsable no encontrado con trim', [
+                    'buscado' => $responsableCodigo,
+                    'disponibles' => $responsablesActuales->pluck('usu_codigo')->toArray()
+                ]);
+                throw new \Exception('El responsable no está asignado a este análisis');
+            }
+
+            // Usar el código exacto de la base de datos (con espacios)
+            $codigoExacto = $responsableExacto->usu_codigo;
+
+            Log::info('DEBUG - Códigos comparados', [
+                'codigo_recibido' => "'{$responsableCodigo}'",
+                'codigo_exacto_bd' => "'{$codigoExacto}'",
+                'son_iguales_trim' => trim($responsableCodigo) === trim($codigoExacto)
+            ]);
+
+            // Verificar que el responsable esté asignado (usando código exacto)
+            $estaAsignado = $instanciaAnalisis->responsablesAnalisis()
+                ->where('usu.usu_codigo', $codigoExacto)
+                ->exists();
+
+            Log::info('DEBUG - Verificación de asignación', [
+                'responsable_codigo_recibido' => $responsableCodigo,
+                'responsable_codigo_exacto' => $codigoExacto,
+                'esta_asignado' => $estaAsignado
+            ]);
+
+            if (!$estaAsignado) {
+                throw new \Exception('El responsable no está asignado a este análisis');
+            }
+
+            // Quitar responsable del análisis específico
+            Log::info('DEBUG - Antes de detach', [
+                'responsable_a_quitar_original' => $responsableCodigo,
+                'responsable_a_quitar_exacto' => $codigoExacto,
+                'instancia_id' => $instanciaAnalisis->id
+            ]);
+
+            // Método 1: Usando detach de Eloquent con código exacto
+            $resultadoDetach = $instanciaAnalisis->responsablesAnalisis()->detach($codigoExacto);
+            
+            Log::info('DEBUG - Resultado de detach', [
+                'resultado' => $resultadoDetach,
+                'responsable_quitado_exacto' => $codigoExacto
+            ]);
+
+            // Método 2: Si detach no funciona, verificar tabla pivot directamente
+            if ($resultadoDetach == 0) {
+                Log::info('DEBUG - Detach devolvió 0, verificando tabla pivot directamente');
+                
+                // Verificar qué hay exactamente en la tabla pivot
+                $registrosPivot = DB::table('instancia_responsable_analisis')
+                    ->where('cotio_instancia_id', $instanciaAnalisis->id)
+                    ->get();
+                
+                Log::info('DEBUG - Registros en tabla pivot', [
+                    'instancia_id' => $instanciaAnalisis->id,
+                    'total_registros' => $registrosPivot->count(),
+                    'registros' => $registrosPivot->map(function($r) {
+                        return [
+                            'cotio_instancia_id' => $r->cotio_instancia_id,
+                            'usu_codigo' => "'{$r->usu_codigo}'",
+                            'created_at' => $r->created_at,
+                            'updated_at' => $r->updated_at
+                        ];
+                    })->toArray()
+                ]);
+                
+                // Intentar con diferentes variaciones del código
+                $variacionesCodigo = [
+                    $codigoExacto,
+                    trim($codigoExacto),
+                    $responsableCodigo,
+                    trim($responsableCodigo)
+                ];
+                
+                $resultadoSQL = 0;
+                foreach ($variacionesCodigo as $variacion) {
+                    $resultadoSQL = DB::table('instancia_responsable_analisis')
+                        ->where('cotio_instancia_id', $instanciaAnalisis->id)
+                        ->where('usu_codigo', $variacion)
+                        ->delete();
+                    
+                    if ($resultadoSQL > 0) {
+                        Log::info('DEBUG - SQL exitoso con variación', [
+                            'variacion_exitosa' => "'{$variacion}'",
+                            'resultado' => $resultadoSQL
+                        ]);
+                        break;
+                    }
+                }
+                
+                if ($resultadoSQL == 0) {
+                    // Intentar con LIKE para encontrar coincidencias parciales
+                    $resultadoLike = DB::table('instancia_responsable_analisis')
+                        ->where('cotio_instancia_id', $instanciaAnalisis->id)
+                        ->where('usu_codigo', 'LIKE', trim($responsableCodigo) . '%')
+                        ->delete();
+                    
+                    Log::info('DEBUG - Resultado con LIKE', [
+                        'patron_like' => "'" . trim($responsableCodigo) . "%'",
+                        'resultado' => $resultadoLike
+                    ]);
+                    
+                    $resultadoSQL = $resultadoLike;
+                }
+                
+                // Si aún no funciona, intentar fuera de la transacción
+                if ($resultadoSQL == 0) {
+                    Log::info('DEBUG - Intentando fuera de transacción');
+                    
+                    DB::commit(); // Commit temporal
+                    
+                    $resultadoSinTransaccion = DB::table('instancia_responsable_analisis')
+                        ->where('cotio_instancia_id', $instanciaAnalisis->id)
+                        ->where('usu_codigo', 'LIKE', trim($responsableCodigo) . '%')
+                        ->delete();
+                    
+                    Log::info('DEBUG - Resultado sin transacción', [
+                        'resultado' => $resultadoSinTransaccion
+                    ]);
+                    
+                    DB::beginTransaction(); // Reiniciar transacción
+                    $resultadoSQL = $resultadoSinTransaccion;
+                }
+                
+                Log::info('DEBUG - Resultado SQL final', [
+                    'resultado' => $resultadoSQL,
+                    'instancia_id' => $instanciaAnalisis->id,
+                    'codigo_buscado' => $codigoExacto
+                ]);
+                
+                $resultadoDetach = $resultadoSQL; // Para el log final
+            }
+
+            // Verificar responsables después del detach
+            $responsablesDespues = $instanciaAnalisis->responsablesAnalisis()->get();
+            Log::info('DEBUG - Responsables después de detach', [
+                'total_responsables' => $responsablesDespues->count(),
+                'responsables' => $responsablesDespues->map(function($r) {
+                    return [
+                        'usu_codigo' => $r->usu_codigo,
+                        'usu_descripcion' => $r->usu_descripcion
+                    ];
+                })->toArray()
+            ]);
+
+            // NUEVA FUNCIONALIDAD: Verificar si el responsable sigue asignado a otros análisis
+            $todosLosAnalisis = CotioInstancia::where([
+                'cotio_numcoti' => $cotio_numcoti,
+                'cotio_item' => $validated['cotio_item'],
+                'instance_number' => $validated['instance_number']
+            ])->where('cotio_subitem', '>', 0)->get();
+
+            $responsableEnOtrosAnalisis = false;
+            foreach ($todosLosAnalisis as $analisis) {
+                if ($analisis->responsablesAnalisis()->where('usu.usu_codigo', $codigoExacto)->exists()) {
+                    $responsableEnOtrosAnalisis = true;
+                    break;
+                }
+            }
+
+            Log::info('DEBUG - Verificación de responsable en otros análisis', [
+                'responsable_codigo' => $codigoExacto,
+                'total_analisis_verificados' => $todosLosAnalisis->count(),
+                'esta_en_otros_analisis' => $responsableEnOtrosAnalisis
+            ]);
+
+            $quitadoDeMuestra = false;
+            if (!$responsableEnOtrosAnalisis) {
+                // El responsable no está en ningún análisis, quitarlo también de la muestra principal
+                $muestraPrincipal = CotioInstancia::where([
+                    'cotio_numcoti' => $cotio_numcoti,
+                    'cotio_item' => $validated['cotio_item'],
+                    'cotio_subitem' => 0,
+                    'instance_number' => $validated['instance_number']
+                ])->first();
+
+                if ($muestraPrincipal) {
+                    $resultadoMuestra = $muestraPrincipal->responsablesAnalisis()->detach($codigoExacto);
+                    $quitadoDeMuestra = $resultadoMuestra > 0;
+                    
+                    Log::info('DEBUG - Limpieza de muestra principal', [
+                        'muestra_principal_id' => $muestraPrincipal->id,
+                        'responsable_quitado_de_muestra' => $quitadoDeMuestra,
+                        'resultado_detach_muestra' => $resultadoMuestra
+                    ]);
+                }
+            }
+
+            DB::commit();
+
+            // Obtener nombre del responsable para la respuesta
+            $responsable = User::where('usu_codigo', $codigoExacto)->first();
+            $nombreResponsable = $responsable ? $responsable->usu_descripcion : trim($responsableCodigo);
+
+            Log::info('Responsable quitado exitosamente', [
+                'cotio_numcoti' => $cotio_numcoti,
+                'cotio_item' => $validated['cotio_item'],
+                'cotio_subitem' => $validated['cotio_subitem'],
+                'instance_number' => $validated['instance_number'],
+                'responsable_quitado_original' => $responsableCodigo,
+                'responsable_quitado_exacto' => $codigoExacto,
+                'instancia_id' => $instanciaAnalisis->id,
+                'resultado_detach' => $resultadoDetach,
+                'quitado_de_muestra_principal' => $quitadoDeMuestra,
+                'estaba_en_otros_analisis' => $responsableEnOtrosAnalisis
+            ]);
+
+            // Crear mensaje dinámico según lo que se hizo
+            $mensaje = "Responsable {$nombreResponsable} quitado correctamente del análisis.";
+            if ($quitadoDeMuestra) {
+                $mensaje .= " También se quitó de la muestra principal al no estar asignado a ningún otro análisis.";
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => $mensaje,
+                'debug' => [
+                    'responsables_antes' => $responsablesActuales->count(),
+                    'responsables_despues' => $responsablesDespues->count(),
+                    'detach_result' => $resultadoDetach,
+                    'quitado_de_muestra' => $quitadoDeMuestra,
+                    'verificacion_otros_analisis' => !$responsableEnOtrosAnalisis
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error quitando responsable', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'datos_request' => $validated ?? 'No validados'
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al quitar responsable: ' . $e->getMessage()
+            ]);
+        }
+    }
+
+    // Método temporal para eliminar directamente - SOLO PARA DEBUG
+    public function forzarEliminacion(Request $request, $cotio_numcoti)
+    {
+        try {
+            $validated = $request->validate([
+                'cotio_item' => 'required',
+                'cotio_subitem' => 'required',
+                'instance_number' => 'required',
+                'responsable_codigo' => 'required'
+            ]);
+
+            $instanciaAnalisis = CotioInstancia::where([
+                'cotio_numcoti' => $cotio_numcoti,
+                'cotio_item' => $validated['cotio_item'],
+                'cotio_subitem' => $validated['cotio_subitem'],
+                'instance_number' => $validated['instance_number']
+            ])->first();
+
+            if (!$instanciaAnalisis) {
+                return response()->json(['error' => 'Instancia no encontrada']);
+            }
+
+            // Mostrar todos los registros de la tabla pivot para esta instancia
+            $registros = DB::table('instancia_responsable_analisis')
+                ->where('cotio_instancia_id', $instanciaAnalisis->id)
+                ->get();
+
+            // Intentar eliminar usando LIKE con el código trimmed
+            $eliminados = DB::table('instancia_responsable_analisis')
+                ->where('cotio_instancia_id', $instanciaAnalisis->id)
+                ->where('usu_codigo', 'LIKE', trim($validated['responsable_codigo']) . '%')
+                ->delete();
+
+            return response()->json([
+                'instancia_id' => $instanciaAnalisis->id,
+                'registros_antes' => $registros->toArray(),
+                'codigo_buscado' => $validated['responsable_codigo'],
+                'patron_like' => trim($validated['responsable_codigo']) . '%',
+                'eliminados' => $eliminados
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => $e->getMessage()
+            ]);
+        }
+    }
+
+    // Método temporal para debug - eliminar después de resolver el problema
+    public function debugResponsables(Request $request, $cotio_numcoti)
+    {
+        try {
+            $validated = $request->validate([
+                'cotio_item' => 'required',
+                'cotio_subitem' => 'required',
+                'instance_number' => 'required'
+            ]);
+
+            // Obtener el análisis específico
+            $instanciaAnalisis = CotioInstancia::where([
+                'cotio_numcoti' => $cotio_numcoti,
+                'cotio_item' => $validated['cotio_item'],
+                'cotio_subitem' => $validated['cotio_subitem'],
+                'instance_number' => $validated['instance_number']
+            ])->first();
+
+            if (!$instanciaAnalisis) {
+                return response()->json(['error' => 'Instancia no encontrada']);
+            }
+
+            // Verificar directamente en la tabla pivot
+            $responsablesPivot = DB::table('instancia_responsable_analisis')
+                ->where('cotio_instancia_id', $instanciaAnalisis->id)
+                ->get();
+
+            // Verificar usando la relación
+            $responsablesRelacion = $instanciaAnalisis->responsablesAnalisis()->get();
+
+            return response()->json([
+                'instancia_id' => $instanciaAnalisis->id,
+                'instancia_info' => [
+                    'cotio_numcoti' => $instanciaAnalisis->cotio_numcoti,
+                    'cotio_item' => $instanciaAnalisis->cotio_item,
+                    'cotio_subitem' => $instanciaAnalisis->cotio_subitem,
+                    'instance_number' => $instanciaAnalisis->instance_number,
+                ],
+                'responsables_pivot_directo' => $responsablesPivot->toArray(),
+                'responsables_relacion' => $responsablesRelacion->map(function($r) {
+                    return [
+                        'usu_codigo' => $r->usu_codigo,
+                        'usu_descripcion' => $r->usu_descripcion
+                    ];
+                })->toArray(),
+                'total_pivot' => $responsablesPivot->count(),
+                'total_relacion' => $responsablesRelacion->count()
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+        }
+    }
+
+
+    public function requestReview(Request $request, $instance)
+    {
+        $instancia = CotioInstancia::findOrFail($instance);
+        $instancia->request_review = true;
+        $instancia->observaciones_request_review = $request->observaciones;
+        $instancia->save();
+
+        // Notificar a todos los responsables de análisis asignados
+        try {
+            $usuario = Auth::user();
+            $senderCodigo = $usuario?->usu_codigo;
+            $observaciones = (string) ($request->input('observaciones') ?? '');
+
+            foreach ($instancia->responsablesAnalisis as $responsable) {
+                $mensaje = sprintf(
+                    'Se solicitó revisión de resultados para "%s" (COTI %s, ítem %s/%s, instancia %s). %s%s',
+                    $instancia->cotio_descripcion,
+                    $instancia->cotio_numcoti,
+                    $instancia->cotio_item,
+                    $instancia->cotio_subitem,
+                    $instancia->instance_number,
+                    $senderCodigo ? 'Solicitado por: ' . ($usuario->usu_descripcion ?? $senderCodigo) . '. ' : '',
+                    $observaciones !== '' ? ('Obs: ' . $observaciones) : ''
+                );
+
+                SimpleNotification::create([
+                    'coordinador_codigo' => $responsable->usu_codigo, // receptor: responsable de análisis
+                    'sender_codigo' => $senderCodigo,
+                    'instancia_id' => $instancia->id,
+                    'mensaje' => $mensaje,
+                    'url' => SimpleNotification::generarUrlPorRol($responsable->usu_codigo, $instancia->id),
+                ]);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('No se pudieron enviar notificaciones de requestReview', [
+                'instancia_id' => $instancia->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+        return response()->json(['success' => true]);
+    }
+
+    public function requestReviewCancel(Request $request, $instance)
+    {
+        $instancia = CotioInstancia::findOrFail($instance);
+        $instancia->request_review = false;
+        $instancia->observaciones_request_review = null;
+        $instancia->save();
+        return response()->json(['success' => true]);
     }
 }

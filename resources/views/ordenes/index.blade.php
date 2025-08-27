@@ -41,7 +41,7 @@
                     <div class="col-md-4">
                         <label for="search" class="form-label">Buscar cotización</label>
                         <input type="text" class="form-control" id="search" name="search" 
-                               placeholder="Número, empresa o establecimiento" 
+                               placeholder="Número, empresa o establecimiento, número de muestra" 
                                value="{{ request('search') }}">
                     </div>
                     
@@ -49,9 +49,9 @@
                         <label for="estado" class="form-label">Estado</label>
                         <select class="form-select" id="estado" name="estado">
                             <option value="">Todos</option>
-                            <option value="A" {{ request('estado') == 'A' ? 'selected' : '' }}>Aprobado</option>
-                            <option value="E" {{ request('estado') == 'E' ? 'selected' : '' }}>En espera</option>
-                            <option value="S" {{ request('estado') == 'S' ? 'selected' : '' }}>Rechazado</option>
+                            <option class="bg-warning text-dark" value="coordinado analisis" {{ request('estado') == 'coordinado analisis' ? 'selected' : '' }}>Coordinado analisis</option>
+                            <option class="bg-info text-dark" value="en revision analisis" {{ request('estado') == 'en revision analisis' ? 'selected' : '' }}>En revision analisis</option>
+                            <option class="bg-success text-white" value="analizado" {{ request('estado') == 'analizado' ? 'selected' : '' }}>Analizado</option>
                         </select>
                     </div>
 

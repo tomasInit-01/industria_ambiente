@@ -98,7 +98,7 @@
                                 <thead class="table-light">
                                     <tr>
                                         <th width="30%" class="ps-4">Muestra</th>
-                                        <th width="20%" class="text-center">Asignación</th>
+                                        {{-- <th width="20%" class="text-center">Asignación</th> --}}
                                         <th width="15%" class="text-center">Muestreo</th>
                                         <th width="15%" class="text-center">Análisis</th>
                                         <th width="10%" class="text-center">Documentos</th>
@@ -112,12 +112,12 @@
                                                     <i class="fas fa-vial-circle-check text-primary me-3 fs-5"></i>
                                                     <div>
                                                         <h6 class="mb-1 fw-bold">{{ $grupo['muestra']->cotio_descripcion }}</h6>
-                                                        <small class="text-muted">Muestra #{{ $grupo['muestra']->original_item }}-{{ $grupo['muestra']->instance_number }}</small>
+                                                        <small class="text-muted">Muestra #{{ $grupo['muestra']->instance_number }}</small>
                                                     </div>
                                                 </div>
                                             </td>
                                             
-                                            <td class="text-center">
+                                            {{-- <td class="text-center">
                                                 @if($grupo['responsables'] && $grupo['responsables']->isNotEmpty())
                                                     <div class="d-flex flex-column gap-1">
                                                         @foreach($grupo['responsables'] as $responsable)
@@ -131,26 +131,27 @@
                                                         <i class="fas fa-user-slash me-1"></i> Sin asignar
                                                     </span>
                                                 @endif
-                                            </td>
+                                            </td> --}}
                                             
                                             <td class="text-center">
-                                                @if($grupo['muestra']->requiereMuestreo)
+                                                @if($grupo['muestra']->requiereMuestreo == false && $grupo['instancia']->cotio_estado == null)
+                                                    <span class="badge bg-secondary bg-opacity-10 text-secondary">
+                                                        <i class="fas fa-user-slash me-1"></i> No requiere muestreo
+                                                    </span>
+                                                @else
                                                     @php
-                                                        $muestreoEstado = $grupo['instancia']->cotio_estado ?? 'no coordinado';
-                                                        $muestreoClass = [
-                                                            'muestreado' => 'success',
-                                                            'en revision muestreo' => 'info',
-                                                            'coordinado muestreo' => 'warning',
-                                                        ][$muestreoEstado] ?? 'secondary';
+                                                    $muestreoEstado = $grupo['instancia']->cotio_estado ?? 'no coordinado';
+                                                    $muestreoClass = [
+                                                        'muestreado' => 'success',
+                                                        'en revision muestreo' => 'info',
+                                                        'coordinado muestreo' => 'warning',
+                                                    ][$muestreoEstado] ?? 'secondary';
                                                     @endphp
                                                     <span class="badge rounded-pill bg-{{ $muestreoClass }} bg-opacity-10 text-{{ $muestreoClass }}">
                                                         <i class="fas fa-{{ $muestreoEstado === 'muestreado' ? 'check-circle' : ($muestreoEstado === 'en revision muestreo' ? 'hourglass-half' : 'question-circle') }} me-1"></i>
                                                         {{ ucfirst($muestreoEstado) }}
                                                     </span>
-                                                @else
-                                                    <span class="badge bg-secondary bg-opacity-10 text-success">
-                                                        <i class="fas fa-user-slash me-1"></i> No requiere muestreo
-                                                    </span>
+
                                                 @endif
                                             </td>
                                             
@@ -174,7 +175,7 @@
                                                     <a href="{{ route('informes.pdf', ['cotio_numcoti' => $grupo['instancia']->cotio_numcoti, 'cotio_item' => $grupo['instancia']->cotio_item, 'instance_number' => $grupo['instancia']->instance_number]) }}" 
                                                        class="btn btn-sm btn-outline-primary rounded-circle hover-icon"
                                                        data-bs-toggle="tooltip" 
-                                                       data-bs-placement="top" 
+                                                       data-bs-placement="bottom" 
                                                        title="Descargar informe"
                                                        style="width: 35px; height: 35px;">
                                                        <x-heroicon-o-document style="width: 20px; height: 20px;" class="text-primary document-icon"/>
@@ -182,7 +183,7 @@
                                                 @else
                                                     <span class="btn btn-sm btn-outline-secondary rounded-circle disabled"
                                                           data-bs-toggle="tooltip" 
-                                                          data-bs-placement="top" 
+                                                          data-bs-placement="bottom" 
                                                           title="Informe no disponible"
                                                           style="width: 35px; height: 35px;">
                                                           <x-heroicon-o-document style="width: 20px; height: 20px;" class="text-secondary"/>
@@ -205,7 +206,7 @@
                                                 <i class="fas fa-vial text-primary me-3"></i>
                                                 <div>
                                                     <h6 class="mb-1 fw-bold">{{ $grupo['muestra']->cotio_descripcion }}</h6>
-                                                    <small class="text-muted">#{{ $grupo['muestra']->original_item }}-{{ $grupo['muestra']->instance_number }}</small>
+                                                    <small class="text-muted">#{{ $grupo['muestra']->instance_number }}</small>
                                                 </div>
                                             </div>
                                             
@@ -213,7 +214,7 @@
                                                 <a href="{{ route('informes.pdf', ['cotio_numcoti' => $grupo['instancia']->cotio_numcoti, 'cotio_item' => $grupo['instancia']->cotio_item, 'instance_number' => $grupo['instancia']->instance_number]) }}" 
                                                     class="btn btn-sm btn-outline-primary rounded-circle hover-icon"
                                                     data-bs-toggle="tooltip" 
-                                                    data-bs-placement="top" 
+                                                    data-bs-placement="bottom" 
                                                     title="Descargar informe"
                                                     style="width: 35px; height: 35px;">
                                                     <x-heroicon-o-document style="width: 20px; height: 20px;" class="text-primary document-icon"/>

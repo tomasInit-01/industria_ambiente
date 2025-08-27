@@ -63,7 +63,16 @@ class CotioInstancia extends Model
         'monto',
         'facturado',
         'es_priori',
-        'cotio_codigoum'
+        'cotio_codigoum',
+        'time_annulled',
+        'request_review',
+        'observaciones_request_review',
+        'fecha_carga_resultado_1',
+        'fecha_carga_resultado_2',
+        'fecha_carga_resultado_3',
+        'coordinador_codigo_lab',
+        'aprobado_informe',
+        'fecha_aprobacion_informe',
     ];
 
     protected $casts = [
@@ -77,6 +86,8 @@ class CotioInstancia extends Model
         'fecha_carga_ot' => 'datetime',
         'enable_ot' => 'boolean',
         'es_priori' => 'boolean',
+        'aprobado_informe' => 'boolean',
+        'fecha_aprobacion_informe' => 'datetime',
     ];
 
     public function responsablesMuestreo()
@@ -127,6 +138,12 @@ class CotioInstancia extends Model
                    ->where('cotio_item', $this->cotio_item)
                    ->where('cotio_subitem', 0);
     }
+
+    public function cotizacion()
+    {
+        return $this->belongsTo(Coti::class, 'cotio_numcoti', 'coti_num');
+    }
+
 
     public function gemelos()
     {
@@ -181,11 +198,6 @@ class CotioInstancia extends Model
         ]);
     }
 
-    public function cotizacion()
-    {
-        return $this->belongsTo(Coti::class, 'cotio_numcoti', 'coti_num');
-    }
-
     public function getImageUrlAttribute()
     {
         return $this->image ? Storage::url('images/' . $this->image) : null;
@@ -229,7 +241,8 @@ class CotioInstancia extends Model
                         $nuevoEstado,
                         $instancia->cotio_descripcion,
                         $instancia->cotio_numcoti
-                    )
+                    ),
+                    'url' => SimpleNotification::generarUrlPorRol($instancia->coordinador_codigo, $instancia->id),
                 ]);
             }
         });

@@ -8,12 +8,38 @@
                         <th>Cliente</th>
                         <th>Muestra</th>
                         <th>Categoría</th>
-                        <th>Tareas</th>
                         <th class="text-nowrap">Fecha Fin</th>
                         <th>Estado</th>
                     </tr>
                 </thead>
                 <tbody>
+                    @php
+                        // Definir el orden de los estados
+                        $estadoOrden = [
+                            'pendiente' => 2, // Pendientes por coordinar - segundo lugar (después de prioritarias)
+                            'en revision muestreo' => 3, // En revisión (turquesas) - tercer lugar
+                            'coordinado muestreo' => 4, // Coordinadas (amarillas) - cuarto lugar
+                            'muestreado' => 5, // Finalizadas al final
+                            'suspension' => 1, // Suspendidas tienen prioridad especial
+                            // Agrega otros estados posibles aquí
+                        ];
+
+                        // Ordenar $tareasAgrupadas según el criterio
+                        $tareasAgrupadas = $tareasAgrupadas->sortBy(function ($grupo) use ($estadoOrden) {
+                            $instancia = $grupo['instancia_muestra'];
+                            $estado = strtolower($instancia->cotio_estado ?? 'pendiente');
+                            $esPriori = $instancia->es_priori ?? false;
+
+                            // Prioritarias NO finalizadas primero
+                            if ($esPriori && $estado !== 'muestreado') {
+                                return 1;
+                            }
+
+                            // Luego, ordenar por estado según el orden definido
+                            return $estadoOrden[$estado] ?? 6; // Estados desconocidos al final
+                        });
+                    @endphp
+
                     @foreach($tareasAgrupadas as $key => $grupo)
                         @php
                             // Extraer componentes de la clave
@@ -28,8 +54,8 @@
                             $badgeClass = match ($estado) {
                                 'coordinado muestreo' => 'table-warning',
                                 'en revision muestreo' => 'table-info',
-                                'muestreado' => 'table-success text-white',
-                                'suspension' => 'table-danger text-white',
+                                'muestreado' => 'table-success',
+                                'suspension' => 'table-danger',
                                 default => 'table-secondary'
                             };
                         @endphp
@@ -43,7 +69,7 @@
                                             <strong class="d-block">#{{ $numCoti }}</strong>
                                             <small class="text-muted">{{ Str::limit($cotizacion->coti_empresa ?? 'Sin cliente', 20) }}</small>
                                         </div>
-                                        <span class="badge {{ $badgeClass }} align-self-start">
+                                        <span class="badge {{ $badgeClass }} align-self-start text-dark">
                                             {{ ucfirst($estado) }}
                                         </span>
                                     </div>
@@ -56,16 +82,9 @@
                                                 <strong>Muestra:</strong> {{ Str::limit($muestra->cotio_descripcion, 30) }}
                                             </div>
                                         @endif
-                                        @if($analisis->isNotEmpty())
-                                            @foreach($analisis as $analisisItem)
-                                                <div class="small mb-1">
-                                                    <strong>Análisis:</strong> {{ Str::limit($analisisItem->cotio_descripcion, 30) }}
-                                                </div>
-                                            @endforeach
-                                        @endif
                                         <div class="small text-primary">
-                                            @if($instanciaMuestra->fecha_fin ?? false)
-                                                Vence: {{ \Carbon\Carbon::parse($instanciaMuestra->fecha_fin)->format('d/m/Y') }}
+                                            @if($instanciaMuestra->fecha_fin_muestreo ?? false)
+                                                Vence: {{ \Carbon\Carbon::parse($instanciaMuestra->fecha_fin_muestreo)->format('d/m/Y') }}
                                             @else
                                                 Sin fecha de vencimiento
                                             @endif
@@ -76,8 +95,10 @@
                             
                             <!-- Versión desktop -->
                             <td class="d-none d-md-table-cell">
-                                <strong>#{{ $numCoti }}</strong>
-                                <div class="small text-muted">{{ $cotizacion->coti_empresa ?? 'Sin cliente' }}</div>
+                                <div class="d-flex flex-column">
+                                    <strong>#{{ $numCoti }}</strong>
+                                    <strong class="small">{{ $cotizacion->coti_empresa ?? 'Sin cliente' }}</strong>
+                                </div>
                             </td>
                             <td class="d-none d-md-table-cell">
                                 {{ $cotizacion->coti_establecimiento ?? '' }}
@@ -92,26 +113,12 @@
                                 @endif
                             </td>
                             <td class="d-none d-md-table-cell">
-                                    {{ $instanciaMuestra->cotio_descripcion ?? 'N/A' }}
-                                    <div class="small text-muted">Muestra {{ $instanciaMuestra->id ? '#' . str_pad($instanciaMuestra->id, 8, '0', STR_PAD_LEFT) : null }}</div>
-                            </td>
-                            <td class="d-none d-md-table-cell">
-                                @if($analisis->isNotEmpty())
-                                    @foreach($analisis as $analisisItem)
-                                        <div>
-                                            {{ $analisisItem->cotio_descripcion }}
-                                            @if($analisisItem->resultado)
-                                                <div class="small text-muted">RES: {{ $analisisItem->resultado }}</div>
-                                            @endif
-                                        </div>
-                                    @endforeach
-                                @else
-                                    <span class="text-muted">Sin análisis asociados</span>
-                                @endif
+                                {{ $instanciaMuestra->cotio_descripcion ?? 'N/A' }}
+                                <div class="small text-muted">Muestra {{ $instanciaMuestra->id ? '#' . str_pad($instanciaMuestra->id, 8, '0', STR_PAD_LEFT) : null }}</div>
                             </td>
                             <td class="d-none d-md-table-cell text-nowrap">
-                                @if($instanciaMuestra->fecha_fin ?? false)
-                                    {{ \Carbon\Carbon::parse($instanciaMuestra->fecha_fin)->format('d/m/Y') }}
+                                @if($instanciaMuestra->fecha_fin_muestreo ?? false)
+                                    {{ \Carbon\Carbon::parse($instanciaMuestra->fecha_fin_muestreo)->format('d/m/Y') }}
                                 @else
                                     <span class="text-muted">Sin fecha de vencimiento</span>
                                 @endif
@@ -139,6 +146,7 @@
         {{ $tareasPaginadas->onEachSide(1)->links('pagination::bootstrap-4') }}
     @endif
 </div>
+
 <style>
     .table-hover tbody tr:hover {
         background-color: rgba(0,0,0,0.05) !important;

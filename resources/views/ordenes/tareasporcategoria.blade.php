@@ -7,7 +7,7 @@
 @section('content')
 <div class="container py-4">
     <div class="d-flex flex-column gap-2 flex-md-row justify-content-between align-items-center mb-4">
-        <a href="{{ url('/tareas/'.$cotizacion->coti_num) }}" class="btn btn-outline-secondary d-flex align-items-center gap-2">
+        <a href="{{ url('/ordenes/'.$cotizacion->coti_num) }}" class="btn btn-outline-secondary d-flex align-items-center gap-2">
             Volver a la cotización
         </a>
         <div class="d-flex flex-column flex-md-row gap-2">
@@ -187,19 +187,51 @@
             @endif
 
             @if($instanciaActual->enable_inform == true)
-                <form action="{{ route('ordenes.disable-informe', [
-                    'cotio_numcoti' => $instanciaActual->cotio_numcoti,
-                    'cotio_item' => $instanciaActual->cotio_item,
-                    'cotio_subitem' => $instanciaActual->cotio_subitem,
-                    'instance' => $instance
-                ]) }}" method="POST">
-                @csrf
-                    <input type="hidden" name="cotio_numcoti" value="{{ $instanciaActual->cotio_numcoti }}">
-                    <input type="hidden" name="cotio_item" value="{{ $instanciaActual->cotio_item }}">
-                    <input type="hidden" name="cotio_subitem" value="{{ $instanciaActual->cotio_subitem }}">
-                    <input type="hidden" name="instance" value="{{ $instance }}">
-                    <button class="btn btn-danger mt-2">Deshabilitar Informe</button>
-                </form>
+                <div class="mt-3 d-flex flex-wrap gap-2">
+                    <!-- Botón para ver informe preliminar -->
+                    <button type="button" 
+                            class="btn btn-info" 
+                            onclick="verInformePreliminar({{ $instanciaActual->id }})"
+                            title="Ver informe preliminar">
+                        <x-heroicon-o-document-text class="me-1" style="width: 18px; height: 18px;" />
+                        Ver Informe Preliminar
+                    </button>
+
+                    @if(!$instanciaActual->aprobado_informe)
+                        <!-- Botón para aprobar informe -->
+                        <button type="button" 
+                                class="btn btn-success" 
+                                onclick="aprobarInforme({{ $instanciaActual->id }})"
+                                title="Aprobar informe">
+                            <x-heroicon-o-check-circle class="me-1" style="width: 18px; height: 18px;" />
+                            Aprobar Informe
+                        </button>
+                    @else
+                        <!-- Indicador de informe aprobado -->
+                        <span class="badge bg-success fs-6 d-flex align-items-center">
+                            <x-heroicon-o-check-circle class="me-1" style="width: 18px; height: 18px;" />
+                            Informe Aprobado
+                        </span>
+                    @endif
+
+                    <!-- Botón para deshabilitar informe -->
+                    <form action="{{ route('ordenes.disable-informe', [
+                        'cotio_numcoti' => $instanciaActual->cotio_numcoti,
+                        'cotio_item' => $instanciaActual->cotio_item,
+                        'cotio_subitem' => $instanciaActual->cotio_subitem,
+                        'instance' => $instance
+                    ]) }}" method="POST" class="d-inline">
+                    @csrf
+                        <input type="hidden" name="cotio_numcoti" value="{{ $instanciaActual->cotio_numcoti }}">
+                        <input type="hidden" name="cotio_item" value="{{ $instanciaActual->cotio_item }}">
+                        <input type="hidden" name="cotio_subitem" value="{{ $instanciaActual->cotio_subitem }}">
+                        <input type="hidden" name="instance" value="{{ $instance }}">
+                        <button class="btn btn-danger" type="submit">
+                            <x-heroicon-o-x-circle class="me-1" style="width: 18px; height: 18px;" />
+                            Deshabilitar Informe
+                        </button>
+                    </form>
+                </div>
             @endif
 
             @if($instanciaActual && $instanciaActual->herramientasLab && $instanciaActual->herramientasLab->count())
@@ -317,19 +349,33 @@
         <div class="card shadow-sm">
             <div class="card-header bg-light d-flex justify-content-between align-items-center">
                 <h5 class="card-title mb-0">Análisis de la muestra</h5>
-                    <div class="d-flex gap-2">
-                    <form class="p-2 mb-0" action="{{ route('ordenes.finalizar-todas', [
-                        'cotio_numcoti' => $categoria->cotio_numcoti,
-                        'cotio_item' => $categoria->cotio_item,
-                        'cotio_subitem' => $categoria->cotio_subitem,
-                        'instance_number' => $instanciaActual->instance_number
-                    ]) }}" method="POST">
-                    @csrf
-                    <button type="submit" class="btn btn-primary">
-                        <x-heroicon-o-check style="width: 20px; height: 20px;"/>
-                        Finalizar todos
-                    </button>
-                    </form>
+                <div class="d-flex gap-2">
+                    @php
+                        $todosAnalizados = ($instanciaActual && $instanciaActual->cotio_estado_analisis === 'analizado')
+                            && $tareas->every(function($t) {
+                                return $t->instancia && $t->instancia->cotio_estado_analisis === 'analizado';
+                            });
+                    @endphp
+
+                    @if(!$todosAnalizados && $instanciaActual->active_ot == true && $instanciaActual->enable_inform == false)
+                        <form class="p-2 mb-0" action="{{ route('ordenes.finalizar-todas', [
+                            'cotio_numcoti' => $categoria->cotio_numcoti,
+                            'cotio_item' => $categoria->cotio_item,
+                            'cotio_subitem' => $categoria->cotio_subitem,
+                            'instance_number' => $instanciaActual->instance_number
+                        ]) }}" method="POST">
+                            @csrf
+                            <button type="submit" class="btn btn-primary" onclick="this.disabled=true; this.form.submit();">
+                                <x-heroicon-o-check style="width: 20px; height: 20px;"/>
+                                Finalizar todos
+                            </button>
+                        </form>
+                    @else
+                        <button type="button" class="btn btn-outline-secondary p-2 mb-0" disabled>
+                            <x-heroicon-o-check style="width: 20px; height: 20px;"/>
+                            Todos finalizados
+                        </button>
+                    @endif
                 </div>
             </div>
             <div class="card-body">
@@ -352,10 +398,36 @@
                                                 <h5 class="card-title mb-0 d-flex align-items-center">
                                                     <x-heroicon-o-clipboard-document-list class="me-2" style="width: 1.25rem; height: 1.25rem;" />
                                                     {{ $tarea->cotio_descripcion }}
+                                                    @if($tarea->instancia->request_review)
+                                                        <div 
+                                                            class="bg-warning rounded-pill ms-2 d-flex align-items-center justify-content-center" 
+                                                            data-bs-toggle="tooltip" 
+                                                            onclick="requestReviewCancel({{ $tarea->instancia->id }})"
+                                                            data-bs-placement="bottom"
+                                                            title="Revisión solicitada"
+                                                            style="width: 1.8rem; height: 1.8rem;">
+                                                            <x-heroicon-o-exclamation-triangle style="width: 1rem; height: 1rem; color: black;" />
+                                                        </div>
+                                                    @endif
                                                 </h5>
                                             </label>
                                         </div>
                                         @if($instanciaActual->cotio_estado_analisis != 'analizado' && $instanciaActual->active_ot == true && $instanciaActual->enable_inform == false)
+                                        <div class="d-flex justify-content-end gap-2">
+                                            @if(!$tarea->instancia->request_review)
+                                                <button type="button" class="btn btn-sm btn-outline-dark"
+                                                        onclick="requestReview({{ $tarea->instancia->id }})"
+                                                        data-bs-toggle="tooltip" 
+                                                        data-bs-placement="bottom"
+                                                        title="Solicitar revisión de resultados"
+                                                        data-tipo="tarea"
+                                                        data-item="{{ $tarea->cotio_item }}"
+                                                        data-subitem="{{ $tarea->cotio_subitem }}"
+                                                        >
+                                                    <x-heroicon-o-arrow-path-rounded-square style="width: 1rem; height: 1rem;" />
+                                                </button>
+                                            @endif
+
                                             <button type="button" class="btn btn-sm btn-outline-dark"
                                                     data-bs-toggle="modal"
                                                     data-bs-target="#estadoModal"
@@ -367,6 +439,7 @@
                                                     data-observaciones-ot="{{ htmlspecialchars($tarea->instancia->observaciones_ot ?? '', ENT_QUOTES) }}">
                                                 <x-heroicon-o-pencil-square style="width: 1rem; height: 1rem;" />
                                             </button>
+                                        </div>  
                                         @endif
                                     </div>
                     
@@ -415,18 +488,44 @@
                                         </div>
                     
                                         <!-- Asignado a Section -->
-                                        <div class="d-flex align-items-center flex-wrap mb-3">
-                                            <x-heroicon-o-user-circle class="me-2" style="width: 1rem; height: 1rem;" />
-                                            <span class="me-2"><strong>Asignada a:</strong></span>
-                                            @if ($tarea->instancia->responsablesAnalisis->count() > 0)
-                                                @foreach ($tarea->instancia->responsablesAnalisis as $responsable)
-                                                    <span class="badge bg-primary rounded-pill d-flex align-items-center me-2 mb-1">
-                                                        {{ $responsable->usu_descripcion }}
-                                                    </span>
-                                                @endforeach
-                                            @else
-                                                <span class="badge bg-secondary rounded-pill">Sin asignar</span>
-                                            @endif
+                                        <div class="mb-3">
+                                            <div class="d-flex align-items-center mb-2">
+                                                <x-heroicon-o-user-circle class="me-2" style="width: 1rem; height: 1rem;" />
+                                                <span class="me-2"><strong>Asignada a:</strong></span>
+                                                @if($instanciaActual->cotio_estado_analisis != 'analizado' && $instanciaActual->active_ot == true && $instanciaActual->enable_inform == false)
+                                                    <button type="button" 
+                                                            class="btn btn-sm btn-outline-success"
+                                                            data-bs-toggle="modal"
+                                                            data-bs-target="#gestionarResponsablesModal"
+                                                            data-cotio-numcoti="{{ $tarea->cotio_numcoti }}"
+                                                            data-cotio-item="{{ $tarea->cotio_item }}"
+                                                            data-cotio-subitem="{{ $tarea->cotio_subitem }}"
+                                                            data-instance-number="{{ $tarea->instancia->instance_number }}"
+                                                            data-instancia-id="{{ $tarea->instancia->id }}"
+                                                            title="Gestionar responsables">
+                                                        <x-heroicon-o-user-plus style="width: 0.875rem; height: 0.875rem;" />
+                                                    </button>
+                                                @endif
+                                            </div>
+                                            <div class="d-flex flex-wrap">
+                                                @if ($tarea->instancia->responsablesAnalisis->count() > 0)
+                                                    @foreach ($tarea->instancia->responsablesAnalisis as $responsable)
+                                                        <div class="badge bg-primary rounded-pill d-flex align-items-center me-2 mb-1">
+                                                            {{ $responsable->usu_descripcion }}
+                                                            @if($instanciaActual->cotio_estado_analisis != 'analizado' && $instanciaActual->active_ot == true && $instanciaActual->enable_inform == false)
+                                                                <button type="button" 
+                                                                        class="btn-close btn-close-white ms-2"
+                                                                        style="font-size: 0.6em;"
+                                                                        onclick="quitarResponsable('{{ $responsable->usu_codigo }}', '{{ $tarea->cotio_numcoti }}', '{{ $tarea->cotio_item }}', '{{ $tarea->cotio_subitem }}', '{{ $tarea->instancia->instance_number }}', '{{ $responsable->usu_descripcion }}')"
+                                                                        title="Quitar responsable"
+                                                                        aria-label="Quitar {{ $responsable->usu_descripcion }}"></button>
+                                                            @endif
+                                                        </div>
+                                                    @endforeach
+                                                @else
+                                                    <span class="badge bg-secondary rounded-pill">Sin asignar</span>
+                                                @endif
+                                            </div>
                                         </div>
                     
                                         <!-- Fechas Section -->
@@ -491,6 +590,7 @@
                                                                         'badge' => 'primary',
                                                                         'label' => 'R1',
                                                                         'field' => 'resultado',
+                                                                        'fecha_carga' => $tarea->instancia->fecha_carga_resultado_1 ?? '',
                                                                         'obs_field' => 'observacion_resultado',
                                                                         'cotio_codigoum' => $tarea->instancia->cotio_codigoum ?? 'N/A'
                                                                     ],
@@ -501,6 +601,7 @@
                                                                         'badge' => 'info',
                                                                         'label' => 'R2',
                                                                         'field' => 'resultado_2',
+                                                                        'fecha_carga' => $tarea->instancia->fecha_carga_resultado_2 ?? '',
                                                                         'obs_field' => 'observacion_resultado_2',
                                                                         'cotio_codigoum' => $tarea->instancia->cotio_codigoum ?? 'N/A'
                                                                     ],
@@ -511,6 +612,7 @@
                                                                         'badge' => 'warning',
                                                                         'label' => 'R3',
                                                                         'field' => 'resultado_3',
+                                                                        'fecha_carga' => $tarea->instancia->fecha_carga_resultado_3 ?? '',
                                                                         'obs_field' => 'observacion_resultado_3',
                                                                         'cotio_codigoum' => $tarea->instancia->cotio_codigoum ?? 'N/A'
                                                                     ],
@@ -521,6 +623,7 @@
                                                                         'badge' => 'dark',
                                                                         'label' => 'Final',
                                                                         'field' => 'resultado_final',
+                                                                        'fecha_carga' => $tarea->instancia->fecha_carga_ot ?? '',
                                                                         'obs_field' => 'observacion_resultado_final',
                                                                         'cotio_codigoum' => $tarea->instancia->cotio_codigoum ?? 'N/A'
                                                                     ]
@@ -537,6 +640,13 @@
                                                                                                                                                                          <div class="d-flex align-items-center">
                                                                                          <span class="badge bg-{{ $r['badge'] }} rounded-pill me-2">{{ $r['label'] }}</span>
                                                                                          <h6 class="mb-0 text-{{ $r['badge'] }} fw-semibold">{{ $r['titulo'] }}</h6>
+                                                                                         @if($r['fecha_carga'])
+                                                                                             <span class="badge bg-secondary rounded-pill ms-2" title="Fecha de carga">
+                                                                                                 <small>
+                                                                                                 Fecha de carga: {{ $r['fecha_carga'] }}
+                                                                                                 </small>
+                                                                                             </span>
+                                                                                         @endif
                                                                                          @if($r['obs'])
                                                                                              <span class="badge bg-success rounded-pill ms-2" title="Tiene observaciones">
                                                                                                  <x-heroicon-o-chat-bubble-left-ellipsis style="width: 12px; height: 12px;" />
@@ -1010,8 +1120,107 @@
         transform: none;
         box-shadow: none;
     }
+    
+    /* Estilos para el modal del informe preliminar */
+    .swal-wide {
+        max-width: 95% !important;
+    }
+    
+    .swal2-popup.swal-wide .swal2-html-container {
+        max-height: 70vh;
+        overflow-y: auto;
+        text-align: left;
+        padding: 1rem;
+        border: 1px solid #dee2e6;
+        border-radius: 0.375rem;
+        background-color: #f8f9fa;
+    }
+    
+    /* Estilos para los botones de informe */
+    .btn-info:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    }
+    
+    .btn-success:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    }
+    
+    .badge.fs-6 {
+        padding: 0.5rem 1rem;
+        font-weight: 500;
+    }
 </style>
 
+<!-- Modal para Gestionar Responsables -->
+<div class="modal fade" id="gestionarResponsablesModal" tabindex="-1" aria-labelledby="gestionarResponsablesModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="gestionarResponsablesModalLabel">
+                    <x-heroicon-o-users class="me-2" style="width: 1.25rem; height: 1.25rem;" />
+                    Gestionar Responsables de Análisis
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <!-- Responsables Actuales -->
+                    <div class="col-md-6">
+                        <h6 class="fw-bold mb-3">
+                            <x-heroicon-o-user-group class="me-2" style="width: 1rem; height: 1rem;" />
+                            Responsables Actuales
+                        </h6>
+                        <div id="responsablesActualesList" class="border rounded p-3" style="min-height: 200px;">
+                            <!-- Se llenará dinámicamente -->
+                        </div>
+                    </div>
+
+                    <!-- Agregar Nuevos Responsables -->
+                    <div class="col-md-6">
+                        <h6 class="fw-bold mb-3">
+                            <x-heroicon-o-user-plus class="me-2" style="width: 1rem; height: 1rem;" />
+                            Agregar Responsables
+                        </h6>
+                        <form id="agregarResponsablesForm">
+                            @csrf
+                            @method('PUT')
+                            <input type="hidden" id="gestionar_cotio_numcoti" name="cotio_numcoti">
+                            <input type="hidden" id="gestionar_cotio_item" name="cotio_item">
+                            <input type="hidden" id="gestionar_cotio_subitem" name="cotio_subitem">
+                            <input type="hidden" id="gestionar_instance_number" name="instance_number">
+                            
+                            <div class="mb-3">
+                                <label for="nuevos_responsables" class="form-label">Seleccionar responsables:</label>
+                                <select class="form-select" id="nuevos_responsables" name="responsables_analisis[]" multiple>
+                                    @foreach($usuariosAnalistas as $analista)
+                                        <option value="{{ $analista->usu_codigo }}">{{ $analista->usu_descripcion }}</option>
+                                    @endforeach
+                                </select>
+                                <div class="form-text">
+                                    <x-heroicon-o-information-circle class="me-1" style="width: 0.875rem; height: 0.875rem;" />
+                                    Seleccione uno o más responsables para agregar
+                                </div>
+                            </div>
+
+                            <button type="submit" class="btn btn-success w-100">
+                                <x-heroicon-o-plus class="me-2" style="width: 1rem; height: 1rem;" />
+                                Agregar Responsables
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <x-heroicon-o-x-mark class="me-2" style="width: 1rem; height: 1rem;" />
+                    Cerrar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
@@ -1431,6 +1640,12 @@ document.addEventListener('DOMContentLoaded', function() {
         const resultado2Input = form.querySelector('input[name="resultado_2"]');
         const resultado3Input = form.querySelector('input[name="resultado_3"]');
         const resultadoFinalInput = form.querySelector('input[name="resultado_final"]');
+
+        // Respetar edición manual del resultado final
+        if (form.dataset.forcedFinal === 'true') {
+            console.log('Edición forzada activa: no se recalcula el resultado final');
+            return;
+        }
         
         // Función mejorada para extraer números con precisión
         function extraerNumero(valor) {
@@ -1502,6 +1717,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const resultadoInput = form.querySelector('input[name="resultado"]');
         const resultado2Input = form.querySelector('input[name="resultado_2"]');
         const resultado3Input = form.querySelector('input[name="resultado_3"]');
+        const resultadoFinalInput = form.querySelector('input[name="resultado_final"]');
         
         // Función para validar entrada numérica
         function validarNumerico(input) {
@@ -1511,6 +1727,17 @@ document.addEventListener('DOMContentLoaded', function() {
                     input.value = '';
                 }
             }
+        }
+        
+        // Marcar edición forzada cuando el usuario escribe en resultado_final
+        if (resultadoFinalInput) {
+            resultadoFinalInput.addEventListener('input', function() {
+                if (this.value.trim() === '') {
+                    delete form.dataset.forcedFinal;
+                } else {
+                    form.dataset.forcedFinal = 'true';
+                }
+            });
         }
         
         // Agregar event listeners a los inputs relevantes
@@ -1529,16 +1756,20 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
         
-        // Calcular promedio inicial si hay valores
-        calcularPromedio(form);
+        // Calcular promedio inicial solo si el resultado final está vacío (no sobrescribir valores existentes)
+        if (!resultadoFinalInput || resultadoFinalInput.value.trim() === '') {
+            calcularPromedio(form);
+        }
         
         // Manejar el envío del formulario
         form.addEventListener('submit', function(e) {
     e.preventDefault();
     console.log('Formulario enviado');
     
-    // Recalcular por si acaso hay cambios no detectados
-    calcularPromedio(form);
+    // Recalcular solo si NO hay edición forzada
+    if (form.dataset.forcedFinal !== 'true') {
+        calcularPromedio(form);
+    }
     
     // Obtener datos del formulario
     const cotioNumcoti = this.dataset.cotioNumcoti;
@@ -1611,6 +1842,9 @@ document.addEventListener('DOMContentLoaded', function() {
             timer: 1500,
             showConfirmButton: false
         });
+        setTimeout(() => {
+            window.location.reload();
+        }, 1500);
     })
     .catch(error => {
         console.error('Error:', error);
@@ -1738,6 +1972,234 @@ document.getElementById('btnQuitarOT')?.addEventListener('click', function() {
         }
     });
 });
+
+window.requestReview = async function(instanciaId) {
+    try {
+        const result = await Swal.fire({
+            title: '¿Estás seguro?',
+            text: '¿Estás seguro de que quieres solicitar revisión de resultados?',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Solicitar',
+            cancelButtonText: 'Cancelar',
+            input: 'textarea',
+            inputLabel: 'Observaciones (Opcional)',
+            inputPlaceholder: 'Escribe las observaciones para la revisión de resultados',
+            inputAttributes: { maxlength: 255, 'aria-label': 'Observaciones' }
+        });
+
+        if (!result.isConfirmed) {
+            return;
+        }
+
+        const observaciones = result.value || '';
+
+        const response = await fetch('/ordenes/' + instanciaId + '/request-review', {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ observaciones })
+        });
+
+        const data = await response.json();
+        if (response.ok && data.success) {
+            await Swal.fire({
+                icon: 'success',
+                title: '¡Guardado!',
+                text: 'Revisión de resultados solicitada correctamente',
+                timer: 1500,
+                showConfirmButton: false
+            });
+            window.location.reload();
+        } else {
+            throw new Error(data.message || 'Hubo un problema al solicitar la revisión.');
+        }
+    } catch (error) {
+        console.error(error);
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Error al solicitar revisión de resultados: ' + (error.message || 'Desconocido')
+        });
+    }
+}
+
+async function requestReviewCancel(instanciaId) {
+    console.log('Cancelar revisión de resultados para instancia:', instanciaId);
+    Swal.fire({
+        title: '¿Estás seguro?',
+        text: '¿Estás seguro de que quieres cancelar la revisión de resultados?',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Si, cancelar',
+        cancelButtonText: 'No, no cancelar'
+    }).then(async (result) => {
+        if (result.isConfirmed) {
+            const response = await fetch('/ordenes/' + instanciaId + '/request-review-cancel', {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                    'Accept': 'application/json'
+                }
+            });
+            if (response.ok) {
+                Swal.fire({
+                    icon: 'success',
+                    title: '¡Guardado!',
+                    text: 'Revisión de resultados cancelada correctamente',
+                    timer: 1500,
+                    showConfirmButton: false
+                });
+                window.location.reload();
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'Error al cancelar la revisión de resultados'
+                });
+            }
+        }
+    });
+}
+
+// Función para ver informe preliminar
+async function verInformePreliminar(instanciaId) {
+    try {
+        // Mostrar loading
+        Swal.fire({
+            title: 'Cargando informe...',
+            html: 'Por favor espera mientras se genera el informe preliminar',
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            showConfirmButton: false,
+            didOpen: () => {
+                Swal.showLoading();
+            }
+        });
+
+        const response = await fetch(`/ordenes/${instanciaId}/informe-preliminar`, {
+            method: 'GET',
+            headers: {
+                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                'Accept': 'application/json'
+            }
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            
+            // Cerrar loading y mostrar informe en modal
+            Swal.close();
+            mostrarModalInforme(data.informe, instanciaId);
+        } else {
+            throw new Error('Error al cargar el informe');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Error al cargar el informe preliminar: ' + error.message
+        });
+    }
+}
+
+// Función para mostrar el modal del informe
+function mostrarModalInforme(contenidoInforme, instanciaId) {
+    Swal.fire({
+        title: 'Informe Preliminar',
+        html: `
+            <div class="text-start" style="max-height: 70vh; overflow-y: auto;">
+                ${contenidoInforme}
+            </div>
+        `,
+        width: '90%',
+        showCancelButton: true,
+        confirmButtonText: '<i class="fas fa-check-circle"></i> Aprobar Informe',
+        confirmButtonColor: '#28a745',
+        cancelButtonText: '<i class="fas fa-times"></i> Cerrar',
+        cancelButtonColor: '#6c757d',
+        showCloseButton: true,
+        customClass: {
+            popup: 'swal-wide',
+            content: 'text-start'
+        }
+    }).then((result) => {
+        if (result.isConfirmed) {
+            aprobarInforme(instanciaId);
+        }
+    });
+}
+
+// Función para aprobar informe
+async function aprobarInforme(instanciaId) {
+    try {
+        const result = await Swal.fire({
+            title: '¿Aprobar informe?',
+            text: '¿Estás seguro de que quieres aprobar este informe? Esta acción marcará el informe como aprobado.',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: '<i class="fas fa-check"></i> Sí, aprobar',
+            cancelButtonText: '<i class="fas fa-times"></i> Cancelar',
+            confirmButtonColor: '#28a745',
+            cancelButtonColor: '#6c757d'
+        });
+
+        if (!result.isConfirmed) {
+            return;
+        }
+
+        // Mostrar loading
+        Swal.fire({
+            title: 'Aprobando informe...',
+            html: 'Por favor espera...',
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            showConfirmButton: false,
+            didOpen: () => {
+                Swal.showLoading();
+            }
+        });
+
+        const response = await fetch(`/ordenes/${instanciaId}/aprobar-informe`, {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            }
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+            Swal.fire({
+                icon: 'success',
+                title: '¡Informe Aprobado!',
+                text: 'El informe ha sido aprobado correctamente',
+                timer: 2000,
+                showConfirmButton: false
+            });
+            
+            // Recargar la página para mostrar los cambios
+            setTimeout(() => {
+                window.location.reload();
+            }, 2000);
+        } else {
+            throw new Error(data.message || 'Error al aprobar el informe');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Error al aprobar el informe: ' + error.message
+        });
+    }
+}
 </script>
 
 {{-- MODAL DE EDICIÓN DE HERRAMIENTAS --}}
@@ -2111,6 +2573,225 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 });
+
+// Función para quitar responsable
+function quitarResponsable(responsableCodigo, cotioNumcoti, cotioItem, cotioSubitem, instanceNumber, nombreResponsable) {
+    Swal.fire({
+        title: '¿Estás seguro?',
+        text: `¿Deseas quitar a "${nombreResponsable}" como responsable de este análisis?`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: 'Sí, quitar',
+        cancelButtonText: 'Cancelar'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            fetch(`/ordenes/${cotioNumcoti}/quitar-responsable`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                },
+                body: JSON.stringify({
+                    cotio_item: cotioItem,
+                    cotio_subitem: cotioSubitem,
+                    instance_number: instanceNumber,
+                    responsable_codigo: responsableCodigo
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: '¡Responsable quitado!',
+                        text: data.message,
+                        timer: 1500,
+                        showConfirmButton: false
+                    });
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1500);
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: data.message || 'No se pudo quitar el responsable'
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'Error al quitar el responsable'
+                });
+            });
+        }
+    });
+}
+
+// Manejar el modal de gestionar responsables
+document.addEventListener('DOMContentLoaded', function() {
+    const gestionarResponsablesModal = document.getElementById('gestionarResponsablesModal');
+    const agregarResponsablesForm = document.getElementById('agregarResponsablesForm');
+    
+    // Configurar modal cuando se abre
+    gestionarResponsablesModal.addEventListener('show.bs.modal', function(event) {
+        const button = event.relatedTarget;
+        const cotioNumcoti = button.getAttribute('data-cotio-numcoti');
+        const cotioItem = button.getAttribute('data-cotio-item');
+        const cotioSubitem = button.getAttribute('data-cotio-subitem');
+        const instanceNumber = button.getAttribute('data-instance-number');
+        const instanciaId = button.getAttribute('data-instancia-id');
+        
+        // Establecer valores en el formulario
+        document.getElementById('gestionar_cotio_numcoti').value = cotioNumcoti;
+        document.getElementById('gestionar_cotio_item').value = cotioItem;
+        document.getElementById('gestionar_cotio_subitem').value = cotioSubitem;
+        document.getElementById('gestionar_instance_number').value = instanceNumber;
+        
+        // Establecer la acción del formulario
+        agregarResponsablesForm.action = `/ordenes/${cotioNumcoti}/editar-responsables`;
+        
+        // Cargar responsables actuales
+        cargarResponsablesActuales(cotioNumcoti, cotioItem, cotioSubitem, instanceNumber);
+    });
+    
+    // Manejar envío del formulario para agregar responsables
+    agregarResponsablesForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(agregarResponsablesForm);
+        const responsablesSeleccionados = Array.from(document.getElementById('nuevos_responsables').selectedOptions)
+            .map(option => option.value);
+        
+        if (responsablesSeleccionados.length === 0) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Sin selección',
+                text: 'Por favor, selecciona al menos un responsable para agregar.'
+            });
+            return;
+        }
+        
+        // Limpiar y agregar responsables seleccionados
+        formData.delete('responsables_analisis[]');
+        responsablesSeleccionados.forEach(responsable => {
+            formData.append('responsables_analisis[]', responsable);
+        });
+        
+        fetch(agregarResponsablesForm.action, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                'Accept': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                Swal.fire({
+                    icon: 'success',
+                    title: '¡Responsables agregados!',
+                    text: data.message,
+                    timer: 1500,
+                    showConfirmButton: false
+                });
+                bootstrap.Modal.getInstance(gestionarResponsablesModal).hide();
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1500);
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: data.message || 'No se pudieron agregar los responsables'
+                });
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'Error al agregar responsables'
+            });
+        });
+    });
+});
+
+// Función para cargar responsables actuales en el modal
+function cargarResponsablesActuales(cotioNumcoti, cotioItem, cotioSubitem, instanceNumber) {
+    const responsablesActualesList = document.getElementById('responsablesActualesList');
+    
+    // Mostrar loading
+    responsablesActualesList.innerHTML = '<div class="text-center"><div class="spinner-border spinner-border-sm" role="status"></div> Cargando...</div>';
+    
+    fetch('/api/get-responsables-analisis', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+        },
+        body: JSON.stringify({
+            cotio_numcoti: cotioNumcoti,
+            cotio_item: cotioItem,
+            cotio_subitem: cotioSubitem,
+            instance_number: instanceNumber
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success && data.responsables) {
+            if (data.responsables.length > 0) {
+                // Obtener información completa de los responsables
+                Promise.all(data.responsables.map(codigo => 
+                    fetch(`/api/usuario/${codigo}`)
+                        .then(response => response.ok ? response.json() : null)
+                        .catch(() => null)
+                ))
+                .then(responsablesInfo => {
+                    const responsablesHTML = data.responsables.map((codigo, index) => {
+                        const info = responsablesInfo[index];
+                        const nombre = info?.usu_descripcion || codigo;
+                        
+                                                                return `
+                            <div class="d-flex justify-content-between align-items-center p-2 border rounded mb-2">
+                                <div>
+                                    <strong>${nombre}</strong>
+                                    <small class="text-muted d-block">${codigo}</small>
+                                </div>
+                                <button type="button" 
+                                        class="btn btn-sm btn-outline-danger"
+                                        onclick="quitarResponsable('${codigo}', '${cotioNumcoti}', '${cotioItem}', '${cotioSubitem}', '${instanceNumber}', '${nombre}')"
+                                        title="Quitar responsable">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        `;
+                    }).join('');
+                    
+                    responsablesActualesList.innerHTML = responsablesHTML;
+                });
+            } else {
+                responsablesActualesList.innerHTML = '<div class="text-muted text-center">No hay responsables asignados</div>';
+            }
+        } else {
+            responsablesActualesList.innerHTML = '<div class="text-danger text-center">Error al cargar responsables</div>';
+        }
+    })
+    .catch(error => {
+        console.error('Error cargando responsables:', error);
+        responsablesActualesList.innerHTML = '<div class="text-danger text-center">Error al cargar responsables</div>';
+    });
+}
+
 </script>
 
 @endsection

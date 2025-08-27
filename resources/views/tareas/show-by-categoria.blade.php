@@ -42,7 +42,7 @@
                 {{ ucfirst($instancia->cotio_estado) }}
             </span>
             </h5>
-            @if(Auth::user()->rol != 'laboratorio')
+            @if(Auth::user()->rol != 'laboratorio' && $instancia->cotio_estado != 'muestreado')
                 <div class="btn-group botones-muestra" role="group">
                     @if($instancia->cotio_estado != 'suspension')
                         <button type="button" class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#suspenderModal">
@@ -55,7 +55,7 @@
                     @endif
                     @if($instancia->cotio_estado == 'coordinado muestreo' || $instancia->cotio_estado == 'en revision muestreo')
                         <button class="btn btn-sm btn-outline-light" data-bs-toggle="modal" data-bs-target="#editMuestraModal">
-                            Añadir identificación
+                            Editar identificación
                         </button>
                     @endif
                 </div>
@@ -208,7 +208,7 @@
 
 
 
-    <div class="card shadow-sm">
+    {{-- <div class="card shadow-sm">
         <div class="card-header bg-secondary text-white">
             <h5 class="mb-0">Análisis Asociados</h5>
         </div>
@@ -222,7 +222,7 @@
             </div>
         @else
             <div class="card-body p-0">
-                <div class="accordion" id="analisisAccordion">
+                <div class="accordion p-2" id="analisisAccordion">
                     @foreach($analisis as $item)
                         <div class="accordion-item border-0 mb-2">
                             <h2 class="accordion-header" id="heading{{ $item->cotio_subitem }}">
@@ -265,7 +265,7 @@
                 </div>
             </div>
         @endif
-    </div>
+    </div> --}}
 
     <div class="modal fade" id="editMuestraModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog">
@@ -319,13 +319,71 @@
                             <div id="map" style="height: 300px; width: 100%;"></div>
                             <input type="hidden" id="latitud" name="latitud" value="{{ $instancia->latitud ?? '' }}">
                             <input type="hidden" id="longitud" name="longitud" value="{{ $instancia->longitud ?? '' }}">
-                            <div class="input-group mt-2">
-                                <span class="input-group-text">Latitud</span>
-                                <input type="number" step="any" class="form-control" id="latitude-display" value="{{ $instancia->latitud ?? '' }}">
-                                <span class="input-group-text">Longitud</span>
-                                <input type="number" step="any" class="form-control" id="longitude-display" value="{{ $instancia->longitud ?? '' }}">
+                            <!-- Selector de formato de coordenadas -->
+                            <div class="mb-3">
+                                <div class="btn-group btn-group-sm" role="group" aria-label="Formato de coordenadas">
+                                    <input type="radio" class="btn-check" name="coord-format" id="format-decimal" value="decimal" checked>
+                                    <label class="btn btn-outline-primary" for="format-decimal">Decimal</label>
+                                    
+                                    <input type="radio" class="btn-check" name="coord-format" id="format-dms" value="dms">
+                                    <label class="btn btn-outline-primary" for="format-dms">DMS</label>
+                                </div>
                             </div>
-                            <small class="text-muted">Haz clic en el mapa para seleccionar la ubicación o edita los valores de latitud y longitud manualmente.</small>
+
+                            <!-- Inputs para formato decimal -->
+                            <div id="decimal-inputs" class="input-group mt-2">
+                                <span class="input-group-text">Latitud</span>
+                                <input type="number" step="any" class="form-control" id="latitude-display" value="{{ $instancia->latitud ?? '' }}" placeholder="-33.45694">
+                                <span class="input-group-text">Longitud</span>
+                                <input type="number" step="any" class="form-control" id="longitude-display" value="{{ $instancia->longitud ?? '' }}" placeholder="-70.64827">
+                            </div>
+
+                            <!-- Inputs para formato DMS -->
+                            <div id="dms-inputs" class="mt-2" style="display: none;">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <label class="form-label small">Latitud (DMS)</label>
+                                        <div class="input-group input-group-sm">
+                                            <input type="number" class="form-control" id="lat-degrees" placeholder="33" min="0" max="90">
+                                            <span class="input-group-text">°</span>
+                                            <input type="number" class="form-control" id="lat-minutes" placeholder="27" min="0" max="59">
+                                            <span class="input-group-text">'</span>
+                                            <input type="number" class="form-control" id="lat-seconds" placeholder="25" min="0" max="59.999" step="0.001">
+                                            <span class="input-group-text">"</span>
+                                            <select class="form-select" id="lat-direction">
+                                                <option value="N">N</option>
+                                                <option value="S" selected>S</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label small">Longitud (DMS)</label>
+                                        <div class="input-group input-group-sm">
+                                            <input type="number" class="form-control" id="lng-degrees" placeholder="70" min="0" max="180">
+                                            <span class="input-group-text">°</span>
+                                            <input type="number" class="form-control" id="lng-minutes" placeholder="38" min="0" max="59">
+                                            <span class="input-group-text">'</span>
+                                            <input type="number" class="form-control" id="lng-seconds" placeholder="54" min="0" max="59.999" step="0.001">
+                                            <span class="input-group-text">"</span>
+                                            <select class="form-select" id="lng-direction">
+                                                <option value="E">E</option>
+                                                <option value="W" selected>W</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="mt-2">
+                                    <button type="button" class="btn btn-sm btn-secondary" id="convert-dms">
+                                        <i class="fas fa-exchange-alt me-1"></i> Convertir DMS a Decimal
+                                    </button>
+                                </div>
+                            </div>
+
+                            <small class="text-muted mt-2 d-block">
+                                <strong>Formato Decimal:</strong> -33.45694, -70.64827<br>
+                                <strong>Formato DMS:</strong> 33°27'25"S, 70°38'54"W<br>
+                                Haz clic en el mapa para seleccionar la ubicación o ingresa las coordenadas manualmente.
+                            </small>
                         </div>
                     
                         <div class="d-flex justify-content-end">
@@ -709,6 +767,113 @@ document.addEventListener('DOMContentLoaded', function() {
     let initialLat = -33.45694;
     let initialLng = -70.64827;
     let zoomLevel = 13;
+
+    // Funciones de conversión DMS <-> Decimal
+    function dmsToDecimal(degrees, minutes, seconds, direction) {
+        let decimal = parseFloat(degrees) + parseFloat(minutes)/60 + parseFloat(seconds)/3600;
+        if (direction === 'S' || direction === 'W') {
+            decimal = -decimal;
+        }
+        return decimal;
+    }
+
+    function decimalToDms(decimal) {
+        const absolute = Math.abs(decimal);
+        const degrees = Math.floor(absolute);
+        const minutesFloat = (absolute - degrees) * 60;
+        const minutes = Math.floor(minutesFloat);
+        const seconds = (minutesFloat - minutes) * 60;
+        
+        return {
+            degrees: degrees,
+            minutes: minutes,
+            seconds: parseFloat(seconds.toFixed(3)),
+            direction: decimal >= 0 ? (decimal === Math.abs(decimal) ? 'N' : 'E') : (Math.abs(decimal) === decimal ? 'S' : 'W')
+        };
+    }
+
+    // Manejar cambio de formato de coordenadas
+    document.getElementById('format-decimal').addEventListener('change', function() {
+        if (this.checked) {
+            document.getElementById('decimal-inputs').style.display = 'flex';
+            document.getElementById('dms-inputs').style.display = 'none';
+        }
+    });
+
+    document.getElementById('format-dms').addEventListener('change', function() {
+        if (this.checked) {
+            document.getElementById('decimal-inputs').style.display = 'none';
+            document.getElementById('dms-inputs').style.display = 'block';
+            
+            // Convertir valores decimales actuales a DMS si existen
+            const latDecimal = parseFloat(document.getElementById('latitude-display').value);
+            const lngDecimal = parseFloat(document.getElementById('longitude-display').value);
+            
+            if (!isNaN(latDecimal)) {
+                const latDms = decimalToDms(latDecimal);
+                document.getElementById('lat-degrees').value = latDms.degrees;
+                document.getElementById('lat-minutes').value = latDms.minutes;
+                document.getElementById('lat-seconds').value = latDms.seconds;
+                document.getElementById('lat-direction').value = latDecimal >= 0 ? 'N' : 'S';
+            }
+            
+            if (!isNaN(lngDecimal)) {
+                const lngDms = decimalToDms(lngDecimal);
+                document.getElementById('lng-degrees').value = lngDms.degrees;
+                document.getElementById('lng-minutes').value = lngDms.minutes;
+                document.getElementById('lng-seconds').value = lngDms.seconds;
+                document.getElementById('lng-direction').value = lngDecimal >= 0 ? 'E' : 'W';
+            }
+        }
+    });
+
+    // Convertir DMS a decimal
+    document.getElementById('convert-dms').addEventListener('click', function() {
+        const latDegrees = document.getElementById('lat-degrees').value || 0;
+        const latMinutes = document.getElementById('lat-minutes').value || 0;
+        const latSeconds = document.getElementById('lat-seconds').value || 0;
+        const latDirection = document.getElementById('lat-direction').value;
+        
+        const lngDegrees = document.getElementById('lng-degrees').value || 0;
+        const lngMinutes = document.getElementById('lng-minutes').value || 0;
+        const lngSeconds = document.getElementById('lng-seconds').value || 0;
+        const lngDirection = document.getElementById('lng-direction').value;
+        
+        if (latDegrees || latMinutes || latSeconds) {
+            const latDecimal = dmsToDecimal(latDegrees, latMinutes, latSeconds, latDirection);
+            const lngDecimal = dmsToDecimal(lngDegrees, lngMinutes, lngSeconds, lngDirection);
+            
+            // Actualizar campos decimales
+            document.getElementById('latitude-display').value = latDecimal.toFixed(6);
+            document.getElementById('longitude-display').value = lngDecimal.toFixed(6);
+            
+            // Actualizar campos ocultos
+            document.getElementById('latitud').value = latDecimal;
+            document.getElementById('longitud').value = lngDecimal;
+            
+            // Actualizar mapa
+            updateMarkerPosition(latDecimal, lngDecimal);
+            
+            // Cambiar a vista decimal
+            document.getElementById('format-decimal').checked = true;
+            document.getElementById('decimal-inputs').style.display = 'flex';
+            document.getElementById('dms-inputs').style.display = 'none';
+            
+            Swal.fire({
+                icon: 'success',
+                title: 'Conversión exitosa',
+                text: `Coordenadas convertidas: ${latDecimal.toFixed(6)}, ${lngDecimal.toFixed(6)}`,
+                timer: 2000,
+                showConfirmButton: false
+            });
+        } else {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Datos incompletos',
+                text: 'Por favor, ingresa al menos los grados para realizar la conversión.'
+            });
+        }
+    });
     
     // Si hay coordenadas existentes, usarlas
     @if($instancia->latitud && $instancia->longitud)

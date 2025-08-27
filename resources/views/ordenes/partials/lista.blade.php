@@ -31,6 +31,25 @@
                                 'coordinadas' => $total > 0 ? ($coordinadas / $total) * 100 : 0,
                                 'total' => $total > 0 ? (($analizadas + $enProceso + $coordinadas) / $total) * 100 : 0
                             ];
+
+                            // Determinar estado predominante para mostrar
+                            $estadoPredominante = $instanciaData['estado_predominante'] ?? 'pendiente_coordinar';
+                            $badgeColorEstado = match($estadoPredominante) {
+                                'coordinado analisis' => 'bg-warning text-dark',
+                                'en revision analisis' => 'bg-info text-white',
+                                'analizado' => 'bg-success text-white',
+                                'suspension' => 'bg-danger text-white',
+                                'pendiente_coordinar' => 'bg-secondary text-white',
+                                default => 'bg-secondary text-white',
+                            };
+                            $estadoTexto = match($estadoPredominante) {
+                                'coordinado analisis' => 'Coordinada',
+                                'en revision analisis' => 'En Revisión',
+                                'analizado' => 'Finalizada',
+                                'suspension' => 'Suspendida',
+                                'pendiente_coordinar' => 'Pendiente',
+                                default => 'Sin Estado',
+                            };
                         @endphp
                         <tr class="@if($instanciaData['has_suspension']) table-danger @endif @if($instanciaData['has_priority']) table-warning @endif" 
                         style="@if($instanciaData['has_suspension']) border-left: 4px solid #dc3545; @endif @if($instanciaData['has_priority']) border-left: 4px solid #ffc107; @endif"
@@ -46,7 +65,10 @@
                                         </span>
                                     @endif
                                 </div>
-                                <small class="text-muted">{{ $coti->coti_descripcion ?? 'N/A' }}</small>
+                                <div class="d-flex align-items-center gap-2">
+                                    <small class="text-muted">{{ $coti->coti_descripcion ?? 'N/A' }}</small>
+                                    {{-- <span class="badge {{ $badgeColorEstado }}" style="font-size: 0.7em;">{{ $estadoTexto }}</span> --}}
+                                </div>
                             </td>
                                 <td>
                                     <div>{{ $coti->coti_empresa ?? 'N/A' }}</div>
@@ -62,6 +84,8 @@
                                                 <div class="progress-bar bg-success" 
                                                      role="progressbar" 
                                                      style="width: {{ $porcentajes['analizadas'] }}%" 
+                                                     data-bs-toggle="tooltip" 
+                                                     data-bs-placement="bottom"
                                                      title="Analizadas: {{ round($porcentajes['analizadas']) }}%">
                                                 </div>
                                                 
@@ -69,6 +93,8 @@
                                                 <div class="progress-bar bg-info" 
                                                      role="progressbar" 
                                                      style="width: {{ $porcentajes['en_proceso'] }}%" 
+                                                     data-bs-toggle="tooltip" 
+                                                     data-bs-placement="bottom"
                                                      title="En proceso: {{ round($porcentajes['en_proceso']) }}%">
                                                 </div>
                                                 
@@ -76,6 +102,8 @@
                                                 <div class="progress-bar bg-warning" 
                                                      role="progressbar" 
                                                      style="width: {{ $porcentajes['coordinadas'] }}%" 
+                                                     data-bs-toggle="tooltip" 
+                                                     data-bs-placement="bottom"
                                                      title="Coordinadas: {{ round($porcentajes['coordinadas']) }}%">
                                                 </div>
                                             </div>
@@ -107,6 +135,7 @@
                                         <a href="{{ url('/ordenes/' . $numCoti) }}" 
                                            class="btn btn-sm btn-outline-primary" 
                                            data-bs-toggle="tooltip" 
+                                           data-bs-placement="bottom"
                                            title="Gestionar orden">
                                            <x-heroicon-o-pencil style="width: 15px; height: 15px;" />
                                         </a>
@@ -140,6 +169,25 @@
                     'coordinadas' => $total > 0 ? ($coordinadas / $total) * 100 : 0,
                     'total' => $total > 0 ? (($analizadas + $enProceso + $coordinadas) / $total) * 100 : 0
                 ];
+
+                // Estado predominante para vista móvil
+                $estadoPredominante = $instanciaData['estado_predominante'] ?? 'pendiente_coordinar';
+                $badgeColorEstado = match($estadoPredominante) {
+                    'coordinado analisis' => 'bg-warning text-dark',
+                    'en revision analisis' => 'bg-info text-white',
+                    'analizado' => 'bg-success text-white',
+                    'suspension' => 'bg-danger text-white',
+                    'pendiente_coordinar' => 'bg-secondary text-white',
+                    default => 'bg-secondary text-white',
+                };
+                $estadoTexto = match($estadoPredominante) {
+                    'coordinado analisis' => 'Coordinada',
+                    'en revision analisis' => 'En Revisión',
+                    'analizado' => 'Finalizada',
+                    'suspension' => 'Suspendida',
+                    'pendiente_coordinar' => 'Pendiente',
+                    default => 'Sin Estado',
+                };
             @endphp
             <div class="col-12">
                 <div class="card shadow-sm border-start border-4 
@@ -153,16 +201,24 @@
                         <div class="d-flex justify-content-between align-items-start mb-2">
                             <div>
                                 <h5 class="card-title mb-1">#{{ $numCoti }}</h5>
-                                @if($instanciaData['has_suspension'])
-                                    <span class="badge bg-danger ms-2">Suspendida</span>
-                                @endif
-                                <span class="badge 
-                                    @if($coti->coti_estado == 'A') bg-success
-                                    @elseif($coti->coti_estado == 'E') bg-warning
-                                    @elseif($coti->coti_estado == 'S') bg-danger
-                                    @else bg-secondary @endif">
-                                    {{ trim($coti->coti_estado) }}
-                                </span>
+                                <div class="d-flex align-items-center gap-2 flex-wrap">
+                                    @if($instanciaData['has_suspension'])
+                                        <span class="badge bg-danger">Suspendida</span>
+                                    @elseif($instanciaData['has_priority'])
+                                        <span class="badge bg-warning text-dark">
+                                            <x-heroicon-o-star style="width: 12px; height: 12px;" class="me-1" />
+                                            Prioritaria
+                                        </span>
+                                    @endif
+                                    <span class="badge {{ $badgeColorEstado }}">{{ $estadoTexto }}</span>
+                                    <span class="badge 
+                                        @if($coti->coti_estado == 'A') bg-success
+                                        @elseif($coti->coti_estado == 'E') bg-warning
+                                        @elseif($coti->coti_estado == 'S') bg-danger
+                                        @else bg-secondary @endif">
+                                        {{ trim($coti->coti_estado) }}
+                                    </span>
+                                </div>
                             </div>
                             <small class="text-muted">
                                 {{ $coti->coti_fechaaprobado ? \Carbon\Carbon::parse($coti->coti_fechaaprobado)->format('d/m/Y') : 'Pendiente' }}

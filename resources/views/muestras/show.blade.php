@@ -132,7 +132,7 @@
                                                             @if($instancia->es_priori)
                                                                 <x-heroicon-o-star style="width: 18px; height: 18px;" />
                                                             @endif
-                                                            {{ $descripcion }} {{ $instancia->id ? '#' . str_pad($instancia->id, 8, '0', STR_PAD_LEFT) : null }}
+                                                            {{ $descripcion }}
                                                         </strong> 
                                                         <span class="ms-2">(Muestra {{ $instancia->instance_number }} / {{ $categoria->cotio_cantidad ?? '-' }})</span>
                                                         @if($instancia->active_ot)
@@ -205,6 +205,7 @@
                                                     onclick="pasarDirectoAOT({{ $instancia }})" 
                                                     class="btn btn-primary" 
                                                     data-bs-toggle="tooltip" 
+                                                    data-bs-placement="bottom"
                                                     title="Enviar esta muestra directamente a una Orden de Trabajo (OT)"
                                                 >
                                                     Pasar a OT
@@ -223,25 +224,27 @@
                                                     <span class="ms-2">(Debe pasar por muestreo)</span>
                                                 @endif
                                             
-                                                @if(!$instancia->active_ot)
+                                                {{-- @dd($instancia) --}}
+                                                {{-- @if(!$instancia->active_ot) --}}
                                                     <a 
                                                         href="#"
                                                         class="text-decoration-none"
                                                         title="Generar QR para esta muestra"
-                                                        data-url="{{ route('tareas.all.show', [
-                                                            'cotio_numcoti' => $cotizacion->coti_num, 
-                                                            'cotio_item' => $categoria->original_item, 
-                                                            'cotio_subitem' => 0,
-                                                            'instance' => $instancia->instance_number
-                                                        ]) }}"
+                                                        data-url="{{ route('qr.universal', [
+                                                        'cotio_numcoti' => $cotizacion->coti_num, 
+                                                        'cotio_item' => $categoria->original_item,
+                                                        'cotio_subitem' => 0,
+                                                        'instance' => $instancia->instance_number
+                                                    ]) }}"
                                                         data-coti="{{ $cotizacion->coti_num }}"
                                                         data-categoria="{{ $descripcion }}"
                                                         data-instance="{{ $instancia->instance_number }}"
+                                                        data-fechaMuestreo="{{ $instancia->fecha_muestreo }}"
                                                         onclick="generateQr(this)"
                                                     >
                                                         <x-heroicon-o-qr-code class="text-white" style="width: 24px; height: 24px;"/>
                                                     </a>
-                                                @endif
+                                                {{-- @endif --}}
                         
                                             </div>
                                         </div>
@@ -1671,9 +1674,11 @@ const quitarDirectoAOT = (instancia) => {
         const coti = element.dataset.coti;
         const categoria = element.dataset.categoria;
         const instance = element.dataset.instance;
-
+        const fechaMuestreo = element.dataset.fechamuestreo;  
         const existing = document.getElementById('dynamicQrModal');
         if (existing) existing.remove();
+
+        // console.log(fechaMuestreo);
 
         const modal = document.createElement('div');
         modal.id = 'dynamicQrModal';
@@ -1684,7 +1689,7 @@ const quitarDirectoAOT = (instancia) => {
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content">
                     <div class="modal-header">
-                        <h5 class="modal-title">QR para Cotización ${coti} - Categoría: ${categoria} - Instancia: ${instance}</h5>
+                        <h5 class="modal-title">QR ${coti} - Categoría: ${categoria} - Fecha: ${fechaMuestreo}</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
                     </div>
                     <div class="modal-body">
@@ -1692,11 +1697,15 @@ const quitarDirectoAOT = (instancia) => {
                             <div id="qrContainer" style="margin: 0 auto;"></div>
                         </div>
                     </div>
-                    <div style="width: 100%; max-width: 90%; border: 1px solid #dee2e6; padding: 10px; border-radius: 8px; margin: 10px auto;">
+                    <div style="width: 100%; max-width: 60%; border: 1px solid #dee2e6; padding: 10px; border-radius: 8px; margin: 10px auto;">
+                        <p></p>
+                    </div>
+
+                    <div style="width: 100%; max-width: 60%; border: 1px solid #dee2e6; padding: 10px; border-radius: 8px; margin: 10px auto;">
                         <p></p>
                     </div>
                     <div class="modal-footer justify-content-center">
-                        <button onclick="printQr('${url}', '${coti}', '${categoria}', '${instance}')" class="btn btn-primary">
+                        <button onclick="printQr('${url}', '${coti}', '${categoria}', '${instance}', '${fechaMuestreo}')" class="btn btn-primary">
                             Imprimir QR 
                         </button>
                         <a href="${url}" class="btn btn-primary">
@@ -1725,7 +1734,7 @@ const quitarDirectoAOT = (instancia) => {
         });
     }
 
-    window.printQr = function(url, coti, categoria, instance) {
+    window.printQr = function(url, coti, categoria, instance, fechaMuestreo) {
         const win = window.open('', '_blank');
         win.document.write(`
             <!DOCTYPE html>
@@ -1774,12 +1783,20 @@ const quitarDirectoAOT = (instancia) => {
             </head>
             <body>
                 <div class="print-container">
-                    <h1>Cotización ${coti}</h1>
+                    <h1>QR ${coti}</h1>
                     <p><strong>Muestreo:</strong> ${categoria}</p>
                     <p><strong>Muestra:</strong> ${instance}</p>
+                    <p><strong>Fecha de muestreo:</strong> ${fechaMuestreo}</p>
+                    
                     
                     <div class="qr-wrapper">
                         <div id="qr"></div>
+                        <div style="width: 100%; max-width: 90%; border: 1px solid #dee2e6; padding: 10px; border-radius: 8px; margin: 10px auto;">
+                            <p></p>
+                        </div>
+                        <div style="width: 100%; max-width: 90%; border: 1px solid #dee2e6; padding: 10px; border-radius: 8px; margin: 10px auto;">
+                            <p></p>
+                        </div>
                     </div>
                     
                     <p class="info">Escanee este código QR para ver los detalles</p>

@@ -36,28 +36,9 @@
                                         Marcar como leída
                                     </button>
                                 </form>
-                                @php
-                                    $instancia = $notificacion->instancia;
-                                    $usuarioRol = Auth::user()->rol;
-                                    
-                                    $tieneDatosInstancia = $instancia &&
-                                        $instancia->cotio_numcoti &&
-                                        $instancia->cotio_item &&
-                                        $instancia->instance_number;
-
-                                    $ruta = null;
-
-                                    if ($tieneDatosInstancia) {
-                                        $ruta = route('categoria.verMuestra', [
-                                            'cotizacion' => $instancia->cotio_numcoti,
-                                            'item'       => $instancia->cotio_item,
-                                            'instance'   => $instancia->instance_number,
-                                        ]);
-                                    }
-                                @endphp
-                                @if($ruta)
-                                    <a href="{{ $ruta }}" class="btn btn-sm btn-primary">
-                                        Ver muestra
+                                @if($notificacion->url)
+                                    <a href="{{ $notificacion->url }}" class="btn btn-sm btn-primary">
+                                        Ver detalle
                                     </a>
                                 @endif
                             </td>

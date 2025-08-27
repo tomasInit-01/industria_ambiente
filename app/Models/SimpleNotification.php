@@ -12,6 +12,7 @@ class SimpleNotification extends Model
         'sender_codigo',       // emisor (nuevo campo)
         'instancia_id',
         'mensaje',
+        'url',
         'leida'
     ];
 
@@ -28,5 +29,57 @@ class SimpleNotification extends Model
     public function instancia()
     {
         return $this->belongsTo(CotioInstancia::class, 'instancia_id');
+    }
+
+    /**
+     * Genera la URL correspondiente según el rol del destinatario
+     */
+    public static function generarUrlPorRol($coordinadorCodigo, $instanciaId = null)
+    {
+        $coordinador = User::where('usu_codigo', $coordinadorCodigo)->first();
+        
+        if (!$coordinador || !$instanciaId) {
+            return null;
+        }
+    
+        $instancia = CotioInstancia::find($instanciaId);
+        if (!$instancia) {
+            return null;
+        }
+    
+        switch ($coordinador->rol) {
+            case 'coordinador_lab':
+                return route('categoria.verOrden', [
+                    'cotizacion' => $instancia->cotio_numcoti,
+                    'item' => $instancia->cotio_item,
+                    'instance' => $instancia->instance_number
+                ]);
+                
+            case 'laboratorio':
+                return route('ordenes.all.show', [
+                    $instancia->cotio_numcoti,
+                    $instancia->cotio_item,
+                    $instancia->cotio_subitem,
+                    $instancia->instance_number
+                ]);
+                
+            case 'coordinador_muestreo':
+                return route('categoria.verMuestra', [
+                    'cotizacion' => $instancia->cotio_numcoti,
+                    'item' => $instancia->cotio_item,
+                    'instance' => $instancia->instance_number
+                ]);
+                
+            case 'muestreador':
+                return route('tareas.all.show', [
+                    $instancia->cotio_numcoti,
+                    $instancia->cotio_item,
+                    $instancia->cotio_subitem,
+                    $instancia->instance_number
+                ]);
+                
+            default:
+                return null;
+        }
     }
 }

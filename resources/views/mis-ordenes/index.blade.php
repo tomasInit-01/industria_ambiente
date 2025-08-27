@@ -75,7 +75,7 @@
                     
                     <div class="col-md-3" id="descripcionContainer" style="display: none;">
                         <label for="cotio_descripcion_analisis" class="form-label">Descripción análisis</label>
-                        <input type="text" class="form-control" id="cotio_descripcion_analisis" name="cotio_descripcion_analisis" 
+                        <input type="text" class="form-control" id="cotio_descripcion_analisis" name="cotio_descripcion_analisis" oninput="filtrarAnalitos()"
                                placeholder="Ej: CONDUCTIVIDAD ELECTRICA" value="{{ request('cotio_descripcion_analisis') }}">
                     </div>
                     

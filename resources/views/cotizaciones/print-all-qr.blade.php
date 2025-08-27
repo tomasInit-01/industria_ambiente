@@ -76,9 +76,13 @@
                 <div style="width: 100%; max-width: 90%; border: 1px solid #dee2e6; padding: 10px; border-radius: 8px; margin: 10px auto;">
                     <p></p>
                 </div>
+                <div style="width: 100%; max-width: 90%; border: 1px solid #dee2e6; padding: 10px; border-radius: 8px; margin: 10px auto;">
+                    <p></p>
+                </div>
                 <div class="qr-info">
                     <p>Muestra: {{ $instancia->instance_number }}</p>
                     <p>Cliente: {{ $cotizacion->coti_empresa }} - {{ $cotizacion->coti_establecimiento }}</p>
+                    <small>Fecha Muestreo: {{ $instancia->fecha_muestreo ?? 'No definida' }}</small>
                 </div>
             </div>
         @endforeach

@@ -130,6 +130,7 @@ class InformeController extends Controller
             'cotizacion.instancias'
         ])
         ->where('enable_inform', true)
+        ->where('aprobado_informe', true)
         ->where('cotio_subitem', 0);
 
         // Aplicar filtros comunes
@@ -240,6 +241,7 @@ class InformeController extends Controller
     protected function getMuestrasPorTipoInforme($tipo)
     {
         return CotioInstancia::where('enable_inform', true)
+            ->where('aprobado_informe', true)
             ->where('cotio_subitem', 0)
             ->get()
             ->filter(function($muestra) use ($tipo) {

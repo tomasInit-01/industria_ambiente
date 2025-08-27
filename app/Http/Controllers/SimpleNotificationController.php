@@ -6,9 +6,37 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\SimpleNotification;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class SimpleNotificationController extends Controller
 {
+
+
+    public function marcarLeidas(Request $request)
+    {
+        // Log::info('metodo marcarLeidas');
+        try {
+            $notificaciones = SimpleNotification::where('coordinador_codigo', Auth::user()->usu_codigo)
+            ->where('leida', false)
+            ->get();
+
+        foreach ($notificaciones as $notificacion) {
+            $notificacion->update(['leida' => true]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Notificaciones marcadas como leídas'
+        ]);
+        } catch (\Throwable $e) {
+            Log::error('Error al marcar las notificaciones como leídas: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al marcar las notificaciones como leídas'
+            ]);
+        }
+    }
+
     public function index()
     {
         $notificaciones = SimpleNotification::where('coordinador_codigo', Auth::user()->usu_codigo)
@@ -39,19 +67,5 @@ class SimpleNotificationController extends Controller
         return back()->with('success', 'Todas las notificaciones marcadas como leídas');
     }
 
-    public function marcarLeidas(Request $request)
-    {
-        $notificaciones = SimpleNotification::where('coordinador_codigo', Auth::user()->usu_codigo)
-            ->where('leida', false)
-            ->get();
 
-        foreach ($notificaciones as $notificacion) {
-            $notificacion->update(['leida' => true]);
-        }
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Notificaciones marcadas como leídas'
-        ]);
-    }
 }

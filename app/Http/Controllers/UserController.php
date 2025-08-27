@@ -177,5 +177,33 @@ class UserController extends Controller
     
         return redirect()->route('sectores.showSectores')->with('success', 'Sector creado correctamente.');
     }
+
+    public function getUsuarioInfo($codigo)
+    {
+        try {
+            $usuario = User::where('usu_codigo', $codigo)->first();
+            
+            if (!$usuario) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Usuario no encontrado'
+                ], 404);
+            }
+            
+            return response()->json([
+                'success' => true,
+                'usu_codigo' => $usuario->usu_codigo,
+                'usu_descripcion' => $usuario->usu_descripcion,
+                'rol' => $usuario->rol,
+                'usu_estado' => $usuario->usu_estado
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al obtener información del usuario: ' . $e->getMessage()
+            ], 500);
+        }
+    }
     
 }

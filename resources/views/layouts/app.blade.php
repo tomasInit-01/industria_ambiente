@@ -384,30 +384,10 @@
                                 ->take(5)
                                 ->get() as $notificacion)
                             <li>
-                                @php
-                                    $instancia = $notificacion->instancia;
-                                    $usuarioRol = Auth::user()->rol;
 
-                                    
-                                    $tieneDatosInstancia = $instancia &&
-                                        $instancia->cotio_numcoti &&
-                                        $instancia->cotio_item &&
-                                        $instancia->instance_number;
 
-                                    $ruta = null;
-
-   
-                                    if ($tieneDatosInstancia) {
-                                        $ruta = route('categoria.verMuestra', [
-                                            'cotizacion' => $instancia->cotio_numcoti,
-                                            'item'       => $instancia->cotio_item,
-                                            'instance'   => $instancia->instance_number,
-                                        ]);
-                                    }
-                                @endphp
-
-                                @if($ruta)
-                                    <a href="{{ $ruta }}" class="dropdown-item py-2 {{ $notificacion->leida ? '' : 'bg-light' }}">
+                                @if($notificacion->url)
+                                    <a href="{{ $notificacion->url }}" class="dropdown-item py-2 {{ $notificacion->leida ? '' : 'bg-light' }}">
                                 @else
                                     <span class="dropdown-item py-2 {{ $notificacion->leida ? '' : 'bg-light' }}">
                                 @endif
@@ -418,14 +398,14 @@
                                             <div style="min-width: 0;">
                                                 <p class="mb-0 small text-truncate" style="max-width: 220px;"
                                                     data-bs-toggle="tooltip"
-                                                    data-bs-placement="top"
+                                                    data-bs-placement="bottom"
                                                     title="{{ $notificacion->mensaje }}">
                                                     {{ $notificacion->mensaje }}
                                                 </p>
                                                 <small class="text-muted">{{ $notificacion->created_at->diffForHumans() }}</small>
                                             </div>
                                         </div>
-                                @if($ruta)
+                                @if($notificacion->url)
                                     </a>
                                 @else
                                     </span>
@@ -797,30 +777,10 @@
                     ->take(5)
                     ->get() as $notificacion)
                 <li>
-                    @php
-                        $instancia = $notificacion->instancia;
-                        $usuarioRol = Auth::user()->rol;
-
-                        
-                        $tieneDatosInstancia = $instancia &&
-                            $instancia->cotio_numcoti &&
-                            $instancia->cotio_item &&
-                            $instancia->instance_number;
-
-                        $ruta = null;
 
 
-                        if ($tieneDatosInstancia) {
-                            $ruta = route('categoria.verMuestra', [
-                                'cotizacion' => $instancia->cotio_numcoti,
-                                'item'       => $instancia->cotio_item,
-                                'instance'   => $instancia->instance_number,
-                            ]);
-                        }
-                    @endphp
-
-                    @if($ruta)
-                        <a href="{{ $ruta }}" class="dropdown-item py-2 {{ $notificacion->leida ? '' : 'bg-light' }}">
+                    @if($notificacion->url)
+                        <a href="{{ $notificacion->url }}" class="dropdown-item py-2 {{ $notificacion->leida ? '' : 'bg-light' }}">
                     @else
                         <span class="dropdown-item py-2 {{ $notificacion->leida ? '' : 'bg-light' }}">
                     @endif
@@ -833,7 +793,7 @@
                                 <p class="mb-0 small text-truncate" 
                                 style="max-width: 220px;"
                                 data-bs-toggle="tooltip" 
-                                data-bs-placement="top" 
+                                data-bs-placement="bottom" 
                                 title="{{ $notificacion->mensaje }}">
                                     {{ $notificacion->mensaje }}
                                 </p>
@@ -841,7 +801,7 @@
                             </div>
                         </div>
 
-                    @if($ruta)
+                    @if($notificacion->url)
                         </a>
                     @else
                         </span>

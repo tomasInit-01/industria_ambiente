@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Response;
 
 class CheckAdminOrRole
@@ -14,6 +15,7 @@ class CheckAdminOrRole
         $user = Auth::user();
 
         if (!$user) {
+            // Log::info('No hay usuario autenticado');
             return redirect()->route('login');
         }
 
@@ -24,6 +26,7 @@ class CheckAdminOrRole
         $hasRequiredRole = in_array($user->rol, $allowedRoles);
 
         if (! $isAdmin && ! $hasRequiredRole) {
+            Log::info('No tiene permisos para acceder a esta página');
             return redirect()->route('login');
         }
 

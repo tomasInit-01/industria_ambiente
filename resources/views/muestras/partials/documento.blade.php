@@ -26,7 +26,7 @@
                         >
                     <h4 class="mb-0 text-primary me-2">
                         Cotización Nº {{ $coti->coti_num }}
-                        <span class="badge {{ $badgeClass }} ms-2">{{ $estadoText }}</span>
+                        {{-- <span class="badge {{ $badgeClass }} ms-2">{{ $estadoText }}</span> --}}
                     </h4>
                     <x-heroicon-o-chevron-up id="chevron-{{ $coti->coti_num }}" class="text-primary chevron-icon" style="width: 20px; height: 20px;" />
                 </button>
@@ -50,7 +50,7 @@
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h5 class="mb-0">Detalles de la cotización</h5>
-                    <a class="btn btn-sm btn-primary" href="{{ url('/tareas/'.$coti->coti_num) }}">
+                    <a class="btn btn-sm btn-primary" href="{{ url('/show/'.$coti->coti_num) }}">
                         Asignar muestras
                     </a>
                 </div>
