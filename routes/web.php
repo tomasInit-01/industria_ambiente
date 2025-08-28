@@ -18,10 +18,8 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Middleware\CheckAdminOrRole;
 use App\Http\Controllers\SimpleNotificationController;
 use App\Http\Controllers\InformeController;
-
-// Rutas de prueba para el ordenamiento (temporal)
-Route::get('/test-ordenamiento', [MuestrasController::class, 'testOrdenamientoSQL']);
-Route::get('/debug-ordenamiento', [MuestrasController::class, 'debugOrdenamiento']);
+use App\Http\Controllers\VentasController;
+use App\Http\Controllers\ClientesController;
 
 // Rutas de autenticación
 Route::middleware([EnsureSessionActive::class])->group(function () {
@@ -434,5 +432,21 @@ Route::middleware([CheckAdminOrRole::class])->group(function () {
     Route::post('/facturacion/facturar/{cotizacion}', [App\Http\Controllers\FacturacionController::class, 'generarFacturaArca'])->name('facturacion.facturar');
 });
 
-// API: Herramientas de una instancia (temporal, aquí en web.php)
+// ventas
+Route::middleware([CheckAdminOrRole::class])->group(function () {
+    Route::get('/ventas', [VentasController::class, 'index'])->name('ventas.index');
+    Route::get('/ventas/create', [VentasController::class, 'create'])->name('ventas.create');
+    Route::post('/ventas', [VentasController::class, 'store'])->name('ventas.store');
+    Route::get('/ventas/{id}/edit', [VentasController::class, 'edit'])->name('ventas.edit');
+    Route::put('/ventas/{id}', [VentasController::class, 'update'])->name('ventas.update');
+    Route::delete('/ventas/{id}', [VentasController::class, 'destroy'])->name('ventas.destroy');
+
+    Route::get('/clientes', [ClientesController::class, 'index'])->name('clientes.index');
+    Route::get('/clientes/create', [ClientesController::class, 'create'])->name('clientes.create');
+    Route::post('/clientes', [ClientesController::class, 'store'])->name('clientes.store');
+    Route::get('/clientes/{id}/edit', [ClientesController::class, 'edit'])->name('clientes.edit');
+    Route::put('/clientes/{id}', [ClientesController::class, 'update'])->name('clientes.update');
+    Route::delete('/clientes/{id}', [ClientesController::class, 'destroy'])->name('clientes.destroy');
+});
+
 

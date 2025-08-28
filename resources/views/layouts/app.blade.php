@@ -343,6 +343,8 @@
                     {{ url('/dashboard/analisis') }}
                 @elseif(Auth::user()->rol == 'coordinador_muestreo')
                     {{ url('/dashboard/muestreo') }}
+                @elseif(Auth::user()->rol == 'ventas')
+                    {{ url('/ventas') }}
                 @endif
             ">
                 <img src="{{ asset('/assets/img/logo.png') }}" alt="Logo" class="mobile-logo">
@@ -503,6 +505,20 @@
                     </a>
                 @endif
 
+                @if(Auth::user()->rol == 'ventas')
+                    <a class="nav-link mobile-nav-link" href="{{ url('/ventas') }}">
+                        <x-heroicon-o-ticket style="width: 18px; height: 18px;" />
+                        Ventas
+                    </a>
+                @endif
+
+                @if(Auth::user()->rol == 'ventas')
+                    <a class="nav-link mobile-nav-link" href="{{ url('/clientes') }}">
+                        <x-heroicon-o-ticket style="width: 18px; height: 18px;" />
+                        Clientes
+                    </a>
+                @endif
+
                 @if(Auth::user()->usu_nivel >= 900 || Auth::user()->rol == 'coordinador_muestreo')
                     <a class="nav-link mobile-nav-link" href="{{ url('/muestras') }}">
                         <x-heroicon-o-ticket style="width: 18px; height: 18px;" />
@@ -599,6 +615,8 @@
             {{ url('/dashboard/analisis') }}
         @elseif(Auth::user()->rol == 'coordinador_muestreo')
             {{ url('/dashboard/muestreo') }}
+        @elseif(Auth::user()->rol == 'ventas')
+            {{ url('/ventas') }}
         @endif
     ">
         <img src="{{ asset('/assets/img/logo.png') }}" alt="Logo" class="sidebar-logo">
@@ -645,6 +663,20 @@
                                 Dashboard Muestreo
                             </a>
                         @endif
+
+                        @if(Auth::user()->rol == 'ventas')
+                            <a class="nav-link" href="{{ url('/ventas') }}">
+                                Ventas
+                            </a>
+                        @endif
+
+                        @if(Auth::user()->rol == 'ventas')
+                            <a class="nav-link" href="{{ url('/clientes') }}">
+                                Clientes
+                            </a>
+                        @endif
+                    
+                        
                         
                         @if(Auth::user()->usu_nivel >= 900 || Auth::user()->rol == 'coordinador_muestreo' || Auth::user()->rol == 'coordinador_lab')
                             <a class="nav-link" href="{{ url('/') }}">

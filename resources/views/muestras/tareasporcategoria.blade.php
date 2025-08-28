@@ -143,7 +143,7 @@
                                 <span class="badge bg-secondary">Sin asignar</span>
                             @endif
                             
-                            @if($instanciaActual->enable_ot == false)
+                            @if($instanciaActual->enable_ot == false && $instanciaActual->cotio_estado != 'muestreado')
                                 <button type="button" 
                                         class="btn btn-sm btn-outline-primary ms-2"
                                         data-bs-toggle="modal" 

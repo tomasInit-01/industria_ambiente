@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Http\Request;
 use App\Models\User;
+use Illuminate\Support\Facades\Log;
 
 
 class AuthController extends Controller
@@ -18,6 +19,8 @@ class AuthController extends Controller
 
     public function login(Request $request) 
     {
+        Log::info('Intento de login iniciado', ['usu_codigo' => $request->usu_codigo]);
+    
         $request->validate([
             'usu_codigo' => 'required',
             'usu_clave' => 'required',
@@ -26,31 +29,50 @@ class AuthController extends Controller
         $user = User::where('usu_codigo', $request->usu_codigo)->first();
     
         if (!$user) {
+            Log::warning('Usuario no encontrado', ['usu_codigo' => $request->usu_codigo]);
             return back()->withErrors(['usu_codigo' => 'Usuario no encontrado']);
         }
     
-        $inputPassword = md5($request->usu_clave); // Convertir a MD5
+        $inputPassword = md5($request->usu_clave); 
         $storedPassword = $user->usu_clave;
+    
+        Log::debug('Comparando contraseñas', [
+            'inputPassword' => $inputPassword,
+            'storedPassword' => $storedPassword,
+            'usu_codigo' => $request->usu_codigo
+        ]);
     
         if ($inputPassword === $storedPassword) {
             Auth::login($user, true);
+            Log::info('Login exitoso', [
+                'usu_codigo' => $user->usu_codigo,
+                'rol' => $user->rol,
+                'nivel' => $user->usu_nivel
+            ]);
+    
+            $userRole = trim($user->rol);
+            
             if ($user->usu_nivel >= 900) {
                 return redirect()->intended('/dashboard');
-            } elseif($user->rol == 'muestreador') {
+            } elseif($userRole == 'muestreador') {
                 return redirect()->intended('/mis-tareas');
-            } elseif($user->rol == 'laboratorio') {
+            } elseif($userRole == 'laboratorio') {
                 return redirect()->intended('/mis-ordenes');
-            } elseif($user->rol == 'coordinador_lab') {
+            } elseif($userRole == 'coordinador_lab') {
                 return redirect()->intended('/dashboard/analisis');
-            } elseif($user->rol == 'coordinador_muestreo') {
+            } elseif($userRole == 'coordinador_muestreo') {
                 return redirect()->intended('/dashboard/muestreo');
-            } elseif($user->rol == 'facturador') {
+            } elseif($userRole == 'facturador') {
                 return redirect()->intended('/facturacion');
+            } elseif($userRole == 'ventas') {
+                return redirect()->intended('/ventas');
             } else {
+                Log::notice('Usuario logueado pero sin rol específico', ['usu_codigo' => $user->usu_codigo, 'rol' => "'{$userRole}'"]);
                 return redirect()->intended('/login');
             }
         } 
-
+    
+        Log::error('Contraseña incorrecta', ['usu_codigo' => $request->usu_codigo]);
         return back()->withErrors(['usu_clave' => 'Contraseña incorrecta']);
     }
 

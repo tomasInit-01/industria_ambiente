@@ -22,11 +22,14 @@ class CheckAdminOrRole
         $isAdmin = $user->usu_nivel >= 900;
 
         // Lista de roles autorizados (puedes agregar más si lo deseas)
-        $allowedRoles = ['coordinador_lab', 'coordinador_muestreo', 'facturador'];
-        $hasRequiredRole = in_array($user->rol, $allowedRoles);
+        $allowedRoles = ['coordinador_lab', 'coordinador_muestreo', 'facturador', 'ventas'];
+        $userRole = trim($user->rol);
+        $hasRequiredRole = in_array($userRole, $allowedRoles);
+
+        // Log::info("Usuario: {$user->usu_codigo}, Rol: '{$userRole}', Es Admin: " . ($isAdmin ? 'Sí' : 'No') . ", Tiene rol requerido: " . ($hasRequiredRole ? 'Sí' : 'No'));
 
         if (! $isAdmin && ! $hasRequiredRole) {
-            Log::info('No tiene permisos para acceder a esta página');
+            // Log::info('No tiene permisos para acceder a esta página');
             return redirect()->route('login');
         }
 

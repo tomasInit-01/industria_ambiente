@@ -220,7 +220,7 @@
                         'cotio_item' => $instanciaActual->cotio_item,
                         'cotio_subitem' => $instanciaActual->cotio_subitem,
                         'instance' => $instance
-                    ]) }}" method="POST" class="d-inline">
+                    ]) }}" method="POST" class="d-inline" style="margin: 0;">
                     @csrf
                         <input type="hidden" name="cotio_numcoti" value="{{ $instanciaActual->cotio_numcoti }}">
                         <input type="hidden" name="cotio_item" value="{{ $instanciaActual->cotio_item }}">
