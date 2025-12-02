@@ -6,9 +6,9 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1 class="mb-0">
             Detalle de Muestra
-            @if($instanceNumber)
+            {{-- @if($instanceNumber)
                 <span class="fs-5 text-muted">(Muestra {{ $instancia->id ? '#' . str_pad($instancia->id, 8, '0', STR_PAD_LEFT) : null }})</span>
-            @endif
+            @endif --}}
         </h1>
         <a href="{{ url()->previous() }}" class="btn btn-outline-secondary">
             <i class="fas fa-arrow-left me-1"></i> Volver
@@ -55,7 +55,11 @@
                     @endif
                     @if($instancia->cotio_estado == 'coordinado muestreo' || $instancia->cotio_estado == 'en revision muestreo')
                         <button class="btn btn-sm btn-outline-light" data-bs-toggle="modal" data-bs-target="#editMuestraModal">
-                            Editar identificación
+                            @if($instancia->cotio_identificacion)
+                                Editar identificación
+                            @else
+                                Agregar identificación
+                            @endif
                         </button>
                     @endif
                 </div>
@@ -96,24 +100,42 @@
                 </div>
             </div>
 
+            {{-- @dd($instancia->herramientas) --}}
+
             <!-- Herramientas asignadas -->
-            @if($instancia->herramientas->count() > 0)
-                <div class="mt-4 pt-3 border-top">
-                    <h6>Herramientas Asignadas</h6>
-                    <div class="row gy-2">
-                        @foreach($instancia->herramientas as $herramienta)
+            <div class="mt-4 pt-3 border-top">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="mb-0">Herramientas Asignadas</h6>
+                    @if($instancia->cotio_estado != 'muestreado')
+                        <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editHerramientasModal">
+                            <i class="fas fa-edit me-1"></i> Editar Herramientas
+                        </button>
+                    @endif
+                </div>
+                
+                @if(isset($herramientasMuestra) && $herramientasMuestra->count() > 0)
+                    <div class="row gy-2" id="herramientasContainer">
+                        @foreach($herramientasMuestra as $herramienta)
                             <div class="col-md-4">
                                 <div class="card border h-100">
                                     <div class="card-body p-2">
                                         <h6 class="mb-1">{{ $herramienta->equipamiento }}</h6>
                                         <p class="small mb-0 text-muted">{{ $herramienta->marca_modelo }}</p>
+                                        @if($herramienta->cantidad > 1)
+                                            <span class="badge bg-secondary">Cantidad: {{ $herramienta->cantidad }}</span>
+                                        @endif
                                     </div>
                                 </div>
                             </div>
                         @endforeach
                     </div>
-                </div>
-            @endif
+                @else
+                    <div class="alert alert-info" id="noHerramientasMsg">
+                        <i class="fas fa-info-circle me-1"></i>
+                        No hay herramientas asignadas a esta muestra.
+                    </div>
+                @endif
+            </div>
 
             @if($instancia->latitud && $instancia->longitud)
                 <div class="mt-3">
@@ -134,13 +156,13 @@
     <div class="card shadow-sm my-5">
         <div class="card-header bg-secondary text-white">
             <h5 style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#medicionesCollapse" aria-expanded="false" aria-controls="medicionesCollapse">
-                Mediciones campo
+                Mediciones de campo
             </h5>
         </div>
-      
+        
         <div id="medicionesCollapse" class="collapse">
             <form class="card-body" action="{{ route('tareas.updateMediciones', $instancia->id) }}" 
-                  method="POST">
+                  method="POST" id="medicionesForm">
                 @csrf
                 @method('PUT')
                 <div class="mt-3">
@@ -166,7 +188,7 @@
                                        value="{{ $valorVariable->id }}">
                             </div>
                         @endforeach
-
+    
                         <div style="background-color: #DECB72; padding: 10px; border-radius: 5px; margin-top: 50px; margin-bottom: 30px;">
                             <label for="observaciones_medicion_coord_muestreo" class="form-label">
                                 Observaciones del coordinador:
@@ -176,7 +198,7 @@
                                 {{ trim($instancia->observaciones_medicion_coord_muestreo) ?? '' }}
                             </textarea>
                         </div>
-
+    
                         <div class="mb-3">
                             <label for="observaciones_medicion_muestreador" class="form-label">
                                 Observaciones del muestreador:
@@ -192,7 +214,7 @@
         
                         @if($instancia->cotio_estado != 'muestreado')
                             <div class="d-flex justify-content-end mt-3">
-                                <button type="submit" class="btn btn-primary">
+                                <button type="submit" class="btn btn-primary" id="submitButton">
                                     Guardar
                                 </button>
                             </div>
@@ -222,7 +244,7 @@
             </div>
         @else
             <div class="card-body p-0">
-                <div class="accordion" id="analisisAccordion">
+                <div class="p-2" id="analisisAccordion">
                     @foreach($analisis as $item)
                         <div class="accordion-item border-0 mb-2">
                             <h2 class="accordion-header" id="heading{{ $item->cotio_subitem }}">
@@ -234,32 +256,9 @@
                                             <span class="badge bg-primary me-2">#{{ $item->cotio_subitem }}</span>
                                             {{ $item->cotio_descripcion }}
                                         </div>
-                                        <div>
-                                            @php
-                                                $estado = strtolower($item->cotio_estado ?? 'pendiente');
-                                            @endphp
-                                            <span class="badge bg-{{ 
-                                                $estado === 'finalizado' ? 'success' : 
-                                                ($estado === 'en revision muestreo' ? 'info' : 'warning') 
-                                            }} me-2">
-                                                {{ ucfirst($estado) }}
-                                            </span>
-                                            <span class="text-muted small">Resultado: {{ $item->resultado ?? 'N/A' }}</span>
-                                        </div>
                                     </div>
                                 </button>
                             </h2>
-                            <div id="collapse{{ $item->cotio_subitem }}" class="accordion-collapse collapse" 
-                                aria-labelledby="heading{{ $item->cotio_subitem }}" data-bs-parent="#analisisAccordion">
-                                <div class="accordion-body pt-3">
-                                    <div class="d-flex justify-content-end mb-3">
-                                        <button class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="modal" 
-                                            data-bs-target="#editAnalisisModal{{ $item->cotio_subitem }}">
-                                            Agregar Resultado
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
                         </div>
                     @endforeach
                 </div>
@@ -373,59 +372,64 @@
         </div>
     </div>
 
-   <!-- Modales para editar análisis -->
-   @foreach($analisis as $item)
-    <div class="modal fade" id="editAnalisisModal{{ $item->cotio_subitem }}" tabindex="-1" aria-hidden="true">
+    <!-- Modal para editar herramientas -->
+    <div class="modal fade" id="editHerramientasModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">Editar Análisis #{{ $item->cotio_subitem }}: {{ $item->cotio_descripcion }}</h5>
+                    <h5 class="modal-title">Editar Herramientas de Muestreo</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <form method="POST" action="{{ route('tareas.updateResultado', [
-                        'cotio_numcoti' => $instancia->cotio_numcoti,
-                        'cotio_item' => $instancia->cotio_item,
-                        'cotio_subitem' => $item->cotio_subitem,
-                        'instance' => $instanceNumber
-                    ]) }}" id="editAnalisisForm{{ $item->cotio_subitem }}">
+                    <form id="herramientasForm">
                         @csrf
-                        @method('PUT')
-
-                        <!-- Tabs Navigation -->
-                        <ul class="nav nav-tabs" id="analisisTabs{{ $item->cotio_subitem }}" role="tablist">
-                            <li class="nav-item" role="presentation">
-                                <button class="nav-link active" id="resultado-tab{{ $item->cotio_subitem }}" data-bs-toggle="tab" 
-                                        data-bs-target="#resultado{{ $item->cotio_subitem }}" type="button" role="tab" 
-                                        aria-controls="resultado{{ $item->cotio_subitem }}" aria-selected="true">
-                                    Resultado
-                                </button>
-                            </li>
-                        </ul>
-
-                        <div class="tab-content" id="analisisTabsContent{{ $item->cotio_subitem }}">
-                            <!-- Resultado Tab -->
-                            <div class="tab-pane fade show active" id="resultado{{ $item->cotio_subitem }}" role="tabpanel" 
-                                    aria-labelledby="resultado-tab{{ $item->cotio_subitem }}">
-                                <div class="mb-3 mt-3">
-                                    <textarea class="form-control" name="resultado" id="resultado{{ $item->cotio_subitem }}" rows="4"
-                                                placeholder="Ingrese los resultados del análisis">{{ $item->resultado ?? '' }}</textarea>
-                                </div>
+                        <div class="mb-3">
+                            <label class="form-label">Seleccionar Herramientas:</label>
+                            <div class="row">
+                                @if(isset($todasHerramientas))
+                                    @foreach($todasHerramientas as $herramienta)
+                                        <div class="col-md-6 mb-2">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" 
+                                                       value="{{ $herramienta->id }}" 
+                                                       id="herramienta_{{ $herramienta->id }}"
+                                                       name="herramientas[]"
+                                                       @if(isset($herramientasMuestra) && $herramientasMuestra->pluck('id')->contains($herramienta->id)) checked @endif>
+                                                <label class="form-check-label" for="herramienta_{{ $herramienta->id }}">
+                                                    <strong>{{ $herramienta->equipamiento }}</strong>
+                                                    @if($herramienta->marca_modelo)
+                                                        <br><small class="text-muted">{{ $herramienta->marca_modelo }}</small>
+                                                    @endif
+                                                    @if($herramienta->n_serie_lote)
+                                                        <br><small class="text-muted">S/N: {{ $herramienta->n_serie_lote }}</small>
+                                                    @endif
+                                                </label>
+                                            </div>
+                                        </div>
+                                    @endforeach
+                                @endif
                             </div>
                         </div>
-
-                        <div class="d-flex justify-content-end mt-3">
-                            <button type="button" class="btn btn-secondary me-2" data-bs-dismiss="modal">Cancelar</button>
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-save me-1"></i> Guardar Cambios
-                            </button>
+                        
+                        <div class="mb-3">
+                            <small class="text-muted">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Selecciona las herramientas que necesitas para esta muestra. Los cambios se guardarán automáticamente.
+                            </small>
                         </div>
                     </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" onclick="guardarHerramientas()">
+                        <i class="fas fa-save me-1"></i> Guardar Cambios
+                    </button>
                 </div>
             </div>
         </div>
     </div>
-   @endforeach
+
+
 </div>
 
 <style>
@@ -992,6 +996,183 @@ document.addEventListener('DOMContentLoaded', function() {
 
 </script>
 
+<script>
+// Función para guardar herramientas
+function guardarHerramientas() {
+    const form = document.getElementById('herramientasForm');
+    const formData = new FormData(form);
+    
+    // Obtener herramientas seleccionadas
+    const herramientasSeleccionadas = [];
+    const checkboxes = form.querySelectorAll('input[name="herramientas[]"]:checked');
+    checkboxes.forEach(checkbox => {
+        herramientasSeleccionadas.push(parseInt(checkbox.value));
+    });
+    
+    // Mostrar loading
+    Swal.fire({
+        title: 'Guardando herramientas...',
+        allowOutsideClick: false,
+        didOpen: () => {
+            Swal.showLoading();
+        }
+    });
+    
+    // Enviar petición
+    fetch(`/tareas/{{ $instancia->cotio_numcoti }}/{{ $instancia->cotio_item }}/{{ $instancia->cotio_subitem }}/{{ $instanceNumber }}/herramientas`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+            'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+            herramientas: herramientasSeleccionadas
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        Swal.close();
+        
+        if (data.success) {
+            Swal.fire({
+                icon: 'success',
+                title: '¡Éxito!',
+                text: data.message,
+                confirmButtonText: 'Aceptar'
+            }).then(() => {
+                // Cerrar modal y recargar página
+                const modal = bootstrap.Modal.getInstance(document.getElementById('editHerramientasModal'));
+                modal.hide();
+                window.location.reload();
+            });
+        } else {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: data.message || 'Ocurrió un error al guardar las herramientas',
+                confirmButtonText: 'Entendido'
+            });
+        }
+    })
+    .catch(error => {
+        Swal.close();
+        console.error('Error:', error);
+        Swal.fire({
+            icon: 'error',
+            title: 'Error de conexión',
+            text: 'No se pudo conectar con el servidor',
+            confirmButtonText: 'Entendido'
+        });
+    });
+}
+
+// Función para actualizar la vista de herramientas sin recargar la página (opcional)
+function actualizarVistaHerramientas(herramientas) {
+    const container = document.getElementById('herramientasContainer');
+    const noHerramientasMsg = document.getElementById('noHerramientasMsg');
+    
+    if (herramientas.length === 0) {
+        if (container) container.style.display = 'none';
+        if (noHerramientasMsg) noHerramientasMsg.style.display = 'block';
+    } else {
+        if (noHerramientasMsg) noHerramientasMsg.style.display = 'none';
+        if (container) {
+            container.innerHTML = '';
+            herramientas.forEach(herramienta => {
+                const col = document.createElement('div');
+                col.className = 'col-md-4';
+                col.innerHTML = `
+                    <div class="card border h-100">
+                        <div class="card-body p-2">
+                            <h6 class="mb-1">${herramienta.equipamiento}</h6>
+                            <p class="small mb-0 text-muted">${herramienta.marca_modelo || ''}</p>
+                            ${herramienta.cantidad > 1 ? `<span class="badge bg-secondary">Cantidad: ${herramienta.cantidad}</span>` : ''}
+                        </div>
+                    </div>
+                `;
+                container.appendChild(col);
+            });
+            container.style.display = 'flex';
+        }
+    }
+}
+
+// Event listener para botones de seleccionar/deseleccionar todo (opcional)
+document.addEventListener('DOMContentLoaded', function() {
+    const modal = document.getElementById('editHerramientasModal');
+    if (modal) {
+        // Agregar botones de seleccionar todo / deseleccionar todo
+        const modalBody = modal.querySelector('.modal-body');
+        const buttonsDiv = document.createElement('div');
+        buttonsDiv.className = 'mb-3 d-flex gap-2';
+        buttonsDiv.innerHTML = `
+            <button type="button" class="btn btn-sm btn-outline-success" onclick="seleccionarTodas()">
+                <i class="fas fa-check-square me-1"></i> Seleccionar Todas
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-warning" onclick="deseleccionarTodas()">
+                <i class="fas fa-square me-1"></i> Deseleccionar Todas
+            </button>
+        `;
+        modalBody.insertBefore(buttonsDiv, modalBody.querySelector('form'));
+    }
+});
+
+function seleccionarTodas() {
+    const checkboxes = document.querySelectorAll('#herramientasForm input[name="herramientas[]"]');
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = true;
+    });
+}
+
+function deseleccionarTodas() {
+    const checkboxes = document.querySelectorAll('#herramientasForm input[name="herramientas[]"]');
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = false;
+    });
+}
+</script>
+
+<script>
+    document.getElementById('medicionesForm').addEventListener('submit', function(event) {
+        event.preventDefault(); // Evita el envío inmediato del formulario
+    
+        // Obtener todos los campos de entrada de tipo texto para las variables
+        const inputs = document.querySelectorAll('input[name^="valores["][type="text"]');
+        let emptyInputs = 0;
+        let totalInputs = inputs.length;
+    
+        // Verificar si algún campo tiene un valor
+        inputs.forEach(input => {
+            if (input.value.trim() === '') {
+                emptyInputs++;
+            }
+        });
+    
+        // Si no hay valores ingresados, mostrar la alerta
+        if (emptyInputs > 0) {
+            Swal.fire({
+                title: 'Advertencia',
+                text: 'No has ingresado ningún valor IN SITU, Al menos una variable está vacía, ¿Deseas continuar?',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Sí, continuar',
+                cancelButtonText: 'No, cancelar',
+                buttonsStyling: true,
+                confirmButtonColor: '#3085d6',
+                cancelButtonColor: '#d33'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    // Si el usuario confirma, enviar el formulario
+                    this.submit();
+                }
+            });
+        } else {
+            // Si hay valores, enviar el formulario directamente
+            this.submit();
+        }
+    });
+</script>
 
 @endsection
 

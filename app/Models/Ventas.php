@@ -9,10 +9,13 @@ class Ventas extends Model
     protected $table = 'coti';
     protected $primaryKey = 'coti_num';
     public $incrementing = false;
-    protected $keyType = 'string';
+    protected $keyType = 'integer';
+    public $timestamps = false;
 
     protected $fillable = [
         'coti_num',
+        'coti_version',
+        'coti_para',
         'coti_descripcion',
         'coti_codigocli',
         'coti_fechaalta',
@@ -34,35 +37,67 @@ class Ventas extends Model
         'coti_cuit',
         'coti_codigopostal',
         'coti_telefono',
-        'coti_solensayo',
-        'coti_remito',
-        'coti_importe',
-        'coti_sector',
-        'coti_codigopag',
-        'coti_usos',
         'coti_codigosuc',
-        'coti_codigodiv',
-        'coti_paridad',
-        'coti_codigolp',
-        'coti_nroprecio',
-        'coti_vigencia',
-        'coti_factor',
-        'coti_interes',
-        'coti_iva',
-        'coti_impint',
-        'coti_perciva',
-        'coti_iibb',
-        'coti_ganancias',
-        'coti_acre',
-        'coti_dto1',
-        'coti_dto2',
         'coti_mail1',
-        'coti_mail2',
-        'coti_mail3',
-        'coti_id',
-        'coti_nrooc',
-        'coti_abono',
-        'coti_codigoclif',
-        'coti_codigosucf'
+        'coti_referencia_tipo',
+        'coti_referencia_valor',
+        'coti_oc_referencia',
+        'coti_hes_has_tipo',
+        'coti_hes_has_valor',
+        'coti_gr_contrato_tipo',
+        'coti_gr_contrato',
+        'coti_otro_referencia',
+        'coti_descuentoglobal',
+        'coti_sector_laboratorio_pct',
+        'coti_sector_higiene_pct',
+        'coti_sector_microbiologia_pct',
+        'coti_sector_cromatografia_pct',
+        'coti_sector_laboratorio_contacto',
+        'coti_sector_higiene_contacto',
+        'coti_sector_microbiologia_contacto',
+        'coti_sector_cromatografia_contacto',
+        'coti_sector_laboratorio_observaciones',
+        'coti_sector_higiene_observaciones',
+        'coti_sector_microbiologia_observaciones',
+        'coti_sector_cromatografia_observaciones'
     ];
+
+    protected $casts = [
+        'coti_fechaalta' => 'date',
+        'coti_fechaaprobado' => 'date',
+        'coti_fechafin' => 'date',
+        'coti_fechaencurso' => 'date',
+        'coti_fechaaltatecnica' => 'date',
+        'coti_descuentoglobal' => 'decimal:2',
+        'coti_sector_laboratorio_pct' => 'decimal:2',
+        'coti_sector_higiene_pct' => 'decimal:2',
+        'coti_sector_microbiologia_pct' => 'decimal:2',
+        'coti_sector_cromatografia_pct' => 'decimal:2'
+    ];
+
+    // Relaciones
+    public function cliente()
+    {
+        return $this->belongsTo(Clientes::class, 'coti_codigocli', 'cli_codigo');
+    }
+
+    public function matriz()
+    {
+        return $this->belongsTo(Matriz::class, 'coti_codigomatriz', 'matriz_codigo');
+    }
+
+    public function sector()
+    {
+        return $this->belongsTo(Divis::class, 'coti_sector', 'divis_codigo');
+    }
+
+    public function condicionPago()
+    {
+        return $this->belongsTo(CondicionPago::class, 'coti_codigopag', 'pag_codigo');
+    }
+
+    public function listaPrecio()
+    {
+        return $this->belongsTo(ListaPrecio::class, 'coti_codigolp', 'lp_codigo');
+    }
 }

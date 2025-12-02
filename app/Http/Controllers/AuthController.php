@@ -66,6 +66,8 @@ class AuthController extends Controller
                 return redirect()->intended('/facturacion');
             } elseif($userRole == 'ventas') {
                 return redirect()->intended('/ventas');
+            } elseif($userRole == 'firmador') {
+                return redirect()->intended('/informes');
             } else {
                 Log::notice('Usuario logueado pero sin rol específico', ['usu_codigo' => $user->usu_codigo, 'rol' => "'{$userRole}'"]);
                 return redirect()->intended('/login');

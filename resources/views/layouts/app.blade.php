@@ -345,6 +345,10 @@
                     {{ url('/dashboard/muestreo') }}
                 @elseif(Auth::user()->rol == 'ventas')
                     {{ url('/ventas') }}
+                @elseif(Auth::user()->rol == 'firmador')
+                    {{ url('/informes') }}
+                @elseif(Auth::user()->rol == 'facturador')
+                    {{ url('/facturacion') }}
                 @endif
             ">
                 <img src="{{ asset('/assets/img/logo.png') }}" alt="Logo" class="mobile-logo">
@@ -475,7 +479,7 @@
         </button>
         
         <nav class="nav flex-column px-3 py-3">
-            @if(Auth::user()->usu_nivel >= 900 || Auth::user()->rol == 'coordinador_lab' || Auth::user()->rol == 'coordinador_muestreo')
+            @if(Auth::user()->usu_nivel >= 900 || Auth::user()->rol == 'coordinador_lab' || Auth::user()->rol == 'coordinador_muestreo' || Auth::user()->rol == 'ventas')
 
                 @if(Auth::user()->usu_nivel >= 900)
                     <a class="nav-link mobile-nav-link" href="{{ url('/dashboard') }}">
@@ -508,7 +512,7 @@
                 @if(Auth::user()->rol == 'ventas')
                     <a class="nav-link mobile-nav-link" href="{{ url('/ventas') }}">
                         <x-heroicon-o-ticket style="width: 18px; height: 18px;" />
-                        Ventas
+                        Cotizaciones
                     </a>
                 @endif
 
@@ -548,6 +552,28 @@
                     </a>
                 @endif
 
+                @if(Auth::user()->usu_nivel >= 900 || Auth::user()->rol == 'ventas')
+                    <a class="nav-link mobile-nav-link" href="{{ url('/leyes-normativas') }}">
+                        <x-heroicon-o-cog style="width: 18px; height: 18px;" />
+                        Leyes y Normativas
+                    </a>
+                @endif
+{{-- 
+                @if(Auth::user()->usu_nivel >= 900 || Auth::user()->rol == 'ventas')
+                    <a class="nav-link mobile-nav-link" href="{{ url('/metodos') }}">
+                        <x-heroicon-o-cog style="width: 18px; height: 18px;" />
+                        Métodos
+                    </a>
+                @endif --}}
+
+                @if(Auth::user()->usu_nivel >= 900 || Auth::user()->rol == 'ventas')
+                    <a class="nav-link mobile-nav-link" href="{{ url('/items') }}">
+                        <x-heroicon-o-cog style="width: 18px; height: 18px;" />
+                        Determinaciones
+                    </a>
+                @endif
+
+
                 @if(Auth::user()->usu_nivel >= 900 || Auth::user()->rol == 'coordinador_muestreo')
                 <a class="nav-link mobile-nav-link" href="{{ url('/vehiculos') }}">
                     <x-heroicon-o-truck style="width: 18px; height: 18px;" />
@@ -563,7 +589,7 @@
                 </a>
             @endif
 
-            @if(Auth::user()->usu_nivel >= 900 || Auth::user()->rol === 'coordinador_lab' || Auth::user()->rol === 'coordinador_muestreo')
+            @if(Auth::user()->usu_nivel >= 900 || Auth::user()->rol === 'coordinador_lab' || Auth::user()->rol === 'coordinador_muestreo' || Auth::user()->rol === 'firmador')
                 <a class="nav-link mobile-nav-link" href="{{ url('/informes') }}">
                     <x-heroicon-o-ticket style="width: 18px; height: 18px;" />
                     Informes
@@ -666,7 +692,7 @@
 
                         @if(Auth::user()->rol == 'ventas')
                             <a class="nav-link" href="{{ url('/ventas') }}">
-                                Ventas
+                                Cotizaciones
                             </a>
                         @endif
 
@@ -696,7 +722,7 @@
                             </a>
                         @endif
 
-                        @if(Auth::user()->usu_nivel >= 900 || Auth::user()->rol === 'coordinador_lab' || Auth::user()->rol === 'coordinador_muestreo')
+                        @if(Auth::user()->usu_nivel >= 900 || Auth::user()->rol === 'coordinador_lab' || Auth::user()->rol === 'coordinador_muestreo' || Auth::user()->rol === 'firmador')
                             <a class="nav-link mobile-nav-link" href="{{ url('/informes') }}">
                                 Informes
                             </a>
@@ -712,7 +738,7 @@
             </div>
         @endif
 
-        @if(Auth::user()->usu_nivel >= 900 || Auth::user()->rol == 'coordinador_lab' || Auth::user()->rol == 'coordinador_muestreo')
+        @if(Auth::user()->usu_nivel >= 900 || Auth::user()->rol == 'coordinador_lab' || Auth::user()->rol == 'coordinador_muestreo' || Auth::user()->rol == 'ventas')
             <div class="accordion-item">
                 <button class="accordion-button nav-group-title" type="button" data-bs-toggle="collapse" data-bs-target="#configuracion">
                     Configuración
@@ -744,6 +770,55 @@
                                 Vehiculos
                             </a>
                         @endif
+
+                        @if(Auth::user()->usu_nivel >= 900 || Auth::user()->rol == 'ventas')
+                            <a class="nav-link" href="{{ url('/leyes-normativas') }}">
+                                Leyes y Normativas
+                            </a>
+                        @endif
+
+                        {{-- @if(Auth::user()->usu_nivel >= 900 || Auth::user()->rol == 'ventas')
+                            <a class="nav-link" href="{{ url('/metodos') }}">
+                                Métodos 
+                            </a>
+                        @endif --}}
+
+                        @if(Auth::user()->usu_nivel >= 900 || Auth::user()->rol == 'ventas')
+                            <a class="nav-link" href="{{ url('/items') }}">
+                                Determinaciones
+                            </a>
+                        @endif
+
+                    </div>
+                </div>
+            </div>
+        @endif
+
+        @if(Auth::user()->rol == 'admin')
+            <div class="accordion-item">
+                <button class="accordion-button nav-group-title" type="button" data-bs-toggle="collapse" data-bs-target="#administracion">
+                    Administración
+                    <x-heroicon-o-cog-6-tooth style="width: 16px; height: 16px;" class="ms-2" />
+                </button>
+                
+                <div id="administracion" class="accordion-collapse collapse show">
+                    <div class="accordion-body p-0">
+                        <a class="nav-link" href="{{ url('/dashboard') }}">
+                            <x-heroicon-o-chart-bar style="width: 16px; height: 16px;" class="me-2" />
+                            Dashboard
+                        </a>
+                        {{-- <a class="nav-link" href="{{ url('/metodos') }}">
+                            <x-heroicon-o-beaker style="width: 16px; height: 16px;" class="me-2" />
+                            Métodos
+                        </a> --}}
+                        <a class="nav-link" href="{{ url('/leyes-normativas') }}">
+                            <x-heroicon-o-scale style="width: 16px; height: 16px;" class="me-2" />
+                            Leyes y Normativas
+                        </a>
+                        <a class="nav-link" href="{{ url('/variables') }}">
+                            <x-heroicon-o-beaker style="width: 16px; height: 16px;" class="me-2" />
+                            Variables
+                        </a>
                     </div>
                 </div>
             </div>

@@ -111,6 +111,31 @@
             opacity: 0.7;
             text-decoration: line-through;
         }
+
+        .resumen-card {
+            border-radius: 12px;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
+        }
+
+        .resumen-grid {
+            display: grid;
+            gap: 1.25rem;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        }
+
+        .resumen-item .label {
+            display: block;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 0.08em;
+            color: #6c757d;
+            margin-bottom: 0.35rem;
+        }
+
+        .resumen-item h5 {
+            font-weight: 700;
+        }
     </style>
 </head>
 
@@ -128,6 +153,58 @@
     @endif
 
     @include('cotizaciones.info')
+
+    @php
+        $formatCurrency = fn($value) => '$' . number_format(($value ?? 0), 2, ',', '.');
+        $formatPercent = fn($value) => number_format(($value ?? 0), 2, ',', '.') . '%';
+    @endphp
+
+    @if(isset($resumenMontos))
+        <div class="card resumen-card mb-4">
+            <div class="card-body resumen-grid">
+                <div class="resumen-item">
+                    <span class="label">Importe bruto</span>
+                    <h5 class="mb-0">{{ $formatCurrency($resumenMontos['total_bruto'] ?? 0) }}</h5>
+                </div>
+                <div class="resumen-item">
+                    <span class="label">Descuento global</span>
+                    <h5 class="mb-0">
+                        {{ ($resumenMontos['descuento_global_porcentaje'] ?? 0) > 0 ? $formatPercent($resumenMontos['descuento_global_porcentaje']) : 'Sin descuento' }}
+                    </h5>
+                    @if(($resumenMontos['descuento_global_monto'] ?? 0) > 0)
+                        <small class="text-muted">Ajuste: -{{ $formatCurrency($resumenMontos['descuento_global_monto']) }}</small>
+                    @endif
+                </div>
+                <div class="resumen-item">
+                    <span class="label">
+                        Descuento sector
+                        @if(!empty($resumenMontos['descuento_sector_etiqueta']))
+                            ({{ $resumenMontos['descuento_sector_etiqueta'] }})
+                        @endif
+                    </span>
+                    <h5 class="mb-0">
+                        {{ ($resumenMontos['descuento_sector_porcentaje'] ?? 0) > 0 ? $formatPercent($resumenMontos['descuento_sector_porcentaje']) : 'Sin descuento' }}
+                    </h5>
+                    @if(($resumenMontos['descuento_sector_monto'] ?? 0) > 0)
+                        <small class="text-muted">Ajuste: -{{ $formatCurrency($resumenMontos['descuento_sector_monto']) }}</small>
+                    @endif
+                </div>
+                <div class="resumen-item">
+                    <span class="label">Importe neto estimado</span>
+                    <h5 class="mb-0 text-success">{{ $formatCurrency($resumenMontos['total_neto'] ?? 0) }}</h5>
+                    <small class="text-muted">
+                        Descuento total:
+                        @if(($resumenMontos['descuento_total_porcentaje'] ?? 0) > 0)
+                            {{ $formatPercent($resumenMontos['descuento_total_porcentaje']) }}
+                            (-{{ $formatCurrency($resumenMontos['descuento_total_monto'] ?? 0) }})
+                        @else
+                            Sin descuento aplicado
+                        @endif
+                    </small>
+                </div>
+            </div>
+        </div>
+    @endif
 
     <div class="samples">
         @if($tareas->isEmpty())
@@ -197,6 +274,15 @@
                                     @endif
                                 </div>
                             </div>
+                            @if(isset($instancia->precio_bruto))
+                                <div class="alert alert-secondary py-2 px-3 mt-2 mb-0">
+                                    <small class="text-muted d-block">Importe muestra</small>
+                                    <div class="d-flex flex-wrap gap-2 mt-1">
+                                        <span class="badge bg-light text-dark border">{{ $formatCurrency($instancia->precio_bruto) }} bruto</span>
+                                        <span class="badge bg-success">{{ $formatCurrency($instancia->precio_neto) }} neto</span>
+                                    </div>
+                                </div>
+                            @endif
                             @if($tareas && count($tareas) > 0)
                                 <div class="mt-3">
                                     <h6>Análisis:</h6>
@@ -226,6 +312,12 @@
                                                     @if($analisis->instancia->resultado_final)
                                                         <p><strong>Resultado:</strong> 
                                                             <span class="badge bg-success">{{ $analisis->instancia->resultado_final . ' ' . ($analisis->instancia->cotio_codigoum ?? '') }}</span>
+                                                        </p>
+                                                    @endif
+                                                    @if(isset($analisis->instancia->precio_bruto))
+                                                        <p class="mb-1">
+                                                            <small class="text-muted d-block">Importe análisis bruto: {{ $formatCurrency($analisis->instancia->precio_bruto) }}</small>
+                                                            <span class="badge bg-success">{{ $formatCurrency($analisis->instancia->precio_neto) }} neto</span>
                                                         </p>
                                                     @endif
                                                     @if($analisis->instancia->resultado || $analisis->instancia->resultado_2 || $analisis->instancia->resultado_3)
@@ -313,27 +405,43 @@
         const form = document.getElementById('facturarForm');
         form.querySelectorAll('input[name="muestras[]"], input[name="analisis[]"]').forEach(input => input.remove());
 
-        const selectedAnalisisByInstancia = {};
-        // Solo considerar checkboxes que no están deshabilitados
-        document.querySelectorAll('.analysis-checkbox:checked:not(:disabled)').forEach(checkbox => {
-            if (checkbox.dataset.analisisId && checkbox.dataset.instancia) {
-                const input = document.createElement('input');
-                input.type = 'hidden';
-                input.name = 'analisis[]';
-                input.value = checkbox.dataset.analisisId;
-                form.appendChild(input);
-                selectedAnalisisByInstancia[checkbox.dataset.instancia] = true;
-            }
-        });
-
-        // Solo considerar checkboxes que no están deshabilitados
+        const selectedMuestras = new Set();
+        
+        // Primero identificar qué muestras están completamente seleccionadas
         document.querySelectorAll('.sample-checkbox:checked:not(:disabled)').forEach(checkbox => {
             if (checkbox.dataset.instancia) {
-                selectedAnalisisByInstancia[checkbox.dataset.instancia] = true;
+                const instanciaId = checkbox.dataset.instancia;
+                // Verificar si TODOS los análisis de esta muestra están seleccionados
+                const allAnalisis = document.querySelectorAll(`.analysis-checkbox[data-instancia="${instanciaId}"]:not(:disabled)`);
+                const selectedAnalisis = document.querySelectorAll(`.analysis-checkbox[data-instancia="${instanciaId}"]:checked:not(:disabled)`);
+                
+                // Solo agregar la muestra si:
+                // 1. El checkbox de muestra está marcado Y
+                // 2. TODOS los análisis están seleccionados (o no hay análisis)
+                if (allAnalisis.length === 0 || allAnalisis.length === selectedAnalisis.length) {
+                    selectedMuestras.add(instanciaId);
+                }
             }
         });
 
-        Object.keys(selectedAnalisisByInstancia).forEach(instanciaId => {
+        // Recopilar análisis seleccionados SOLO de muestras que NO están completamente seleccionadas
+        document.querySelectorAll('.analysis-checkbox:checked:not(:disabled)').forEach(checkbox => {
+            if (checkbox.dataset.analisisId && checkbox.dataset.instancia) {
+                const instanciaId = checkbox.dataset.instancia;
+                
+                // Si la muestra está completamente seleccionada, NO enviar los análisis individuales
+                if (!selectedMuestras.has(instanciaId)) {
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = 'analisis[]';
+                    input.value = checkbox.dataset.analisisId;
+                    form.appendChild(input);
+                }
+            }
+        });
+
+        // Agregar muestras solo si están explícitamente seleccionadas (muestra completa)
+        selectedMuestras.forEach(instanciaId => {
             const input = document.createElement('input');
             input.type = 'hidden';
             input.name = 'muestras[]';

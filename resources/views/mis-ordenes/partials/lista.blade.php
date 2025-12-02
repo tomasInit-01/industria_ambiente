@@ -219,14 +219,6 @@ usort($gruposFinalizados, $sortFunction);
                                     </div>
                                 </div>
                             </div>
-                            
-                            <div class="d-flex gap-2 mt-2 mt-md-0">
-                                <a class="btn btn-outline-primary btn-sm"
-                                   href="https://www.google.com/maps/search/?api=1&query={{ $cotizacion->coti_direccioncli ?? '' }}, {{ $cotizacion->coti_localidad ?? '' }}, {{ $cotizacion->coti_partido ?? '' }}">
-                                    <x-heroicon-o-map class="me-1" style="width: 16px; height: 16px;" />
-                                    <span>Maps</span>
-                                </a>
-                            </div>
                         </div>
 
                         @if($cotizacion)
@@ -511,14 +503,6 @@ usort($gruposFinalizados, $sortFunction);
                                     </div>
                                 </div>
                             </div>
-                            
-                            <div class="d-flex gap-2 mt-2 mt-md-0">
-                                <a class="btn btn-outline-primary btn-sm"
-                                href="https://www.google.com/maps/search/?api=1&query={{ $cotizacion->coti_direccioncli ?? '' }}, {{ $cotizacion->coti_localidad ?? '' }}, {{ $cotizacion->coti_partido ?? '' }}">
-                                    <x-heroicon-o-map class="me-1" style="width: 16px; height: 16px;" />
-                                    <span>Maps</span>
-                                </a>
-                            </div>
                         </div>
 
                         @if($cotizacion)
@@ -797,13 +781,7 @@ usort($gruposFinalizados, $sortFunction);
                                 </div>
                             </div>
                             
-                            <div class="d-flex gap-2 mt-2 mt-md-0">
-                                <a class="btn btn-outline-primary btn-sm"
-                                   href="https://www.google.com/maps/search/?api=1&query={{ $cotizacion->coti_direccioncli ?? '' }}, {{ $cotizacion->coti_localidad ?? '' }}, {{ $cotizacion->coti_partido ?? '' }}">
-                                    <x-heroicon-o-map class="me-1" style="width: 16px; height: 16px;" />
-                                    <span>Maps</span>
-                                </a>
-                            </div>
+                
                         </div>
 
                         @if($cotizacion)
@@ -1084,14 +1062,7 @@ usort($gruposFinalizados, $sortFunction);
                                     </div>
                                 </div>
                             </div>
-                            
-                            <div class="d-flex gap-2 mt-2 mt-md-0">
-                                <a class="btn btn-outline-primary btn-sm"
-                                   href="https://www.google.com/maps/search/?api=1&query={{ $cotizacion->coti_direccioncli ?? '' }}, {{ $cotizacion->coti_localidad ?? '' }}, {{ $cotizacion->coti_partido ?? '' }}">
-                                    <x-heroicon-o-map class="me-1" style="width: 16px; height: 16px;" />
-                                    <span>Maps</span>
-                                </a>
-                            </div>
+                          
                         </div>
 
                         @if($cotizacion)
@@ -1371,14 +1342,7 @@ usort($gruposFinalizados, $sortFunction);
                                     </div>
                                 </div>
                             </div>
-                            
-                            <div class="d-flex gap-2 mt-2 mt-md-0">
-                                <a class="btn btn-outline-primary btn-sm"
-                                   href="https://www.google.com/maps/search/?api=1&query={{ $cotizacion->coti_direccioncli ?? '' }}, {{ $cotizacion->coti_localidad ?? '' }}, {{ $cotizacion->coti_partido ?? '' }}">
-                                    <x-heroicon-o-map class="me-1" style="width: 16px; height: 16px;" />
-                                    <span>Maps</span>
-                                </a>
-                            </div>
+                       
                         </div>
 
                         @if($cotizacion)

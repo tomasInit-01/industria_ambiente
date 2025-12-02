@@ -168,7 +168,7 @@ public function index(Request $request)
             });
         } elseif (!$verTodas) {
             $query->whereHas('cotizacion', function($q) {
-                $q->where('coti_estado', 'A')->whereNotNull('coti_fechaaprobado');
+                $q->where('coti_estado', 'A');
             });
         }
         
@@ -306,7 +306,7 @@ public function index(Request $request)
     if ($request->has('estado') && !empty($request->estado)) {
         $query->where('coti_estado', $request->estado);
     } elseif (!$verTodas) {
-        $query->where('coti_estado', 'A')->whereNotNull('coti_fechaaprobado');
+        $query->where('coti_estado', 'A');
     }
     
     if ($request->has('fecha_inicio_muestreo') && !empty($request->fecha_inicio_muestreo)) {
@@ -682,8 +682,7 @@ public function show($coti_num)
 
     // Obtener usuarios muestreadores
     $usuarios = User::withCount(['tareas' => function($query) use ($coti_num) {
-                    $query->where('cotio_numcoti', $coti_num)
-                            ->where('cotio_estado', '!=', 'Finalizada');
+                    $query->where('cotio_numcoti', $coti_num);
                 }])
                 ->where('usu_nivel', '<=', 500)
                 ->orderBy('usu_descripcion')
@@ -724,6 +723,7 @@ public function show($coti_num)
                         'original_item' => $tarea->cotio_item,
                         'display_item' => $tarea->cotio_item . '-' . $i,
                         'requiere_muestreo' => $requiereMuestreo,
+                        'enable_ot' => $instancia->enable_ot ?? false, // Usar el valor de la instancia
                     ]),
                     'instancia' => $instancia,
                     'tareas' => $analisisMuestra,
@@ -908,7 +908,10 @@ protected function getOrCreateInstancia($numcoti, $item, $subitem, $instance, $i
         'instance_number' => $instance,
         'responsable_muestreo' => null,
         'fecha_muestreo' => null,
-        'enable_muestreo' => false
+        'enable_muestreo' => false,
+        'enable_ot' => false,
+        'cotio_estado' => 'pendiente',
+        'active_ot' => false
     ]);
 }
 
@@ -1615,7 +1618,6 @@ protected function actualizarHerramientas($cotioNumcoti, $item, $subitem, $insta
                 'cotio_subitem' => $subitem,
                 'instance_number' => $instance,
                 'inventario_muestreo_id' => $herramientaId,
-                'asignado_por' => Auth::user()->usu_codigo,
                 'cantidad' => 1
             ]);
         }

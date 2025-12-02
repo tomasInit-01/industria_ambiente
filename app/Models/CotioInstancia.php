@@ -73,6 +73,10 @@ class CotioInstancia extends Model
         'coordinador_codigo_lab',
         'aprobado_informe',
         'fecha_aprobacion_informe',
+        'firmado',
+        'identificador_documento_firma',
+        'fecha_firma',
+        'image_resultado_final',
     ];
 
     protected $casts = [
@@ -87,6 +91,8 @@ class CotioInstancia extends Model
         'enable_ot' => 'boolean',
         'es_priori' => 'boolean',
         'aprobado_informe' => 'boolean',
+        'firmado' => 'boolean',
+        'fecha_firma' => 'datetime',
         'fecha_aprobacion_informe' => 'datetime',
     ];
 
@@ -198,6 +204,22 @@ class CotioInstancia extends Model
         ]);
     }
 
+    // Método para obtener herramientas de muestreo con información del pivote
+    public function getHerramientasMuestreo()
+    {
+        return InventarioMuestreo::join('cotio_inventario_muestreo', 'inventario_muestreo.id', '=', 'cotio_inventario_muestreo.inventario_muestreo_id')
+            ->where('cotio_inventario_muestreo.cotio_numcoti', $this->cotio_numcoti)
+            ->where('cotio_inventario_muestreo.cotio_item', $this->cotio_item)
+            ->where('cotio_inventario_muestreo.cotio_subitem', $this->cotio_subitem)
+            ->where('cotio_inventario_muestreo.instance_number', $this->instance_number)
+            ->select(
+                'inventario_muestreo.*',
+                'cotio_inventario_muestreo.cantidad',
+                'cotio_inventario_muestreo.observaciones as pivot_observaciones'
+            )
+            ->get();
+    }
+
     public function getImageUrlAttribute()
     {
         return $this->image ? Storage::url('images/' . $this->image) : null;
@@ -247,6 +269,13 @@ class CotioInstancia extends Model
             }
         });
     }
+
+
+    public function coti()
+    {
+        return $this->belongsTo(Coti::class, 'cotio_numcoti', 'coti_num');
+    }
+
 
 
 }

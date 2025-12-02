@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Foundation\Auth\User as Authenticatable;
+use App\Models\CotioInstancia;
 
 class User extends Authenticatable
 {
@@ -42,6 +43,36 @@ class User extends Authenticatable
     public function miembros()
     {
         return $this->hasMany(User::class, 'sector_codigo', 'usu_codigo');
+    }
+
+    /**
+     * Relación con instancias de análisis donde el usuario es responsable
+     */
+    public function instanciasAnalisis()
+    {
+        return $this->belongsToMany(
+            CotioInstancia::class,
+            'instancia_responsable_analisis',
+            'usu_codigo',
+            'cotio_instancia_id',
+            'usu_codigo',
+            'id'
+        );
+    }
+
+    /**
+     * Relación con instancias de muestreo donde el usuario es responsable
+     */
+    public function instanciasMuestreo()
+    {
+        return $this->belongsToMany(
+            CotioInstancia::class,
+            'instancia_responsable_muestreo',
+            'usu_codigo',
+            'cotio_instancia_id',
+            'usu_codigo',
+            'id'
+        );
     }
 
 }

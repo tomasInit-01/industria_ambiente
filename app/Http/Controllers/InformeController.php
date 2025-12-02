@@ -3,16 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Models\CotioInstancia;
-use App\Models\Coti;
 use App\Models\Matriz;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Barryvdh\DomPDF\Facade\Pdf;
-use GuzzleHttp\Client;
-use GuzzleHttp\Exception\RequestException;
+use App\Services\FirmaDigitalService;
+use Illuminate\Http\Response;
 
 
 class InformeController extends Controller
@@ -94,20 +92,21 @@ class InformeController extends Controller
         // Generar PDF
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('informes.pdf_masivo', [
             'cotizacion' => $cotizacionObj,
-            'muestras' => $muestras
+            'muestras'   => $muestras
         ]);
     
-        // Generar el PDF como stream
-        $pdfStream = $pdf->stream("informes-cotizacion-{$cotizacion}.pdf");
-        
-        // Limpiar archivos temporales DESPUÉS de generar el PDF
-        foreach ($mapPaths as $path) {
-            if (file_exists($path)) {
-                unlink($path);
+        // Limpiar archivos temporales de mapas
+        foreach ($mapPaths as $mapPath) {
+            if (file_exists($mapPath)) {
+                unlink($mapPath);
             }
         }
-    
-        return $pdfStream;
+
+        // Descargar PDF masivo directamente (sin firma)
+        return response()->make($pdf->output(), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="informe-masivo-cotizacion-' . $cotizacion . '.pdf"',
+        ]);
     }
 
 
@@ -215,6 +214,9 @@ class InformeController extends Controller
                 'total_muestras' => $group->count(),
                 'informes_finales' => $group->filter(function($muestra) {
                     return $this->determinarTipoInforme($muestra) === 'final';
+                })->count(),
+                'informes_firmados' => $group->filter(function($muestra) {
+                    return $muestra->firmado;
                 })->count()
             ];
         });
@@ -292,6 +294,9 @@ class InformeController extends Controller
 
 
     
+    /**
+     * Genera PDF sin firma digital
+     */
     public function generarPdf($cotio_numcoti, $cotio_item, $instance_number)
     {
         $muestra = CotioInstancia::with([
@@ -353,18 +358,166 @@ class InformeController extends Controller
 
 
         $pdf = Pdf::loadView('informes.pdf', [
-            'muestra' => $muestra,
-            'analisis' => $analisis,
-            'tipoInforme' => $tipoInforme,
-            'showMap' => $showMap,
-            'localMapPath' => $localMapPath ?? null
+            'muestra'    => $muestra,
+            'analisis'   => $analisis,
+            'tipoInforme'=> $tipoInforme,
+            'showMap'    => $showMap,
+            'localMapPath'=> $localMapPath ?? null
         ]);
-        
-        return $pdf->stream("informe-{$cotio_numcoti}-{$cotio_item}-{$instance_number}.pdf");
+    
+        // Si ya está firmado, obtener el documento firmado
+        if ($muestra->firmado && $muestra->identificador_documento_firma) {
+            $firmaService = new FirmaDigitalService();
+            $resultado = $firmaService->obtenerDocumentoFirmado($muestra->identificador_documento_firma);
+            
+            if ($resultado['success'] && $resultado['documento_base64']) {
+                $pdfFirmado = base64_decode($resultado['documento_base64']);
+                
+                return response()->make($pdfFirmado, 200, [
+                    'Content-Type' => 'application/pdf',
+                    'Content-Disposition' => 'attachment; filename="informe-firmado-' . $cotio_numcoti . '-' . $cotio_item . '-' . $instance_number . '.pdf"',
+                ]);
+            }
+        }
+
+        // Generar PDF normal (sin firma)
+        return response()->make($pdf->output(), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="informe-' . $cotio_numcoti . '-' . $cotio_item . '-' . $instance_number . '.pdf"',
+        ]);
     }
 
+    /**
+     * Inicia el proceso de firma digital para un informe individual
+     */
+    public function firmarInforme($cotio_numcoti, $cotio_item, $instance_number)
+    {
+        $muestra = CotioInstancia::where('cotio_numcoti', $cotio_numcoti)
+            ->where('cotio_item', $cotio_item)
+            ->where('instance_number', $instance_number)
+            ->where('cotio_subitem', 0)
+            ->firstOrFail();
 
+        // Si ya está firmado, no hacer nada
+        if ($muestra->firmado) {
+            return response()->json(['error' => 'Este informe ya está firmado'], 400);
+        }
 
+        // Generar PDF para firmar
+        $pdf = $this->generarPdfParaFirma($cotio_numcoti, $cotio_item, $instance_number);
+        $pdfBinary = $pdf->output();
+
+        // Enviar a la API de firma digital
+        $firmaService = new FirmaDigitalService();
+        $resultado = $firmaService->firmarDocumento($pdfBinary, "20000000019", "30765432109");
+
+        if ($resultado && $resultado['success'] === true) {
+            // Guardar identificador del documento en la BD
+            $muestra->update([
+                'identificador_documento_firma' => $resultado['identificador_documento']
+            ]);
+
+            // Si la API devuelve success, redirigir al usuario a la URL de autorización
+            $urlAutorizacion = $resultado['url_autorizacion'];
+            
+            if ($urlAutorizacion) {
+                // Guardar información del documento para después de la firma
+                session([
+                    'documento_pendiente_firma' => [
+                        'identificador' => $resultado['identificador_documento'],
+                        'tipo' => 'informe_individual',
+                        'cotio_numcoti' => $cotio_numcoti,
+                        'cotio_item' => $cotio_item,
+                        'instance_number' => $instance_number,
+                        'timestamp' => now()
+                    ]
+                ]);
+                
+                return redirect()->away($urlAutorizacion);
+            }
+        }
+        
+        // Si hay error, mostrar detalles
+        $errorMessage = 'No se pudo procesar la firma digital';
+        if ($resultado && isset($resultado['error'])) {
+            $errorMessage = $resultado['error'];
+        }
+
+        return response()->json([
+            'error' => $errorMessage,
+            'details' => $resultado['details'] ?? null
+        ], 500);
+    }
+
+    /**
+     * Método auxiliar para generar PDF sin exponer la lógica de generación
+     */
+    private function generarPdfParaFirma($cotio_numcoti, $cotio_item, $instance_number)
+    {
+        $muestra = CotioInstancia::with([
+            'tareas',
+            'cotizacion.matriz',
+            'valoresVariables' => function($query) {
+                $query->orderBy('variable');
+            },
+            'responsablesAnalisis',
+            'herramientasLab' => function($query) {
+                $query->select('inventario_lab.*', 'cotio_inventario_lab.cantidad', 
+                              'cotio_inventario_lab.observaciones as pivot_observaciones');
+            },
+            'vehiculo'
+        ])
+        ->where('cotio_numcoti', $cotio_numcoti)
+        ->where('cotio_item', $cotio_item)
+        ->where('instance_number', $instance_number)
+        ->where('cotio_subitem', 0)
+        ->firstOrFail();
+    
+        $analisis = CotioInstancia::with([
+            'responsablesAnalisis',
+            'herramientasLab'
+        ])
+        ->where('cotio_numcoti', $cotio_numcoti)
+        ->where('cotio_item', $cotio_item)
+        ->where('instance_number', $instance_number)
+        ->where('cotio_subitem', '>', 0)
+        ->get();
+    
+        $tipoInforme = $this->determinarTipoInforme($muestra);
+        $showMap = !empty($muestra->latitud) && !empty($muestra->longitud);
+        $localMapPath = null;
+
+        if ($showMap) {
+            $apiKey = config('services.google.maps_api_key');
+            $lat = $muestra->latitud;
+            $lng = $muestra->longitud;
+            $mapUrl = "https://maps.googleapis.com/maps/api/staticmap?center=$lat,$lng&zoom=15&size=600x300&maptype=roadmap&markers=color:red%7C$lat,$lng&key=$apiKey";
+            
+            // Descargar la imagen y guardarla temporalmente
+            $tempDir = storage_path('app/temp_maps/');
+            if (!file_exists($tempDir)) {
+                mkdir($tempDir, 0755, true);
+            }
+            
+            $filename = 'map_' . $cotio_numcoti . '_' . $cotio_item . '_' . $instance_number . '.png';
+            $localMapPath = $tempDir . $filename;
+            
+            try {
+                file_put_contents($localMapPath, file_get_contents($mapUrl));
+            } catch (\Exception $e) {
+                Log::error("Error al descargar el mapa: " . $e->getMessage());
+                $showMap = false;
+            }
+        }
+
+        return Pdf::loadView('informes.pdf', [
+            'muestra'    => $muestra,
+            'analisis'   => $analisis,
+            'tipoInforme'=> $tipoInforme,
+            'showMap'    => $showMap,
+            'localMapPath'=> $localMapPath ?? null
+        ]);
+    }
 
     public function getInformeData($cotio_numcoti, $cotio_item, $instance_number)
     {
@@ -501,6 +654,158 @@ class InformeController extends Controller
                 'message' => 'Error al actualizar: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Callback para cuando la firma es exitosa
+     */
+    public function firmaExitosa(Request $request)
+    {
+        Log::info("✅ Callback de firma exitosa recibido", $request->all());
+        
+        $documentoPendiente = session('documento_pendiente_firma');
+        
+        if (!$documentoPendiente) {
+            Log::warning("⚠️ No hay documento pendiente de firma en la sesión");
+            return redirect()->route('informes.index')->with('error', 'No hay documento pendiente de firma');
+        }
+        
+        try {
+            // Marcar el documento como firmado en la BD inmediatamente
+            if ($documentoPendiente['tipo'] === 'informe_individual') {
+                $muestra = CotioInstancia::where('cotio_numcoti', $documentoPendiente['cotio_numcoti'])
+                    ->where('cotio_item', $documentoPendiente['cotio_item'])
+                    ->where('instance_number', $documentoPendiente['instance_number'])
+                    ->where('cotio_subitem', 0)
+                    ->first();
+                    
+                if ($muestra) {
+                    $muestra->update([
+                        'firmado' => true,
+                        'fecha_firma' => now(),
+                        'identificador_documento_firma' => $documentoPendiente['identificador']
+                    ]);
+                    
+                    Log::info("✅ Documento marcado como firmado en la BD", [
+                        'cotio_numcoti' => $documentoPendiente['cotio_numcoti'],
+                        'cotio_item' => $documentoPendiente['cotio_item'],
+                        'instance_number' => $documentoPendiente['instance_number'],
+                        'identificador' => $documentoPendiente['identificador']
+                    ]);
+                } else {
+                    Log::error("❌ No se encontró la muestra para marcar como firmada", $documentoPendiente);
+                }
+            }
+            
+            // Limpiar la sesión
+            session()->forget('documento_pendiente_firma');
+            
+            Log::info("🎉 Proceso de firma completado exitosamente");
+            
+            // Redirigir a informes con mensaje de éxito
+            return redirect()->route('informes.index')->with('success', 'El documento ha sido firmado exitosamente. El archivo firmado estará disponible en breve.');
+            
+        } catch (\Exception $e) {
+            Log::error("🚨 Error en callback de firma exitosa", [
+                'mensaje' => $e->getMessage(),
+                'archivo' => $e->getFile(),
+                'linea' => $e->getLine()
+            ]);
+            
+            return redirect()->route('informes.index')->with('error', 'Error al procesar la firma: ' . $e->getMessage());
+        }
+    }
+    
+    /**
+     * Callback para cuando hay error en la firma
+     */
+    public function firmaError(Request $request)
+    {
+        Log::error("❌ Callback de error en firma", $request->all());
+        
+        session()->forget('documento_pendiente_firma');
+        
+        return view('errors.firma-error', [
+            'mensaje' => 'Hubo un error durante el proceso de firma digital'
+        ]);
+    }
+    
+    /**
+     * Callback para cuando se rechaza la firma
+     */
+    public function firmaRechazada(Request $request)
+    {
+        Log::info("⚠️ Callback de firma rechazada", $request->all());
+        
+        session()->forget('documento_pendiente_firma');
+        
+        return view('errors.firma-rechazada', [
+            'mensaje' => 'La firma digital fue rechazada por el usuario'
+        ]);
+    }
+    
+    /**
+     * Descarga el documento firmado
+     */
+    public function descargarDocumentoFirmado($cotio_numcoti, $cotio_item, $instance_number)
+    {
+        try {
+            $muestra = CotioInstancia::where('cotio_numcoti', $cotio_numcoti)
+                ->where('cotio_item', $cotio_item)
+                ->where('instance_number', $instance_number)
+                ->where('cotio_subitem', 0)
+                ->first();
+                
+            if (!$muestra) {
+                return redirect()->route('informes.index')->with('error', 'Muestra no encontrada');
+            }
+            
+            if (!$muestra->firmado || !$muestra->identificador_documento_firma) {
+                return redirect()->route('informes.index')->with('error', 'El documento no está firmado');
+            }
+            
+            $firmaService = new FirmaDigitalService();
+            $resultado = $firmaService->obtenerDocumentoFirmado($muestra->identificador_documento_firma);
+            
+            if ($resultado['success'] && $resultado['documento_base64']) {
+                $pdfFirmado = base64_decode($resultado['documento_base64']);
+                $timestamp = now()->format('Y-m-d_H-i-s');
+                $filename = "informe-firmado-{$cotio_numcoti}-{$cotio_item}-{$instance_number}-{$timestamp}.pdf";
+                
+                return response()->make($pdfFirmado, 200, [
+                    'Content-Type' => 'application/pdf',
+                    'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+                ]);
+            }
+            
+            return redirect()->route('informes.index')->with('error', 'No se pudo obtener el documento firmado: ' . ($resultado['error'] ?? 'Error desconocido'));
+            
+        } catch (\Exception $e) {
+            Log::error("🚨 Error al descargar documento firmado", [
+                'mensaje' => $e->getMessage(),
+                'cotio_numcoti' => $cotio_numcoti,
+                'cotio_item' => $cotio_item,
+                'instance_number' => $instance_number
+            ]);
+            
+            return redirect()->route('informes.index')->with('error', 'Error al descargar el documento: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Genera el nombre del archivo según el tipo de documento
+     */
+    private function generarNombreArchivo($documentoPendiente)
+    {
+        $timestamp = now()->format('Y-m-d_H-i-s');
+        
+        if ($documentoPendiente['tipo'] === 'cotizacion_masiva') {
+            return "informe-firmado-cotizacion-{$documentoPendiente['cotizacion']}-{$timestamp}.pdf";
+        } elseif ($documentoPendiente['tipo'] === 'informe_individual') {
+            return "informe-firmado-{$documentoPendiente['cotio_numcoti']}-{$documentoPendiente['cotio_item']}-{$documentoPendiente['instance_number']}-{$timestamp}.pdf";
+        }
+        
+        return "documento-firmado-{$timestamp}.pdf";
     }
 
 

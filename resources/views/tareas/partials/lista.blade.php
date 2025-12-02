@@ -137,11 +137,9 @@ usort($gruposFinalizados, function($a, $b) {
                                 </button>
                                 <div>
                                     <h4 class="mb-0 text-primary">
-                                        Cotización Nº {{ $numCoti }} - {{ $grupo['instancias'][0]['instancia_muestra']->cotio_descripcion ?? 'N/A' }}
+                                        {{ $cotizacion->coti_empresa ?? 'NA' }} - {{ $grupo['instancias'][0]['instancia_muestra']->cotio_descripcion ?? 'N/A' }}
                                         @if($isHermana)
                                             ({{ $grupo['instancias']->count() }} Muestras)
-                                        @else
-                                            {{ $grupo['instancias'][0]['instancia_muestra']->id ? '#' . str_pad($grupo['instancias'][0]['instancia_muestra']->id, 8, '0', STR_PAD_LEFT) : '' }} (#{{ $grupo['instancias'][0]['instancia_muestra']->instance_number ?? ''}})
                                         @endif
                                     </h4>
                                     <div class="d-flex align-items-center gap-2 mt-1">
@@ -185,7 +183,7 @@ usort($gruposFinalizados, function($a, $b) {
                                     </div>
                                     <div class="col-md-4 d-flex align-items-center">
                                         <x-heroicon-o-user-circle class="me-2 text-muted" style="width: 14px; height: 14px;" />
-                                        <strong>Cliente: </strong> {{ $cotizacion->coti_empresa ?? 'N/A' }}
+                                        <strong>Cotización N°: </strong> {{ $cotizacion->coti_num ?? 'N/A' }}
                                     </div>
                                 </div>
                             </div>
@@ -348,11 +346,9 @@ usort($gruposFinalizados, function($a, $b) {
                                 </button>
                                 <div>
                                     <h4 class="mb-0 text-primary">
-                                        Cotización Nº {{ $numCoti }} - {{ $grupo['instancias'][0]['instancia_muestra']->cotio_descripcion ?? 'N/A' }}
+                                        {{ $cotizacion->coti_empresa ?? 'NA' }} - {{ $grupo['instancias'][0]['instancia_muestra']->cotio_descripcion ?? 'N/A' }}
                                         @if($isHermana)
                                             ({{ $grupo['instancias']->count() }} Muestras)
-                                        @else
-                                            {{ $grupo['instancias'][0]['instancia_muestra']->id ? '#' . str_pad($grupo['instancias'][0]['instancia_muestra']->id, 8, '0', STR_PAD_LEFT) : '' }} (#{{ $grupo['instancias'][0]['instancia_muestra']->instance_number ?? ''}})
                                         @endif
                                     </h4>
                                     <div class="d-flex align-items-center gap-2 mt-1">
@@ -392,7 +388,7 @@ usort($gruposFinalizados, function($a, $b) {
                                     </div>
                                     <div class="col-md-4 d-flex align-items-center">
                                         <x-heroicon-o-user-circle class="me-2 text-muted" style="width: 14px; height: 14px;" />
-                                        <strong>Cliente: </strong> {{ $cotizacion->coti_empresa ?? 'N/A' }}
+                                        <strong>Cotización N°: </strong> {{ $cotizacion->coti_num ?? 'N/A' }}
                                     </div>
                                 </div>
                             </div>
@@ -551,11 +547,9 @@ usort($gruposFinalizados, function($a, $b) {
                                 </button>
                                 <div>
                                     <h4 class="mb-0 text-primary">
-                                        Cotización Nº {{ $numCoti }} - {{ $grupo['instancias'][0]['instancia_muestra']->cotio_descripcion ?? 'N/A' }}
+                                        {{ $cotizacion->coti_empresa ?? 'NA' }} - {{ $grupo['instancias'][0]['instancia_muestra']->cotio_descripcion ?? 'N/A' }}
                                         @if($isHermana)
                                             ({{ $grupo['instancias']->count() }} Muestras)
-                                        @else
-                                            {{ $grupo['instancias'][0]['instancia_muestra']->id ? '#' . str_pad($grupo['instancias'][0]['instancia_muestra']->id, 8, '0', STR_PAD_LEFT) : '' }} (#{{ $grupo['instancias'][0]['instancia_muestra']->instance_number ?? ''}})
                                         @endif
                                     </h4>
                                     <div class="d-flex align-items-center gap-2 mt-1">
@@ -595,7 +589,7 @@ usort($gruposFinalizados, function($a, $b) {
                                     </div>
                                     <div class="col-md-4 d-flex align-items-center">
                                         <x-heroicon-o-user-circle class="me-2 text-muted" style="width: 14px; height: 14px;" />
-                                        <strong>Cliente: </strong> {{ $cotizacion->coti_empresa ?? 'N/A' }}
+                                        <strong>Cotización N°: </strong> {{ $cotizacion->coti_num ?? 'N/A' }}
                                     </div>
                                 </div>
                             </div>
@@ -754,11 +748,9 @@ usort($gruposFinalizados, function($a, $b) {
                                 </button>
                                 <div>
                                     <h4 class="mb-0 text-primary">
-                                        Cotización Nº {{ $numCoti }} - {{ $grupo['instancias'][0]['instancia_muestra']->cotio_descripcion ?? 'N/A' }}
+                                        {{ $cotizacion->coti_empresa ?? 'NA' }} - {{ $grupo['instancias'][0]['instancia_muestra']->cotio_descripcion ?? 'N/A' }}
                                         @if($isHermana)
                                             ({{ $grupo['instancias']->count() }} Muestras)
-                                        @else
-                                            {{ $grupo['instancias'][0]['instancia_muestra']->id ? '#' . str_pad($grupo['instancias'][0]['instancia_muestra']->id, 8, '0', STR_PAD_LEFT) : '' }} (#{{ $grupo['instancias'][0]['instancia_muestra']->instance_number ?? ''}})
                                         @endif
                                     </h4>
                                     <div class="d-flex align-items-center gap-2 mt-1">
@@ -798,7 +790,7 @@ usort($gruposFinalizados, function($a, $b) {
                                     </div>
                                     <div class="col-md-4 d-flex align-items-center">
                                         <x-heroicon-o-user-circle class="me-2 text-muted" style="width: 14px; height: 14px;" />
-                                        <strong>Cliente: </strong> {{ $cotizacion->coti_empresa ?? 'N/A' }}
+                                        <strong>Cotización N°: </strong> {{ $cotizacion->coti_num ?? 'N/A' }}
                                     </div>
                                 </div>
                             </div>

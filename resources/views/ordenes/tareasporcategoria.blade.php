@@ -164,10 +164,33 @@
             @endif
 
             @if($instanciaActual->image)
-                <div class="mt-3">
-                    <img src="{{ Storage::url('images/' . $instanciaActual->image) }}" alt="Imagen de la muestra" class="img-fluid w-25 rounded">
+            <!-- Botón para mostrar la imagen -->
+            <div class="mt-3">
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#imageModal">
+                    <x-heroicon-o-photo style="width: 20px; height: 20px;" /> Imagen de la muestra
+                </button>
+            </div>
+        
+            <!-- Modal -->
+            <div class="modal fade" id="imageModal" tabindex="-1" aria-labelledby="imageModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-lg modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="imageModalLabel">Imagen de la muestra</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body text-center">
+                            <img src="{{ Storage::url('images/' . $instanciaActual->image) }}" 
+                                 alt="Imagen de la muestra" 
+                                 class="img-fluid rounded">
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                        </div>
+                    </div>
                 </div>
-            @endif
+            </div>
+        @endif
 
 
             @if($instanciaActual->cotio_estado_analisis == 'finalizado' || $instanciaActual->cotio_estado_analisis == 'analizado' && $instanciaActual->enable_inform == false)
@@ -529,21 +552,51 @@
                                         </div>
                     
                                         <!-- Fechas Section -->
-                                        <div class="d-flex flex-column flex-md-row justify-content-between mb-3 fecha-wrapper" data-fecha-fin="{{ $tarea->instancia && $tarea->instancia->fecha_fin_ot ? $tarea->instancia->fecha_fin_ot->format('Y-m-d\TH:i') : '' }}">
-                                            <div class="d-flex align-items-center mb-2 mb-md-0">
-                                                <x-heroicon-o-calendar class="me-2" style="width: 1rem; height: 1rem;" />
-                                                <span class="me-2"><strong>Inicio:</strong></span>
-                                                <span class="{{ $tarea->instancia && $tarea->instancia->fecha_inicio_ot ? 'bg-light text-dark px-2 py-1 rounded' : 'text-muted' }}">
-                                                    {{ $tarea->instancia && $tarea->instancia->fecha_inicio_ot ? $tarea->instancia->fecha_inicio_ot->format('d/m/Y H:i') : 'Faltante' }}
-                                                </span>
+                                        <div>
+                                            <div class="d-flex flex-column flex-md-row justify-content-between mb-3 fecha-wrapper" data-fecha-fin="{{ $tarea->instancia && $tarea->instancia->fecha_fin_ot ? $tarea->instancia->fecha_fin_ot->format('Y-m-d\TH:i') : '' }}">
+                                                <div class="d-flex align-items-center mb-2 mb-md-0">
+                                                    <x-heroicon-o-calendar class="me-2" style="width: 1rem; height: 1rem;" />
+                                                    <span class="me-2"><strong>Inicio:</strong></span>
+                                                    <span class="{{ $tarea->instancia && $tarea->instancia->fecha_inicio_ot ? 'bg-light text-dark px-2 py-1 rounded' : 'text-muted' }}">
+                                                        {{ $tarea->instancia && $tarea->instancia->fecha_inicio_ot ? $tarea->instancia->fecha_inicio_ot->format('d/m/Y H:i') : 'Faltante' }}
+                                                    </span>
+                                                </div>
+                                                <div class="d-flex align-items-center">
+                                                    <x-heroicon-o-clock class="me-2" style="width: 1rem; height: 1rem;" />
+                                                    <span class="me-2"><strong>Fin:</strong></span>
+                                                    <span class="fecha-fin {{ $tarea->instancia && $tarea->instancia->fecha_fin_ot ? 'bg-light text-dark px-2 py-1 rounded' : 'text-muted' }}">
+                                                        {{ $tarea->instancia && $tarea->instancia->fecha_fin_ot ? $tarea->instancia->fecha_fin_ot->format('d/m/Y H:i') : 'Faltante' }}
+                                                    </span>
+                                                </div>
                                             </div>
-                                            <div class="d-flex align-items-center">
-                                                <x-heroicon-o-clock class="me-2" style="width: 1rem; height: 1rem;" />
-                                                <span class="me-2"><strong>Fin:</strong></span>
-                                                <span class="fecha-fin {{ $tarea->instancia && $tarea->instancia->fecha_fin_ot ? 'bg-light text-dark px-2 py-1 rounded' : 'text-muted' }}">
-                                                    {{ $tarea->instancia && $tarea->instancia->fecha_fin_ot ? $tarea->instancia->fecha_fin_ot->format('d/m/Y H:i') : 'Faltante' }}
-                                                </span>
-                                            </div>
+                                            
+                                            <footer>
+                                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                                    <div>
+                                                    </div>
+                        
+                                                    <p style="text-align: center; color: #0d6efd; background-color: #f8f9fa; padding: 5px; border-radius: 5px;">
+                                                        Resultado Final: <span style="font-weight: bold; color: #0d6efd;">{{ $tarea->instancia && $tarea->instancia->resultado_final ? $tarea->instancia->resultado_final : 'Faltante' }}</span>
+                                                    </p>
+                                                    
+                                                    <div>
+                                                        @if($tarea->instancia && $tarea->instancia->image_resultado_final)
+                                                            <div class="text-center">
+                                                                <a href="{{ Storage::url($tarea->instancia->image_resultado_final) }}" 
+                                                                target="_blank" 
+                                                                title="Click para ver en tamaño completo">
+                                                                    <img src="{{ Storage::url($tarea->instancia->image_resultado_final) }}" 
+                                                                        alt="Imagen del análisis" 
+                                                                        class="img-thumbnail border border-primary"
+                                                                        style="max-width: 80px; max-height: 60px; object-fit: cover; cursor: pointer;">
+                                                                </a>
+                                                                <br>
+                                                                <small class="text-muted">Click para ampliar</small>
+                                                            </div>
+                                                        @endif
+                                                    </div>
+                                                </div>
+                                            </footer>
                                         </div>
                     
                                         <!-- Resultados Section -->

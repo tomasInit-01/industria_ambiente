@@ -13,6 +13,8 @@ use App\Models\User;
 use App\Models\Provincia;
 use App\Models\Localidad;
 use App\Models\CotioInstancia;
+use App\Models\Clientes;
+use App\Models\Divis;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
@@ -74,7 +76,7 @@ class CotiController extends Controller
             if ($request->has('estado') && !empty($request->estado)) {
                 $query->where('coti_estado', $request->estado);
             } elseif (!$verTodas) {
-                $query->where('coti_estado', 'A')->whereNotNull('coti_fechaaprobado');
+                $query->where('coti_estado', 'A');
             }
             
             if ($request->has('fecha_inicio') && !empty($request->fecha_inicio)) {
@@ -139,7 +141,7 @@ class CotiController extends Controller
         if ($request->has('estado') && !empty($request->estado)) {
             $query->where('coti_estado', $request->estado);
         } elseif (!$verTodas) {
-            $query->where('coti_estado', 'A')->whereNotNull('coti_fechaaprobado');
+            $query->where('coti_estado', 'A');
         }
         
         if ($request->has('fecha_inicio') && !empty($request->fecha_inicio)) {
@@ -633,10 +635,13 @@ public function showTareas(Request $request)
 
     public function showDetalle($cotizacion) {
         // Obtener la cotización con sus tareas ordenadas
-        $cotizacion = Coti::with(['tareas' => function($query) {
-            $query->orderBy('cotio_item')
-                  ->orderBy('cotio_subitem');
-        }])->findOrFail($cotizacion);
+        $cotizacion = Coti::with([
+            'tareas' => function($query) {
+                $query->orderBy('cotio_item')
+                      ->orderBy('cotio_subitem');
+            },
+            'cliente'
+        ])->findOrFail($cotizacion);
     
         // Obtener todas las tareas de la cotización
         $tareas = $cotizacion->tareas;
@@ -692,7 +697,34 @@ public function showTareas(Request $request)
             }
         }
     
-        return view('cotizaciones.showDetalle', compact('cotizacion', 'agrupadas'));
+        $cliente = $cotizacion->cliente;
+        $sectorCodigoOriginal = $cotizacion->coti_sector ?: optional($cliente)->cli_codigocrub;
+        $sectorCodigoNormalizado = $this->normalizarCodigoSector($sectorCodigoOriginal);
+
+        $descuentoGlobalCliente = $cotizacion->coti_descuentoglobal ?: 0.0;
+        
+        // Obtener descuento de sector de la cotización según el sector normalizado
+        $descuentoSectorCliente = 0.0;
+        if ($sectorCodigoNormalizado) {
+            $descuentoSectorCliente = $this->obtenerDescuentoSectorCotizacion($cotizacion, $sectorCodigoNormalizado);
+        }
+        
+        // Si no hay descuento en la cotización, usar el del cliente
+        if ($descuentoSectorCliente == 0.0 && $cliente) {
+            $descuentoSectorCliente = $this->obtenerDescuentoSector($cliente, $sectorCodigoNormalizado);
+        }
+        
+        $descuentoTotalCliente = $descuentoGlobalCliente + $descuentoSectorCliente;
+        $sectorEtiqueta = $this->obtenerEtiquetaSector($sectorCodigoNormalizado) ?? $cotizacion->coti_sector ?? $sectorCodigoNormalizado;
+
+        return view('cotizaciones.showDetalle', compact(
+            'cotizacion',
+            'agrupadas',
+            'descuentoGlobalCliente',
+            'descuentoSectorCliente',
+            'descuentoTotalCliente',
+            'sectorEtiqueta'
+        ));
     }
 
     // Método auxiliar para obtener o crear instancia (similar al del método show)
@@ -736,10 +768,106 @@ public function showTareas(Request $request)
         return $analisis;
     }
 
+    private function normalizarCodigoSector(?string $sector): ?string
+    {
+        if (is_null($sector)) {
+            return null;
+        }
 
+        $valor = strtoupper(trim($sector));
+        if ($valor === '') {
+            return null;
+        }
 
+        $map = [
+            'LABORATORIO' => 'LAB',
+            'HIGIENE Y SEGURIDAD' => 'HYS',
+            'MICROBIOLOGIA' => 'MIC',
+            'CROMATOGRAFIA' => 'CRO',
+            'LAB' => 'LAB',
+            'HYS' => 'HYS',
+            'MIC' => 'MIC',
+            'CRO' => 'CRO',
+        ];
 
+        if (isset($map[$valor])) {
+            return $map[$valor];
+        }
 
+        $abreviado = substr($valor, 0, 3);
+        return $map[$abreviado] ?? null;
+    }
 
+    private function obtenerDescuentosSectorCliente(?Clientes $cliente): array
+    {
+        if (!$cliente) {
+            return [
+                'LAB' => 0.0,
+                'HYS' => 0.0,
+                'MIC' => 0.0,
+                'CRO' => 0.0,
+            ];
+        }
 
+        return [
+            'LAB' => (float) ($cliente->cli_sector_laboratorio_pct ?? 0.0),
+            'HYS' => (float) ($cliente->cli_sector_higiene_pct ?? 0.0),
+            'MIC' => (float) ($cliente->cli_sector_microbiologia_pct ?? 0.0),
+            'CRO' => (float) ($cliente->cli_sector_cromatografia_pct ?? 0.0),
+        ];
+    }
+
+    private function obtenerDescuentoSector(?Clientes $cliente, ?string $sectorCodigo): float
+    {
+        if (!$cliente || !$sectorCodigo) {
+            return 0.0;
+        }
+
+        $descuentos = $this->obtenerDescuentosSectorCliente($cliente);
+        return (float) ($descuentos[$sectorCodigo] ?? 0.0);
+    }
+
+    private function obtenerEtiquetaSector(?string $sectorCodigo): ?string
+    {
+        if (!$sectorCodigo) {
+            return null;
+        }
+
+        $registro = Divis::whereRaw('TRIM(divis_codigo) = ?', [$sectorCodigo])->first();
+
+        if ($registro) {
+            return trim($registro->divis_descripcion ?? '') ?: trim($registro->divis_codigo ?? '');
+        }
+
+        return $sectorCodigo;
+    }
+
+    private function obtenerDescuentosSectorCotizacion(?Coti $cotizacion): array
+    {
+        if (!$cotizacion) {
+            return [
+                'LAB' => 0.0,
+                'HYS' => 0.0,
+                'MIC' => 0.0,
+                'CRO' => 0.0,
+            ];
+        }
+
+        return [
+            'LAB' => (float) ($cotizacion->coti_sector_laboratorio_pct ?? 0.0),
+            'HYS' => (float) ($cotizacion->coti_sector_higiene_pct ?? 0.0),
+            'MIC' => (float) ($cotizacion->coti_sector_microbiologia_pct ?? 0.0),
+            'CRO' => (float) ($cotizacion->coti_sector_cromatografia_pct ?? 0.0),
+        ];
+    }
+
+    private function obtenerDescuentoSectorCotizacion(?Coti $cotizacion, ?string $sectorCodigo): float
+    {
+        if (!$cotizacion || !$sectorCodigo) {
+            return 0.0;
+        }
+
+        $descuentos = $this->obtenerDescuentosSectorCotizacion($cotizacion);
+        return (float) ($descuentos[$sectorCodigo] ?? 0.0);
+    }
 }

@@ -46,6 +46,7 @@
                                                             <tr>
                                                                 <th>Identificación</th>
                                                                 <th>Descripción</th>
+                                                                <th>Firma ID</th>
                                                                 <th class="text-center">Acciones</th>
                                                             </tr>
                                                         </thead>
@@ -54,6 +55,7 @@
                                                                 <tr>
                                                                     <td>{{ $muestra->cotio_identificacion }}</td>
                                                                     <td>{{ $muestra->cotio_descripcion }} {{ $muestra->id ? '#' . str_pad($muestra->id, 8, '0', STR_PAD_LEFT) : null }} (#{{ $muestra->instance_number }})</td>
+                                                                    <td>{{ $muestra->identificador_documento_firma ? $muestra->identificador_documento_firma : 'N/A' }}</td>
                                                                     <td class="text-center">
                                                                         <div class="btn-group" role="group">
                                                                             @if($isInformes)
@@ -65,18 +67,34 @@
                                                                                         title="Vista previa y editar">
                                                                                     <x-heroicon-o-eye style="width: 15px; height: 15px;" />
                                                                                 </button>
-                                                                                @endif
-                                                                            <a href="{{ route('informes.pdf', [
+                                                                                                                                                @endif
+                                                            <a href="{{ route('informes.pdf', [
+                                                                'cotio_numcoti' => $numCoti,
+                                                                'cotio_item' => $muestra->cotio_item,
+                                                                'instance_number' => $muestra->instance_number
+                                                            ]) }}"
+                                                            class="btn btn-sm btn-outline-secondary" 
+                                                            target="_blank"
+                                                            data-bs-toggle="tooltip" 
+                                                            title="{{ $muestra->firmado ? 'Descargar PDF Firmado' : 'Descargar PDF' }}">
+                                                            <x-heroicon-o-document-arrow-down style="width: 15px; height: 15px;" />
+                                                            @if($muestra->firmado)
+                                                                <span class="badge bg-success ms-1" style="font-size: 0.6rem;">✓</span>
+                                                            @endif
+                                                            </a>
+                                                            
+                                                                        @if(!$muestra->firmado && Auth::user()->rol == 'firmador')
+                                                                            <a href="{{ route('informes.firmar', [
                                                                                 'cotio_numcoti' => $numCoti,
                                                                                 'cotio_item' => $muestra->cotio_item,
                                                                                 'instance_number' => $muestra->instance_number
                                                                             ]) }}"
-                                                                            class="btn btn-sm btn-outline-secondary" 
-                                                                            target="_blank"
+                                                                            class="btn btn-sm btn-outline-primary" 
                                                                             data-bs-toggle="tooltip" 
-                                                                            title="Generar PDF">
-                                                                            <x-heroicon-o-document-arrow-down style="width: 15px; height: 15px;" />
+                                                                            title="Firmar Informe">
+                                                                            <x-heroicon-o-pencil style="width: 15px; height: 15px;" />
                                                                             </a>
+                                                                        @endif
                                                                         </div>
                                                                     </td>
                                                                 </tr>
@@ -190,9 +208,25 @@
                                                     class="btn btn-sm btn-outline-secondary" 
                                                     target="_blank"
                                                     data-bs-toggle="tooltip" 
-                                                    title="Generar PDF">
+                                                    title="{{ $muestra->firmado ? 'Descargar PDF Firmado' : 'Descargar PDF' }}">
                                                     <x-heroicon-o-document-arrow-down style="width: 15px; height: 15px;" />
+                                                    @if($muestra->firmado)
+                                                        <span class="badge bg-success ms-1" style="font-size: 0.6rem;">✓</span>
+                                                    @endif
                                                     </a>
+                                                    
+                                                    @if(!$muestra->firmado)
+                                                    <a href="{{ route('informes.firmar', [
+                                                        'cotio_numcoti' => $numCoti,
+                                                        'cotio_item' => $muestra->cotio_item,
+                                                        'instance_number' => $muestra->instance_number
+                                                    ]) }}"
+                                                    class="btn btn-sm btn-outline-primary" 
+                                                    data-bs-toggle="tooltip" 
+                                                    title="Firmar Informe">
+                                                    <x-heroicon-o-pencil style="width: 15px; height: 15px;" />
+                                                    </a>
+                                                    @endif
                                                 </div>
                                             </div>
                                         </li>

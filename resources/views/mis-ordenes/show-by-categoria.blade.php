@@ -269,7 +269,7 @@
                                 aria-labelledby="heading{{ $item->cotio_subitem }}" data-bs-parent="#analisisAccordion">
                                 <div class="accordion-body pt-3">
                              
-                                    @if($instancia->cotio_estado_analisis == 'coordinado analisis' || $instancia->cotio_estado_analisis == 'en revision analisis')
+                                    @if($instancia->cotio_estado_analisis != 'analizado' && ($item->cotio_estado_analisis == 'coordinado analisis' || $item->cotio_estado_analisis == 'en revision analisis'))
                                         <div class="d-flex justify-content-end mb-3">
                                             <button class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="modal" 
                                                 data-bs-target="#editAnalisisModal{{ $item->cotio_subitem }}">
@@ -301,7 +301,7 @@
 
 
                 <div class="modal-body">
-                    <form method="POST" action="{{ route('tareas.onlyUpdateResultado', [
+                    <form method="POST" enctype="multipart/form-data" action="{{ route('tareas.onlyUpdateResultado', [
                         'cotio_numcoti' => $instancia->cotio_numcoti,
                         'cotio_item' => $instancia->cotio_item,
                         'cotio_subitem' => $item->cotio_subitem,
@@ -380,6 +380,20 @@
                         {{-- linea separadora --}}
                         <div style="margin: 1.5rem 0;">
                             <hr style="border: 1px solid #52ABDA;">
+                        </div>
+
+                        <div style="margin: 2rem 0;">
+                            <div>
+                                <label for="image_resultado_final" class="form-label">Imagen Resultado (Opcional)</label>
+                                <input type="file" class="form-control" name="image_resultado_final" accept="image/*">
+                                    @if ($item->image_resultado_final)
+                                        <div class="mt-2">
+                                            <p>Imagen actual:</p>
+                                            <img src="{{ asset('storage/' . $item->image_resultado_final) }}" alt="Resultado Imagen" style="max-width: 100px;">
+                                            <p><a class="btn btn-primary mt-1" href="{{ asset('storage/' . $item->image_resultado_final) }}" target="_blank">Ver imagen</a></p>
+                                        </div>
+                                    @endif
+                            </div>
                         </div>
                         
                         <div class="mb-3">

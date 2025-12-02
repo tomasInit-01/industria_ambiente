@@ -49,6 +49,7 @@
                         <label for="estado" class="form-label">Estado</label>
                         <select class="form-select" id="estado" name="estado">
                             <option value="">Todos</option>
+                            <option class="bg-primary text-white" value="pendiente por coordinar" {{ request('estado') == 'pendiente por coordinar' ? 'selected' : '' }}>Pendiente por coordinar</option>
                             <option class="bg-warning text-dark" value="coordinado analisis" {{ request('estado') == 'coordinado analisis' ? 'selected' : '' }}>Coordinado analisis</option>
                             <option class="bg-info text-dark" value="en revision analisis" {{ request('estado') == 'en revision analisis' ? 'selected' : '' }}>En revision analisis</option>
                             <option class="bg-success text-white" value="analizado" {{ request('estado') == 'analizado' ? 'selected' : '' }}>Analizado</option>

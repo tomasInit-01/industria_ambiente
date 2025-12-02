@@ -114,6 +114,25 @@
             <h5 class="mb-0">Items Facturados</h5>
         </div>
         <div class="card-body">
+            @if(isset($resumenItems))
+                <div class="alert alert-info d-flex justify-content-between flex-wrap gap-2">
+                    <div>
+                        <strong>Importe bruto:</strong> ${{ number_format($resumenItems['total_bruto'] ?? 0, 2, ',', '.') }}
+                    </div>
+                    <div>
+                        <strong>Descuento aplicado:</strong> 
+                        @if(($resumenItems['descuento_porcentaje'] ?? 0) > 0)
+                            {{ number_format($resumenItems['descuento_porcentaje'], 2, ',', '.') }}% ({{ '$' . number_format($resumenItems['descuento_monto'] ?? 0, 2, ',', '.') }})
+                        @else
+                            Sin descuento
+                        @endif
+                    </div>
+                    <div>
+                        <strong>Importe neto:</strong> ${{ number_format($resumenItems['total_neto'] ?? 0, 2, ',', '.') }}
+                    </div>
+                </div>
+            @endif
+
             @if(!empty($items) && is_array($items))
                 <div class="table-responsive">
                     <table class="table table-striped">
@@ -128,34 +147,57 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @php $totalCalculado = 0; @endphp
+                            @php 
+                                $totalCalculado = 0; 
+                                $totalBruto = 0;
+                            @endphp
                             @foreach($items as $item)
-                                @php $totalCalculado += $item['subtotal'] ?? 0; @endphp
+                                @php
+                                    if (!is_array($item)) {
+                                        continue;
+                                    }
+                                    $tipo = $item['tipo'] ?? 'N/A';
+                                    $cantidad = $item['cantidad'] ?? 0;
+                                    $precioUnitario = $item['precio_unitario'] ?? 0;
+                                    $subtotalItem = $item['subtotal'] ?? $precioUnitario;
+                                    $totalCalculado += $subtotalItem;
+                                    $totalBruto += $item['subtotal_bruto'] ?? $subtotalItem;
+                                @endphp
                                 <tr>
                                     <td>
-                                        @if($item['tipo'] == 'muestra')
+                                        @if($tipo === 'muestra')
                                             <span class="badge bg-primary">Muestra</span>
-                                        @elseif($item['tipo'] == 'analisis')
+                                        @elseif($tipo === 'analisis')
                                             <span class="badge bg-info">Análisis</span>
                                         @else
-                                            <span class="badge bg-secondary">{{ ucfirst($item['tipo'] ?? 'N/A') }}</span>
+                                            <span class="badge bg-secondary">{{ ucfirst($tipo) }}</span>
                                         @endif
                                     </td>
                                     <td>{{ $item['descripcion'] ?? 'N/A' }}</td>
                                     <td>
-                                        @if($item['tipo'] == 'muestra')
+                                        @if($tipo === 'muestra')
                                             <small class="text-muted">ID: {{ $item['identificacion'] ?? 'N/A' }}</small>
-                                        @elseif($item['tipo'] == 'analisis')
+                                        @elseif($tipo === 'analisis')
                                             <small class="text-muted">Resultado: {{ $item['resultado'] ?? 'N/A' }}</small>
                                         @endif
                                     </td>
-                                    <td>{{ $item['cantidad'] ?? 0 }}</td>
-                                    <td>${{ number_format($item['precio_unitario'] ?? 0, 2, ',', '.') }}</td>
-                                    <td><strong>${{ number_format($item['subtotal'] ?? 0, 2, ',', '.') }}</strong></td>
+                                    <td>{{ $cantidad }}</td>
+                                    <td>${{ number_format($precioUnitario, 2, ',', '.') }}</td>
+                                    <td><strong>${{ number_format($subtotalItem, 2, ',', '.') }}</strong></td>
                                 </tr>
                             @endforeach
                         </tbody>
                         <tfoot>
+                            @if($totalBruto > $totalCalculado)
+                                <tr>
+                                    <th colspan="5" class="text-end text-muted">Total bruto:</th>
+                                    <th class="text-muted">${{ number_format($totalBruto, 2, ',', '.') }}</th>
+                                </tr>
+                                <tr>
+                                    <th colspan="5" class="text-end text-muted">Descuento aplicado:</th>
+                                    <th class="text-muted">-${{ number_format($totalBruto - $totalCalculado, 2, ',', '.') }}</th>
+                                </tr>
+                            @endif
                             <tr class="table-success">
                                 <th colspan="5" class="text-end">Total:</th>
                                 <th><strong>${{ number_format($totalCalculado, 2, ',', '.') }}</strong></th>

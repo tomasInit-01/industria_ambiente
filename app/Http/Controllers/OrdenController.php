@@ -38,6 +38,7 @@ class OrdenController extends Controller
         $startOfWeek = $request->get('week') ? Carbon::parse($request->get('week'))->startOfWeek() : now()->startOfWeek();
         $endOfWeek = $startOfWeek->copy()->endOfWeek();
     
+        // dd($request->all());
         // Vista de Calendario
         if ($viewType === 'calendario') {
             $query = CotioInstancia::query()
@@ -78,7 +79,12 @@ class OrdenController extends Controller
             }
     
             if ($request->has('estado') && !empty($request->estado)) {
-                $query->where('cotio_estado_analisis', $request->estado);
+                if ($request->estado == 'pendiente por coordinar') {
+                    $query->where('enable_ot', true)
+                          ->whereNull('cotio_estado_analisis');
+                } else {
+                    $query->where('cotio_estado_analisis', $request->estado);
+                }
             } elseif (!$verTodas) {
                 $query->whereHas('cotizacion', function($q) {
                     $q->where('coti_estado', 'A');
@@ -207,7 +213,12 @@ class OrdenController extends Controller
         }
     
         if ($request->has('estado') && !empty($request->estado)) {
-            $baseQuery->where('cotio_estado_analisis', $request->estado);
+            if ($request->estado == 'pendiente por coordinar') {
+                $baseQuery->where('enable_ot', true)
+                          ->whereNull('cotio_estado_analisis');
+            } else {
+                $baseQuery->where('cotio_estado_analisis', $request->estado);
+            }
         } elseif (!$verTodas) {
             $baseQuery->whereHas('cotizacion', function($q) {
                 $q->where('coti_estado', 'A');
@@ -914,15 +925,9 @@ public function showDetalle($ordenId)
         ->orderBy('cotio_subitem')
         ->get();
 
-        $usuarios = User::withCount(['tareas' => function($query) use ($ordenId) {
-            $query->where('cotio_numcoti', $ordenId);
-            
-            // Verificar si la columna existe antes de usarla
-            if (Schema::hasColumn('cotio', 'cotio_estado_analisis')) {
-                $query->where('cotio_estado_analisis', '!=', 'analizado');
-            } else {
-                $query->where('cotio_estado', '!=', 'analizado');
-            }
+        $usuarios = User::withCount(['instanciasAnalisis' => function($query) use ($ordenId) {
+            $query->where('cotio_numcoti', $ordenId)
+                  ->where('cotio_estado_analisis', '!=', 'analizado');
         }])
         ->whereIn('usu_codigo', ['LAB1', 'LAB'])
         ->orderBy('usu_descripcion')

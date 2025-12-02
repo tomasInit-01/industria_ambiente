@@ -10,11 +10,14 @@ class Clientes extends Model
     protected $primaryKey = 'cli_codigo';
     public $incrementing = false;
     protected $keyType = 'string';
+    public $timestamps = false;
 
     protected $fillable = [
+        'cli_codigo',
         'cli_razonsocial',
         'cli_fantasia',
         'cli_direccion',
+        'cli_partido',
         'cli_localidad',
         'cli_codigopostal',
         'cli_preftel',
@@ -56,10 +59,10 @@ class Clientes extends Model
         'cli_formcuit',
         'cli_importecredito',
         'cli_descuentoglobal',
-        'cli_descuento1',
-        'cli_descuento2',
-        'cli_descuento3',
-        'cli_descuento4',
+        'cli_sector_laboratorio_pct',
+        'cli_sector_higiene_pct',
+        'cli_sector_microbiologia_pct',
+        'cli_sector_cromatografia_pct',
         'cli_contacto',
         'cli_contacto1',
         'cli_contacto2',
@@ -108,5 +111,59 @@ class Clientes extends Model
         'cli_fleteabona',
         'cli_tipoiibb',
         'cli_numeroiibb',
+        'cli_rel_empresa_razon_social',
+        'cli_rel_empresa_cuit',
+        'cli_rel_empresa_direcciones',
+        'cli_rel_empresa_localidad',
+        'cli_rel_empresa_partido',
+        'cli_rel_empresa_contacto',
     ];
+
+    protected $casts = [
+        'cli_estado' => 'boolean',
+        'cli_fechaalta' => 'date',
+        'cli_fechaultcompra' => 'date',
+        'cli_nroprecio' => 'integer',
+        'cli_factmax' => 'integer',
+        'cli_lapsomax' => 'integer',
+        'cli_importecredito' => 'decimal:2',
+        'cli_descuentoglobal' => 'decimal:2',
+        'cli_sector_laboratorio_pct' => 'decimal:2',
+        'cli_sector_higiene_pct' => 'decimal:2',
+        'cli_sector_microbiologia_pct' => 'decimal:2',
+        'cli_sector_cromatografia_pct' => 'decimal:2',
+        'cli_montomax' => 'decimal:2'
+    ];
+
+    // Relaciones
+    public function condicionIva()
+    {
+        return $this->belongsTo(CondicionIva::class, 'cli_codigociva', 'civa_codigo');
+    }
+
+    public function zona()
+    {
+        return $this->belongsTo(Zona::class, 'cli_codigozon', 'zon_codigo');
+    }
+
+    public function condicionPago()
+    {
+        return $this->belongsTo(CondicionPago::class, 'cli_codigopag', 'pag_codigo');
+    }
+
+    public function tipoCliente()
+    {
+        return $this->belongsTo(TipoCliente::class, 'cli_codigotcli', 'tcli_codigo');
+    }
+
+    // Métodos auxiliares
+    public function getProximoCodigoCliente()
+    {
+        $ultimoCliente = self::orderBy('cli_codigo', 'desc')->first();
+        if ($ultimoCliente) {
+            $ultimoCodigo = intval(trim($ultimoCliente->cli_codigo));
+            return str_pad($ultimoCodigo + 1, 10, ' ', STR_PAD_RIGHT);
+        }
+        return str_pad('1', 10, ' ', STR_PAD_RIGHT);
+    }
 }

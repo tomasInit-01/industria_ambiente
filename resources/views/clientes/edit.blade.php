@@ -1,11 +1,15 @@
 @extends('layouts.app')
 
 @section('content')
+
+<!-- SweetAlert2 CSS -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+
 <div class="container-fluid">
     <div class="row">
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center mb-4">
-                <h2 class="h4 mb-0">Editar Cliente: {{ $cliente->cli_razonsocial }}</h2>
+                <h2 class="h4 mb-0">Editar Cliente: {{ trim($cliente->cli_razonsocial) }}</h2>
                 <div>
                     <a href="{{ route('clientes.index') }}" class="btn btn-secondary me-2">
                         <x-heroicon-o-arrow-left style="width: 16px; height: 16px;" class="me-1" />
@@ -14,11 +18,37 @@
                 </div>
             </div>
 
+            <!-- Mensajes de éxito y error -->
+            @if(session('success'))
+                <div class="alert alert-success alert-dismissible fade show" role="alert">
+                    {{ session('success') }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            @endif
+
+            @if(session('error'))
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    {{ session('error') }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            @endif
+
+            @if($errors->any())
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    <ul class="mb-0">
+                        @foreach($errors->all() as $error)
+                            <li>{{ $error }}</li>
+                        @endforeach
+                    </ul>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            @endif
+
             <div class="card shadow-sm">
                 <div class="card-body p-0">
                     <form method="POST" action="{{ route('clientes.update', $cliente->cli_codigo) }}" id="clienteForm">
-        @csrf
-        @method('PUT')
+                        @csrf
+                        @method('PUT')
                         
                         <!-- Header con código y estado -->
                         <div class="border-bottom px-4 py-3 bg-light">
@@ -26,24 +56,9 @@
                                 <div class="col-md-2">
                                     <label for="codigo" class="form-label fw-semibold mb-1">Código:</label>
                                     <input type="text" class="form-control form-control-sm" id="codigo" name="codigo" 
-                                           value="{{ $cliente->cli_codigo }}" readonly>
+                                           value="{{ trim($cliente->cli_codigo) }}" readonly>
                                 </div>
                                 <div class="col-md-6"></div>
-                                <div class="col-md-4 text-end">
-                                    <div class="d-flex align-items-center justify-content-end">
-                                        <label class="form-label fw-semibold mb-0 me-3">Estado:</label>
-                                        <div class="form-check form-check-inline">
-                                            <input class="form-check-input" type="radio" name="activo" id="activo_si" value="1" 
-                                                   {{ ($cliente->cli_estado ?? 1) == 1 ? 'checked' : '' }}>
-                                            <label class="form-check-label" for="activo_si">Sí</label>
-                                        </div>
-                                        <div class="form-check form-check-inline">
-                                            <input class="form-check-input" type="radio" name="activo" id="activo_no" value="0"
-                                                   {{ ($cliente->cli_estado ?? 1) == 0 ? 'checked' : '' }}>
-                                            <label class="form-check-label" for="activo_no">No</label>
-                                        </div>
-                                    </div>
-                                </div>
                             </div>
                         </div>
 
@@ -62,7 +77,10 @@
                                 </button>
                             </li>
                             <li class="nav-item" role="presentation">
-                                <button class="nav-link disabled" type="button">Contactos</button>
+                                <button class="nav-link" id="contactos-tab" data-bs-toggle="tab" 
+                                        data-bs-target="#contactos" type="button" role="tab">
+                                    Contactos
+                                </button>
                             </li>
                             <li class="nav-item" role="presentation">
                                 <button class="nav-link disabled" type="button">Cobranza</button>
@@ -72,6 +90,12 @@
                             </li>
                             <li class="nav-item" role="presentation">
                                 <button class="nav-link disabled" type="button">Actividades</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="empresas-relacionadas-tab" data-bs-toggle="tab" 
+                                        data-bs-target="#empresas-relacionadas" type="button" role="tab">
+                                    Empresas Relacionadas
+                                </button>
                             </li>
                         </ul>
 
@@ -84,121 +108,228 @@
                                         <!-- Columna izquierda -->
                                         <div class="col-md-6">
                                             <div class="mb-3">
-                                                <label for="razon_social" class="form-label">Razón Social</label>
-                                                <input type="text" class="form-control @error('cli_razonsocial') is-invalid @enderror" 
-                                                       id="razon_social" name="cli_razonsocial" 
-                                                       value="{{ old('cli_razonsocial', $cliente->cli_razonsocial) }}" required>
-                                                @error('cli_razonsocial')
+                                                <label for="razon_social" class="form-label">Razón Social <span class="text-danger">*</span></label>
+                                                <input type="text" class="form-control @error('razon_social') is-invalid @enderror" 
+                                                       id="razon_social" name="razon_social" 
+                                                       value="{{ old('razon_social', trim($cliente->cli_razonsocial)) }}" required>
+                                                @error('razon_social')
                                                     <div class="invalid-feedback">{{ $message }}</div>
                                                 @enderror
+                                            </div>
+
+                                            <div class="mb-3">
+                                                <label class="form-label d-block">Estado</label>
+                                                <div class="d-flex align-items-center gap-3">
+                                                    @php
+                                                        $estadoActual = old('activo', $cliente->cli_estado ? '1' : '0');
+                                                    @endphp
+                                                    <div class="form-check form-check-inline">
+                                                        <input class="form-check-input" type="radio" name="activo" id="estado_activo_si" value="1"
+                                                            {{ $estadoActual === '1' ? 'checked' : '' }}>
+                                                        <label class="form-check-label" for="estado_activo_si">Activo</label>
+                                                    </div>
+                                                    <div class="form-check form-check-inline">
+                                                        <input class="form-check-input" type="radio" name="activo" id="estado_activo_no" value="0"
+                                                            {{ $estadoActual === '0' ? 'checked' : '' }}>
+                                                        <label class="form-check-label" for="estado_activo_no">Inactivo</label>
+                                                    </div>
+                                                </div>
                                             </div>
 
                                             <div class="mb-3">
                                                 <label for="fantasia" class="form-label">Fantasía</label>
-                                                <input type="text" class="form-control @error('cli_fantasia') is-invalid @enderror" 
-                                                       id="fantasia" name="cli_fantasia" 
-                                                       value="{{ old('cli_fantasia', $cliente->cli_fantasia) }}">
-                                                @error('cli_fantasia')
-                                                    <div class="invalid-feedback">{{ $message }}</div>
-                                                @enderror
+                                                <input type="text" class="form-control" id="fantasia" name="fantasia" 
+                                                       value="{{ old('fantasia', trim($cliente->cli_fantasia)) }}">
                                             </div>
 
                                             <div class="mb-3">
                                                 <label for="direccion" class="form-label">Dirección</label>
-                                                <input type="text" class="form-control @error('cli_direccion') is-invalid @enderror" 
-                                                       id="direccion" name="cli_direccion" 
-                                                       value="{{ old('cli_direccion', $cliente->cli_direccion) }}">
-                                                @error('cli_direccion')
-                                                    <div class="invalid-feedback">{{ $message }}</div>
-                                                @enderror
+                                                <input type="text" class="form-control" id="direccion" name="direccion" 
+                                                       value="{{ old('direccion', trim($cliente->cli_direccion)) }}">
+                                            </div>
+
+                                            <div class="mb-3">
+                                                <label for="partido" class="form-label">Partido</label>
+                                                <input type="text" class="form-control" id="partido" name="partido" 
+                                                       value="{{ old('partido', trim($cliente->cli_partido ?? '')) }}">
                                             </div>
 
                                             <div class="mb-3">
                                                 <label for="localidad" class="form-label">Localidad</label>
-                                                <input type="text" class="form-control @error('cli_localidad') is-invalid @enderror" 
-                                                       id="localidad" name="cli_localidad" 
-                                                       value="{{ old('cli_localidad', $cliente->cli_localidad) }}">
-                                                @error('cli_localidad')
-                                                    <div class="invalid-feedback">{{ $message }}</div>
-                                                @enderror
+                                                <input type="text" class="form-control" id="localidad" name="localidad" 
+                                                       value="{{ old('localidad', trim($cliente->cli_localidad)) }}">
+                                            </div>
+
+                                            <div class="row">
+                                                <div class="col-md-12">
+                                                    <div class="mb-3">
+                                                        <label for="provincia" class="form-label">Provincia</label>
+                                                        <div class="input-group">
+                                                            <input type="text" class="form-control" id="provincia_codigo" name="provincia_codigo" 
+                                                                   value="{{ old('provincia_codigo', trim($cliente->cli_codigoprv)) }}" placeholder="Código (máx. 5 caracteres)" maxlength="5">
+                                                            <input type="text" class="form-control" id="provincia_nombre" name="provincia_nombre" 
+                                                                   value="{{ old('provincia_nombre') }}" placeholder="Nombre">
+                                                            <button class="btn btn-outline-secondary" type="button">
+                                                                <x-heroicon-o-magnifying-glass style="width: 16px; height: 16px;" />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div class="row">
+                                                <div class="col-md-12">
+                                                    <div class="mb-3">
+                                                        <label for="zona" class="form-label">Zona:</label>
+                                                        <select class="form-select" id="zona_codigo" name="zona_codigo">
+                                                            <option value="">Seleccionar zona...</option>
+                                                            @foreach($zonas as $zona)
+                                                                <option value="{{ $zona->zon_codigo }}" 
+                                                                        {{ old('zona_codigo', trim($cliente->cli_codigozon)) == trim($zona->zon_codigo) ? 'selected' : '' }}>
+                                                                    {{ trim($zona->zon_codigo) }} - {{ trim($zona->zon_descripcion) }}
+                                                                </option>
+                                                            @endforeach
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                        
+                                            <div class="row">
+                                                <div class="col-md-12">
+                                                    <div class="mb-3">
+                                                        <label for="rubro" class="form-label">Rubro</label>
+                                                        <select class="form-select" id="rubro_codigo" name="rubro_codigo">
+                                                            <option value="">Seleccionar rubro...</option>
+                                                            <option value="001" data-descripcion="INDUSTRIA ALIMENTARIA" {{ old('rubro_codigo', trim($cliente->cli_codigocrub)) == '001' ? 'selected' : '' }}>001 - INDUSTRIA ALIMENTARIA</option>
+                                                            <option value="002" data-descripcion="INDUSTRIA FARMACÉUTICA" {{ old('rubro_codigo', trim($cliente->cli_codigocrub)) == '002' ? 'selected' : '' }}>002 - INDUSTRIA FARMACÉUTICA</option>
+                                                            <option value="003" data-descripcion="INDUSTRIA QUÍMICA" {{ old('rubro_codigo', trim($cliente->cli_codigocrub)) == '003' ? 'selected' : '' }}>003 - INDUSTRIA QUÍMICA</option>
+                                                            <option value="004" data-descripcion="INDUSTRIA TEXTIL" {{ old('rubro_codigo', trim($cliente->cli_codigocrub)) == '004' ? 'selected' : '' }}>004 - INDUSTRIA TEXTIL</option>
+                                                            <option value="005" data-descripcion="HIGIENE Y SEGURIDAD" {{ old('rubro_codigo', trim($cliente->cli_codigocrub)) == '005' ? 'selected' : '' }}>005 - HIGIENE Y SEGURIDAD</option>
+                                                            <option value="006" data-descripcion="CONSTRUCCIÓN" {{ old('rubro_codigo', trim($cliente->cli_codigocrub)) == '006' ? 'selected' : '' }}>006 - CONSTRUCCIÓN</option>
+                                                            <option value="007" data-descripcion="MINERÍA" {{ old('rubro_codigo', trim($cliente->cli_codigocrub)) == '007' ? 'selected' : '' }}>007 - MINERÍA</option>
+                                                            <option value="008" data-descripcion="PETRÓLEO Y GAS" {{ old('rubro_codigo', trim($cliente->cli_codigocrub)) == '008' ? 'selected' : '' }}>008 - PETRÓLEO Y GAS</option>
+                                                            <option value="009" data-descripcion="AGRICULTURA" {{ old('rubro_codigo', trim($cliente->cli_codigocrub)) == '009' ? 'selected' : '' }}>009 - AGRICULTURA</option>
+                                                            <option value="010" data-descripcion="SERVICIOS" {{ old('rubro_codigo', trim($cliente->cli_codigocrub)) == '010' ? 'selected' : '' }}>010 - SERVICIOS</option>
+                                                            <option value="026" data-descripcion="CONSULTORÍA" {{ old('rubro_codigo', trim($cliente->cli_codigocrub)) == '026' ? 'selected' : '' }}>026 - CONSULTORÍA</option>
+                                                        </select>
+                                                        <input type="hidden" id="rubro_nombre" name="rubro_nombre" value="{{ old('rubro_nombre') }}">
+                                                    </div>
+                                                </div>
                                             </div>
 
                                             <div class="mb-3">
-                                                <label for="codigo_postal" class="form-label">Código Postal</label>
-                                                <input type="text" class="form-control @error('cli_codigopostal') is-invalid @enderror" 
-                                                       id="codigo_postal" name="cli_codigopostal" 
-                                                       value="{{ old('cli_codigopostal', $cliente->cli_codigopostal) }}">
-                                                @error('cli_codigopostal')
-                                                    <div class="invalid-feedback">{{ $message }}</div>
-                                                @enderror
+                                                <label for="nro_carpeta" class="form-label">Nro.Carpeta</label>
+                                                <input type="text" class="form-control" id="nro_carpeta" name="nro_carpeta" 
+                                                       value="{{ old('nro_carpeta', $cliente->cli_carpeta) }}">
                                             </div>
 
                                             <div class="mb-3">
-                                                <label for="email" class="form-label">Email</label>
-                                                <input type="email" class="form-control @error('cli_email') is-invalid @enderror" 
-                                                       id="email" name="cli_email" 
-                                                       value="{{ old('cli_email', $cliente->cli_email) }}">
-                                                @error('cli_email')
-                                                    <div class="invalid-feedback">{{ $message }}</div>
-                                                @enderror
-                                            </div>
-
-                                            <div class="mb-3">
-                                                <label for="telefono" class="form-label">Teléfono</label>
-                                                <input type="text" class="form-control @error('cli_telefono') is-invalid @enderror" 
-                                                       id="telefono" name="cli_telefono" 
-                                                       value="{{ old('cli_telefono', $cliente->cli_telefono) }}">
-                                                @error('cli_telefono')
-                                                    <div class="invalid-feedback">{{ $message }}</div>
-                                                @enderror
+                                                <label for="documentacion" class="form-label">Documentación</label>
+                                                <textarea class="form-control" id="documentacion" name="documentacion" rows="4">{{ old('documentacion', trim($cliente->cli_obsgeneral)) }}</textarea>
                                             </div>
                                         </div>
 
                                         <!-- Columna derecha -->
                                         <div class="col-md-6">
                                             <div class="mb-3">
-                                                <label for="cuit" class="form-label">CUIT</label>
-                                                <input type="text" class="form-control @error('cli_cuit') is-invalid @enderror" 
-                                                       id="cuit" name="cli_cuit" 
-                                                       value="{{ old('cli_cuit', $cliente->cli_cuit) }}">
-                                                @error('cli_cuit')
-                                                    <div class="invalid-feedback">{{ $message }}</div>
-                                                @enderror
+                                                <label for="codigo_postal" class="form-label">Código Postal</label>
+                                                <input type="text" class="form-control" id="codigo_postal" name="codigo_postal" 
+                                                       value="{{ old('codigo_postal', trim($cliente->cli_codigopostal)) }}">
                                             </div>
 
-                                            <div class="mb-3">
-                                                <label for="provincia" class="form-label">Provincia</label>
-                                                <input type="text" class="form-control" id="provincia" name="cli_codigoprv" 
-                                                       value="{{ old('cli_codigoprv', $cliente->cli_codigoprv) }}">
-                                            </div>
-
-                                            <div class="mb-3">
-                                                <label for="pais" class="form-label">País</label>
-                                                <input type="text" class="form-control" id="pais" name="cli_codigopais" 
-                                                       value="{{ old('cli_codigopais', $cliente->cli_codigopais ?: 'ARG') }}">
-                                            </div>
-
-                                            <div class="mb-3">
-                                                <label for="fecha_alta" class="form-label">Fecha alta</label>
-                                                <input type="date" class="form-control" id="fecha_alta" name="cli_fechaalta" 
-                                                       value="{{ old('cli_fechaalta', $cliente->cli_fechaalta ? date('Y-m-d', strtotime($cliente->cli_fechaalta)) : '') }}">
+                                            <div class="row">
+                                                <div class="col-md-12">
+                                                    <div class="mb-3">
+                                                        <label for="pais_codigo" class="form-label">País (máx. 3 caracteres)</label>
+                                                            <input type="text" class="form-control" id="pais_codigo" name="pais_codigo" 
+                                                                   value="{{ old('pais_codigo', trim($cliente->cli_codigopais) ?: 'ARG') }}" placeholder="ARG" maxlength="3">
+                                                    </div>
+                                                </div>
                                             </div>
 
                                             <div class="mb-3">
                                                 <label for="zona_comercial" class="form-label">Zona Comercial</label>
-                                                <input type="text" class="form-control" id="zona_comercial" name="cli_zonacom" 
-                                                       value="{{ old('cli_zonacom', $cliente->cli_zonacom) }}">
+                                                <input type="text" class="form-control" id="zona_comercial" name="zona_comercial" 
+                                                       value="{{ old('zona_comercial', trim($cliente->cli_zonacom)) }}">
                                             </div>
 
                                             <div class="mb-3">
-                                                <label for="promotor" class="form-label">Promotor</label>
-                                                <input type="text" class="form-control" id="promotor" name="cli_promotor" 
-                                                       value="{{ old('cli_promotor', $cliente->cli_promotor) }}">
+                                                <label for="fecha_alta" class="form-label">Fecha alta</label>
+                                                <input type="date" class="form-control" id="fecha_alta" name="fecha_alta" 
+                                                       value="{{ old('fecha_alta', $cliente->cli_fechaalta ? date('Y-m-d', strtotime($cliente->cli_fechaalta)) : date('Y-m-d')) }}">
                                             </div>
 
                                             <div class="mb-3">
-                                                <label for="observaciones" class="form-label">Observaciones Generales</label>
-                                                <textarea class="form-control" id="observaciones" name="cli_obsgeneral" rows="4">{{ old('cli_obsgeneral', $cliente->cli_obsgeneral) }}</textarea>
+                                                <label for="fecha_modif" class="form-label">Fecha modif.</label>
+                                                <input type="date" class="form-control" id="fecha_modif" name="fecha_modif" 
+                                                       value="{{ old('fecha_modif') }}">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Solapa Contactos -->
+                            <div class="tab-pane fade" id="contactos" role="tabpanel">
+                                <div class="p-4">
+                                    <div class="row">
+                                        <!-- Columna izquierda -->
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label for="telefono" class="form-label">Teléfono</label>
+                                                <input type="text" class="form-control" id="telefono" name="telefono" 
+                                                       value="{{ old('telefono', trim($cliente->cli_telefono)) }}" maxlength="30">
+                                            </div>
+
+                                            <div class="mb-3">
+                                                <label for="telefono1" class="form-label">Teléfono 1</label>
+                                                <input type="text" class="form-control" id="telefono1" name="telefono1" 
+                                                       value="{{ old('telefono1', trim($cliente->cli_telefono1)) }}" maxlength="20">
+                                            </div>
+
+                                            <div class="row">
+                                                <div class="col-md-6">
+                                                    <div class="mb-3">
+                                                        <label for="horario1" class="form-label">Horario 1</label>
+                                                        <input type="text" class="form-control" id="horario1" name="horario1" 
+                                                               value="{{ old('horario1', trim($cliente->cli_horario1)) }}" maxlength="10" placeholder="Ej: 09:00-18:00">
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <div class="mb-3">
+                                                        <label for="horario2" class="form-label">Horario 2</label>
+                                                        <input type="text" class="form-control" id="horario2" name="horario2" 
+                                                               value="{{ old('horario2', trim($cliente->cli_horario2)) }}" maxlength="10" placeholder="Ej: 09:00-18:00">
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div class="mb-3">
+                                                <label for="fax" class="form-label">Fax</label>
+                                                <input type="text" class="form-control" id="fax" name="fax" 
+                                                       value="{{ old('fax', trim($cliente->cli_fax)) }}" maxlength="30">
+                                            </div>
+                                        </div>
+
+                                        <!-- Columna derecha -->
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label for="email" class="form-label">Email</label>
+                                                <input type="email" class="form-control" id="email" name="email" 
+                                                       value="{{ old('email', trim($cliente->cli_email)) }}" maxlength="30">
+                                            </div>
+
+                                            <div class="mb-3">
+                                                <label for="email2" class="form-label">Email 2</label>
+                                                <input type="email" class="form-control" id="email2" name="email2" 
+                                                       value="{{ old('email2', trim($cliente->cli_email2)) }}" maxlength="30">
+                                            </div>
+
+                                            <div class="mb-3">
+                                                <label for="webpage" class="form-label">Página Web</label>
+                                                <input type="url" class="form-control" id="webpage" name="webpage" 
+                                                       value="{{ old('webpage', trim($cliente->cli_webpage)) }}" maxlength="50" placeholder="Ej: https://www.ejemplo.com">
                                             </div>
                                         </div>
                                     </div>
@@ -211,71 +342,160 @@
                                     <div class="row">
                                         <!-- Columna izquierda -->
                                         <div class="col-md-6">
-                                            <div class="mb-3">
-                                                <label for="condicion_iva" class="form-label">Condición de I.V.A.</label>
-                                                <input type="text" class="form-control" id="condicion_iva" name="cli_codigociva" 
-                                                       value="{{ old('cli_codigociva', $cliente->cli_codigociva) }}">
+                                            <div class="row">
+                                                <div class="col-md-12">
+                                                    <div class="mb-3">
+                                                        <label for="condicion_iva" class="form-label">Condición de I.V.A.</label>
+                                                        <select class="form-select" id="condicion_iva_codigo" name="condicion_iva_codigo">
+                                                            <option value="">Seleccionar condición de IVA...</option>
+                                                            @foreach($condicionesIva as $condicion)
+                                                                <option value="{{ $condicion->civa_codigo }}" 
+                                                                        data-descripcion="{{ trim($condicion->civa_descripcion) }}"
+                                                                        {{ old('condicion_iva_codigo', trim($cliente->cli_codigociva)) == trim($condicion->civa_codigo) ? 'selected' : '' }}>
+                                                                    {{ trim($condicion->civa_codigo) }} - {{ trim($condicion->civa_descripcion) }}
+                                                                </option>
+                                                            @endforeach
+                                                        </select>
+                                                        <input type="hidden" id="condicion_iva_desc" name="condicion_iva_desc" value="{{ old('condicion_iva_desc') }}">
+                                                    </div>
+                                                </div>
                                             </div>
 
                                             <div class="mb-3">
                                                 <label for="condicion_pago" class="form-label">Condición de pago</label>
-                                                <input type="text" class="form-control" id="condicion_pago" name="cli_codigopag" 
-                                                       value="{{ old('cli_codigopag', $cliente->cli_codigopag) }}">
-                                            </div>
-
-                                            <div class="mb-3">
-                                                <label for="tipo_cliente" class="form-label">Tipo Cliente</label>
-                                                <input type="text" class="form-control" id="tipo_cliente" name="cli_codigotcli" 
-                                                       value="{{ old('cli_codigotcli', $cliente->cli_codigotcli) }}">
+                                                <select class="form-select" id="condicion_pago" name="condicion_pago">
+                                                    <option value="">Seleccionar condición de pago...</option>
+                                                    @foreach($condicionesPago as $condicion)
+                                                        <option value="{{ $condicion->pag_codigo }}" 
+                                                                data-descripcion="{{ trim($condicion->pag_descripcion) }}"
+                                                                {{ old('condicion_pago', trim($cliente->cli_codigopag)) == trim($condicion->pag_codigo) ? 'selected' : '' }}>
+                                                            {{ trim($condicion->pag_codigo) }} - {{ trim($condicion->pag_descripcion) }}
+                                                        </option>
+                                                    @endforeach
+                                                </select>
                                             </div>
 
                                             <div class="mb-3">
                                                 <label for="lista_precios" class="form-label">Lista de Precios</label>
-                                                <input type="text" class="form-control" id="lista_precios" name="cli_codigolp" 
-                                                       value="{{ old('cli_codigolp', $cliente->cli_codigolp) }}">
+                                                <select class="form-select" id="lista_precios" name="lista_precios">
+                                                    <option value="">Seleccionar lista de precios...</option>
+                                                    @foreach($listasPrecios as $lista)
+                                                        <option value="{{ $lista->lp_codigo }}" 
+                                                                {{ old('lista_precios', trim($cliente->cli_codigolp)) == trim($lista->lp_codigo) ? 'selected' : '' }}>
+                                                            {{ trim($lista->lp_codigo) }} - {{ trim($lista->lp_descripcion) }}
+                                                        </option>
+                                                    @endforeach
+                                                </select>
                                             </div>
 
                                             <div class="row">
-                                                <div class="col-md-6">
+                                                <div class="col-md-12">
                                                     <div class="mb-3">
-                                                        <label for="nro_precio" class="form-label">Nro Precio</label>
-                                                        <select class="form-select" id="nro_precio" name="cli_nroprecio">
-                                                            <option value="">Seleccionar...</option>
-                                                            <option value="1" {{ old('cli_nroprecio', $cliente->cli_nroprecio) == '1' ? 'selected' : '' }}>1</option>
-                                                            <option value="2" {{ old('cli_nroprecio', $cliente->cli_nroprecio) == '2' ? 'selected' : '' }}>2</option>
-                                                            <option value="3" {{ old('cli_nroprecio', $cliente->cli_nroprecio) == '3' ? 'selected' : '' }}>3</option>
+                                                        <label for="tipo_cliente" class="form-label">Tipo Cliente</label>
+                                                        <select class="form-select" id="tipo_cliente" name="tipo_cliente">
+                                                            <option value="">Seleccionar tipo de cliente...</option>
+                                                            @foreach($tiposCliente as $tipo)
+                                                                <option value="{{ $tipo->tcli_codigo }}" 
+                                                                        {{ old('tipo_cliente', trim($cliente->cli_codigotcli)) == trim($tipo->tcli_codigo) ? 'selected' : '' }}>
+                                                                    {{ trim($tipo->tcli_codigo) }} - {{ trim($tipo->tcli_descripcion) }}
+                                                                </option>
+                                                            @endforeach
                                                         </select>
                                                     </div>
                                                 </div>
                                             </div>
 
-                                            <div class="mb-3">
-                                                <label for="tipo_factura" class="form-label">Tipo de Factura</label>
-                                                <select class="form-select" id="tipo_factura" name="cli_factura">
-                                                    <option value="">Seleccionar...</option>
-                                                    <option value="A" {{ old('cli_factura', $cliente->cli_factura) == 'A' ? 'selected' : '' }}>A</option>
-                                                    <option value="B" {{ old('cli_factura', $cliente->cli_factura) == 'B' ? 'selected' : '' }}>B</option>
-                                                    <option value="C" {{ old('cli_factura', $cliente->cli_factura) == 'C' ? 'selected' : '' }}>C</option>
-                                                </select>
-                                            </div>
-
                                             <div class="row">
-                                                <div class="col-md-6">
+                                                <div class="col-md-12">
                                                     <div class="mb-3">
-                                                        <label for="descuento_global" class="form-label">Descuento Global %</label>
-                                                        <input type="number" step="0.01" class="form-control" id="descuento_global" name="cli_descuentoglobal" 
-                                                               value="{{ old('cli_descuentoglobal', $cliente->cli_descuentoglobal ?: '0.00') }}">
+                                                        <label for="cuit_doc" class="form-label">C.U.I.T./Doc</label>
+                                                        <div class="input-group">
+                                                            <select class="form-select" id="cuit_tipo" name="cuit_tipo" style="max-width: 100px;">
+                                                                @php
+                                                                    $formCuit = trim($cliente->cli_formcuit ?? '');
+                                                                    $cuitTipo = 'CUIT';
+                                                                    if ($formCuit == 'C') $cuitTipo = 'CUIL';
+                                                                    elseif ($formCuit == 'D') $cuitTipo = 'DNI';
+                                                                @endphp
+                                                                <option value="CUIT" {{ old('cuit_tipo', $cuitTipo) == 'CUIT' ? 'selected' : '' }}>CUIT</option>
+                                                                <option value="CUIL" {{ old('cuit_tipo', $cuitTipo) == 'CUIL' ? 'selected' : '' }}>CUIL</option>
+                                                                <option value="DNI" {{ old('cuit_tipo', $cuitTipo) == 'DNI' ? 'selected' : '' }}>DNI</option>
+                                                            </select>
+                                                            <input type="text" class="form-control" id="cuit_numero" name="cuit_numero" 
+                                                                   value="{{ old('cuit_numero', trim($cliente->cli_cuit)) }}" placeholder="Número">
+                                                            <button class="btn btn-outline-secondary" type="button">Padrón AFIP</button>
+                                                        </div>
                                                     </div>
                                                 </div>
+                                            </div>
+
+                                            <div class="mb-3">
+                                                <label for="tipo_factura" class="form-label">Tipo de Factura:</label>
+                                                <select class="form-select" id="tipo_factura" name="tipo_factura">
+                                                    <option value="">Seleccionar...</option>
+                                                    <option value="A" {{ old('tipo_factura', trim($cliente->cli_factura)) == 'A' ? 'selected' : '' }}>A</option>
+                                                    <option value="B" {{ old('tipo_factura', trim($cliente->cli_factura)) == 'B' ? 'selected' : '' }}>B</option>
+                                                    <option value="C" {{ old('tipo_factura', trim($cliente->cli_factura)) == 'C' ? 'selected' : '' }}>C</option>
+                                                    <option value="Contra Informe" {{ old('tipo_factura', trim($cliente->cli_factura)) == 'Contra Informe' ? 'selected' : '' }}>Contra Informe</option>
+                                                </select>
                                             </div>
                                         </div>
 
                                         <!-- Columna derecha -->
                                         <div class="col-md-6">
                                             <div class="mb-3">
-                                                <label for="observaciones_facturacion" class="form-label">Observaciones Facturación</label>
-                                                <textarea class="form-control" id="observaciones_facturacion" name="cli_obs" 
-                                                          rows="15">{{ old('cli_obs', $cliente->cli_obs) }}</textarea>
+                                                <label for="observaciones_facturacion" class="form-label">Observaciones</label>
+                                                <textarea class="form-control" id="observaciones_facturacion" name="observaciones_facturacion" 
+                                                          rows="25">{{ old('observaciones_facturacion', trim($cliente->cli_obs1)) }}</textarea>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Solapa Empresas Relacionadas -->
+                            <div class="tab-pane fade" id="empresas-relacionadas" role="tabpanel">
+                                <div class="p-4">
+                                    <div class="row">
+                                        <!-- Columna izquierda -->
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label for="rel_empresa_razon_social" class="form-label">Razón Social</label>
+                                                <input type="text" class="form-control" id="rel_empresa_razon_social" name="rel_empresa_razon_social" 
+                                                       value="{{ old('rel_empresa_razon_social', trim($cliente->cli_rel_empresa_razon_social ?? '')) }}" maxlength="255">
+                                            </div>
+
+                                            <div class="mb-3">
+                                                <label for="rel_empresa_cuit" class="form-label">CUIT</label>
+                                                <input type="text" class="form-control" id="rel_empresa_cuit" name="rel_empresa_cuit" 
+                                                       value="{{ old('rel_empresa_cuit', trim($cliente->cli_rel_empresa_cuit ?? '')) }}" maxlength="13">
+                                            </div>
+
+                                            <div class="mb-3">
+                                                <label for="rel_empresa_direcciones" class="form-label">Direcciones</label>
+                                                <textarea class="form-control" id="rel_empresa_direcciones" name="rel_empresa_direcciones" 
+                                                          rows="3">{{ old('rel_empresa_direcciones', trim($cliente->cli_rel_empresa_direcciones ?? '')) }}</textarea>
+                                            </div>
+                                        </div>
+
+                                        <!-- Columna derecha -->
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label for="rel_empresa_localidad" class="form-label">Localidad</label>
+                                                <input type="text" class="form-control" id="rel_empresa_localidad" name="rel_empresa_localidad" 
+                                                       value="{{ old('rel_empresa_localidad', trim($cliente->cli_rel_empresa_localidad ?? '')) }}" maxlength="50">
+                                            </div>
+
+                                            <div class="mb-3">
+                                                <label for="rel_empresa_partido" class="form-label">Partido</label>
+                                                <input type="text" class="form-control" id="rel_empresa_partido" name="rel_empresa_partido" 
+                                                       value="{{ old('rel_empresa_partido', trim($cliente->cli_rel_empresa_partido ?? '')) }}" maxlength="50">
+                                            </div>
+
+                                            <div class="mb-3">
+                                                <label for="rel_empresa_contacto" class="form-label">Contacto</label>
+                                                <input type="text" class="form-control" id="rel_empresa_contacto" name="rel_empresa_contacto" 
+                                                       value="{{ old('rel_empresa_contacto', trim($cliente->cli_rel_empresa_contacto ?? '')) }}" maxlength="100">
                                             </div>
                                         </div>
                                     </div>
@@ -286,13 +506,13 @@
                         <!-- Botones de acción -->
                         <div class="card-footer bg-light border-top">
                             <div class="d-flex justify-content-end gap-2">
-                                <a href="{{ route('clientes.index') }}" class="btn btn-secondary">
+                                <button type="button" class="btn btn-secondary" onclick="window.history.back()">
                                     <x-heroicon-o-x-mark style="width: 16px; height: 16px;" class="me-1" />
                                     Cancelar
-                                </a>
+                                </button>
                                 <button type="submit" class="btn btn-primary">
                                     <x-heroicon-o-check style="width: 16px; height: 16px;" class="me-1" />
-                                    Actualizar Cliente
+                                    Actualizar
                                 </button>
                             </div>
                         </div>
@@ -358,6 +578,36 @@
         box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
     }
 
+    /* Tabla de sectores */
+    .table-responsive {
+        border: 1px solid #dee2e6;
+        border-radius: 0.25rem;
+    }
+
+    .table th {
+        background-color: #f8f9fa;
+        border-color: #dee2e6;
+        font-weight: 600;
+        font-size: 0.8rem;
+        padding: 0.5rem;
+    }
+
+    .table td {
+        padding: 0.25rem 0.5rem;
+        vertical-align: middle;
+    }
+
+    /* Botones de búsqueda */
+    .btn-outline-secondary {
+        border-color: #ced4da;
+        color: #6c757d;
+    }
+
+    .btn-outline-secondary:hover {
+        background-color: #6c757d;
+        border-color: #6c757d;
+    }
+
     /* Header del formulario */
     .bg-light {
         background-color: #f8f9fa !important;
@@ -374,7 +624,27 @@
 
     /* Espaciado de contenido */
     .tab-content {
-        min-height: 400px;
+        min-height: 500px;
+    }
+
+    /* Input groups */
+    .input-group .form-control {
+        border-right: 0;
+    }
+
+    .input-group .form-control:not(:last-child) {
+        border-top-right-radius: 0;
+        border-bottom-right-radius: 0;
+    }
+
+    .input-group .form-control:not(:first-child) {
+        border-top-left-radius: 0;
+        border-bottom-left-radius: 0;
+        border-left: 0;
+    }
+
+    .input-group .btn {
+        border-left: 0;
     }
 </style>
 
@@ -397,19 +667,141 @@
             });
         });
 
-        // Validación básica del formulario
-        const form = document.getElementById('clienteForm');
-        if (form) {
-            form.addEventListener('submit', function(e) {
-                const razonSocial = document.getElementById('razon_social');
-                if (!razonSocial.value.trim()) {
-                    e.preventDefault();
-                    alert('La Razón Social es obligatoria');
-                    razonSocial.focus();
-                    return;
+        // Manejar cambios en los selectores
+        const condicionIvaSelect = document.getElementById('condicion_iva_codigo');
+        const condicionIvaDesc = document.getElementById('condicion_iva_desc');
+        
+        if (condicionIvaSelect && condicionIvaDesc) {
+            condicionIvaSelect.addEventListener('change', function() {
+                const selectedOption = this.options[this.selectedIndex];
+                if (selectedOption.value) {
+                    condicionIvaDesc.value = selectedOption.getAttribute('data-descripcion') || '';
+                } else {
+                    condicionIvaDesc.value = '';
                 }
             });
         }
+
+        // Manejar cambios en el selector de rubros
+        const rubroSelect = document.getElementById('rubro_codigo');
+        const rubroNombre = document.getElementById('rubro_nombre');
+        
+        if (rubroSelect && rubroNombre) {
+            rubroSelect.addEventListener('change', function() {
+                const selectedOption = this.options[this.selectedIndex];
+                if (selectedOption.value) {
+                    rubroNombre.value = selectedOption.getAttribute('data-descripcion') || '';
+                } else {
+                    rubroNombre.value = '';
+                }
+            });
+        }
+
+    // Validación básica del formulario con SweetAlert
+    const form = document.getElementById('clienteForm');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            console.log('=== VALIDANDO FORMULARIO DE CLIENTE ===');
+            console.log('Datos del formulario:');
+            
+            const formData = new FormData(form);
+            for (let [key, value] of formData.entries()) {
+                console.log(`${key}: ${value}`);
+            }
+            
+            const razonSocial = document.getElementById('razon_social');
+            if (!razonSocial.value.trim()) {
+                e.preventDefault();
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error de Validación',
+                    text: 'La Razón Social es obligatoria',
+                    confirmButtonColor: '#dc3545'
+                });
+                razonSocial.focus();
+                return;
+            }
+            
+            console.log('Formulario válido, enviando...');
+        });
+    }
+
+        // Mejorar la experiencia con los selectores
+        const selectores = document.querySelectorAll('.form-select');
+        selectores.forEach(select => {
+            select.addEventListener('focus', function() {
+                this.style.borderColor = '#86b7fe';
+            });
+            
+            select.addEventListener('blur', function() {
+                this.style.borderColor = '#ced4da';
+            });
+        });
     });
+</script>
+
+<!-- SweetAlert2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<script>
+// Notificaciones de sesión
+@if(session('success'))
+    Swal.fire({
+        icon: 'success',
+        title: '¡Éxito!',
+        text: '{{ session("success") }}',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true
+    });
+@endif
+
+@if(session('error'))
+    Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: '{{ session("error") }}',
+        confirmButtonColor: '#dc3545'
+    });
+@endif
+
+@if($errors->any())
+    Swal.fire({
+        icon: 'error',
+        title: 'Error de Validación',
+        html: '<ul style="text-align: left;"><li>' + {{ Js::from($errors->all()) }}.join('</li><li>') + '</li></ul>',
+        confirmButtonColor: '#dc3545'
+    });
+@endif
+
+// Función de debugging (disponible en consola del navegador)
+window.debugFormulario = function() {
+    console.log('=== DEBUG FORMULARIO CLIENTE ===');
+    const form = document.getElementById('clienteForm');
+    
+    if (!form) {
+        console.error('Formulario no encontrado');
+        return;
+    }
+    
+    const formData = new FormData(form);
+    console.log('Todos los campos del formulario:');
+    
+    for (let [key, value] of formData.entries()) {
+        console.log(`  ${key}: ${value}`);
+    }
+    
+    // Validar campos críticos
+    const razonSocial = document.getElementById('razon_social');
+    const codigo = document.getElementById('codigo');
+    const activo = document.querySelector('input[name="activo"]:checked');
+    
+    console.log('\nCampos críticos:');
+    console.log('  - Razón Social:', razonSocial ? razonSocial.value : 'NO ENCONTRADO');
+    console.log('  - Código:', codigo ? codigo.value : 'NO ENCONTRADO');
+    console.log('  - Estado:', activo ? activo.value : 'NO SELECCIONADO');
+    
+    console.log('\nFormulario válido:', razonSocial && razonSocial.value.trim() ? 'SÍ' : 'NO');
+};
 </script>
 @endsection

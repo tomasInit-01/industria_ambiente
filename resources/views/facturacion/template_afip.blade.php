@@ -187,33 +187,49 @@
             <tbody>
                 @php
                     $subtotal = 0;
-                    $items = is_string($factura->items) ? json_decode($factura->items, true) : $factura->items;
+                    $rawItems = is_string($factura->items) ? json_decode($factura->items, true) : $factura->items;
+                    $itemsListado = $rawItems;
+                    $resumen = null;
+
+                    if (isset($rawItems['items']) && is_array($rawItems['items'])) {
+                        $itemsListado = $rawItems['items'];
+                        $resumen = $rawItems['resumen'] ?? null;
+                    }
                 @endphp
-                @if($items && is_array($items))
-                    @foreach($items as $item)
-                        @php $subtotal += $item['subtotal'] ?? 0; @endphp
+                @if($itemsListado && is_array($itemsListado))
+                    @foreach($itemsListado as $item)
+                        @php
+                            if (!is_array($item)) {
+                                continue;
+                            }
+                            $tipo = $item['tipo'] ?? 'N/A';
+                            $cantidad = $item['cantidad'] ?? 1;
+                            $precioUnit = $item['precio_unitario'] ?? 0;
+                            $subtotalItem = $item['subtotal'] ?? $precioUnit;
+                            $subtotal += $subtotalItem;
+                        @endphp
                         <tr>
                             <td>
                                 {{ $item['descripcion'] ?? 'N/A' }}
-                                @if(isset($item['identificacion']) && $item['identificacion'])
+                                @if(!empty($item['identificacion']))
                                     <br><small style="color: #666;">ID: {{ $item['identificacion'] }}</small>
                                 @endif
-                                @if(isset($item['resultado']) && $item['resultado'])
+                                @if(!empty($item['resultado']))
                                     <br><small style="color: #666;">Resultado: {{ $item['resultado'] }}</small>
                                 @endif
                             </td>
                             <td>
-                                @if($item['tipo'] == 'muestra')
+                                @if($tipo === 'muestra')
                                     <span class="badge" style="background-color: #007bff;">MUESTRA</span>
-                                @elseif($item['tipo'] == 'analisis')
+                                @elseif($tipo === 'analisis')
                                     <span class="badge" style="background-color: #6f42c1;">ANÁLISIS</span>
                                 @else
-                                    <span class="badge" style="background-color: #6c757d;">{{ strtoupper($item['tipo'] ?? 'N/A') }}</span>
+                                    <span class="badge" style="background-color: #6c757d;">{{ strtoupper($tipo) }}</span>
                                 @endif
                             </td>
-                            <td class="text-center">{{ $item['cantidad'] ?? 1 }}</td>
-                            <td class="text-right">${{ number_format($item['precio_unitario'] ?? 0, 2, ',', '.') }}</td>
-                            <td class="text-right"><strong>${{ number_format($item['subtotal'] ?? 0, 2, ',', '.') }}</strong></td>
+                            <td class="text-center">{{ $cantidad }}</td>
+                            <td class="text-right">${{ number_format($precioUnit, 2, ',', '.') }}</td>
+                            <td class="text-right"><strong>${{ number_format($subtotalItem, 2, ',', '.') }}</strong></td>
                         </tr>
                     @endforeach
                 @else
@@ -231,6 +247,16 @@
                     $neto = round($total / 1.21, 2);
                     $iva = round($total - $neto, 2);
                 @endphp
+                @if($resumen && isset($resumen['total_bruto']) && $resumen['total_bruto'] > $total)
+                    <tr>
+                        <td><strong>Total bruto:</strong></td>
+                        <td class="text-right">${{ number_format($resumen['total_bruto'], 2, ',', '.') }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Descuento aplicado:</strong></td>
+                        <td class="text-right">-${{ number_format($resumen['total_bruto'] - $total, 2, ',', '.') }}</td>
+                    </tr>
+                @endif
                 <tr>
                     <td><strong>Subtotal (sin IVA):</strong></td>
                     <td class="text-right">${{ number_format($neto, 2, ',', '.') }}</td>

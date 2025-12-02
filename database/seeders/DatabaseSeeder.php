@@ -19,5 +19,12 @@ class DatabaseSeeder extends Seeder
             'name' => 'Test User',
             'email' => 'test@example.com',
         ]);
+
+        // Ejecutar seeders para las nuevas tablas
+        $this->call([
+            MetodosYNormativasSeeder::class,
+            ClienteSelectorsSeeder::class,
+            CotizacionSelectorsSeeder::class,
+        ]);
     }
 }

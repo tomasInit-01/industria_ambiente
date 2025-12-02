@@ -20,6 +20,15 @@ use App\Http\Controllers\SimpleNotificationController;
 use App\Http\Controllers\InformeController;
 use App\Http\Controllers\VentasController;
 use App\Http\Controllers\ClientesController;
+use App\Http\Controllers\AuditoriaController;
+use App\Http\Controllers\MetodoMuestreoController;
+use App\Http\Controllers\MetodoAnalisisController;
+use App\Http\Controllers\ItemController;
+use App\Http\Controllers\MetodosController;
+use App\Http\Controllers\LeyNormativaController;
+use App\Http\Controllers\VariableController;
+
+
 
 // Rutas de autenticación
 Route::middleware([EnsureSessionActive::class])->group(function () {
@@ -54,6 +63,7 @@ Route::middleware(CheckAuth::class)->group(function () {
     Route::put('/tareas/{cotio_numcoti}/{cotio_item}/{cotio_subitem}/{instance}/resultado', [CotioController::class, 'updateResultado'])->name('tareas.updateResultado');
     Route::put('/tareas/{cotio_numcoti}/{cotio_item}/{cotio_subitem}/{instance}/resultado-only', [CotioController::class, 'onlyUpdateResultado'])->name('tareas.onlyUpdateResultado');
     Route::put('/tareas/{instance}/mediciones', [CotioController::class, 'updateMediciones'])->name('tareas.updateMediciones');
+    Route::put('/tareas/{cotio_numcoti}/{cotio_item}/{cotio_subitem}/{instance}/herramientas', [CotioController::class, 'updateHerramientas'])->name('tareas.updateHerramientas');
 
     // Rutas de ordenes
     Route::get('/mis-ordenes', [OrdenController::class, 'showOrdenes'])->name('mis-ordenes');
@@ -214,8 +224,15 @@ Route::middleware([CheckAdminOrRole::class])->group(function () {
     Route::get('/informes/{cotio_numcoti}/{cotio_item}/{instance_number}', [InformeController::class, 'show'])->name('informes.show');
     Route::get('/informes/pdf-masivo/{cotizacion}', [InformeController::class, 'generarPdfMasivo'])->name('informes.pdf-masivo');
     Route::get('/informes/{cotio_numcoti}/{cotio_item}/{instance_number}/pdf', [InformeController::class, 'generarPdf'])->name('informes.pdf');
+    Route::get('/informes/{cotio_numcoti}/{cotio_item}/{instance_number}/firmar', [InformeController::class, 'firmarInforme'])->name('informes.firmar');
     Route::get('/informes-api/{cotio_numcoti}/{cotio_item}/{instance_number}', [InformeController::class, 'getInformeData'])->name('api.informes.get');
     Route::put('/informes-api/{cotio_numcoti}/{cotio_item}/{instance_number}', [InformeController::class, 'updateInforme'])->name('api.informes.update');
+    
+    // Rutas de callbacks para firma digital
+    Route::get('/firma/exitosa', [InformeController::class, 'firmaExitosa'])->name('firma.exitosa');
+    Route::get('/firma/error', [InformeController::class, 'firmaError'])->name('firma.error');
+    Route::get('/firma/rechazada', [InformeController::class, 'firmaRechazada'])->name('firma.rechazada');
+    Route::get('/informes/{cotio_numcoti}/{cotio_item}/{instance_number}/descargar-firmado', [InformeController::class, 'descargarDocumentoFirmado'])->name('informes.descargar-firmado');
     Route::post('/ordenes/actualizar-estado', [OrdenController::class, 'actualizarEstado'])->name('ordenes.actualizar-estado');
 
     // Gestión de calibraciones del inventario de laboratorio
@@ -232,6 +249,86 @@ Route::middleware([CheckAdminOrRole::class])->group(function () {
     Route::get('/facturacion/{factura}/descargar', [App\Http\Controllers\FacturacionController::class, 'descargar'])->name('facturacion.descargar');
     Route::get('/facturacion/facturar/{cotizacion}', [App\Http\Controllers\FacturacionController::class, 'facturar'])->name('facturacion.show');
     Route::post('/facturacion/facturar/{cotizacion}', [App\Http\Controllers\FacturacionController::class, 'generarFacturaArca'])->name('facturacion.facturar');
+
+    //Auditoria
+    Route::get('/auditoria', [AuditoriaController::class, 'index'])->name('auditoria.index');
+    Route::get('/auditoria/exportar', [AuditoriaController::class, 'exportar'])->name('auditoria.exportar');
+    Route::get('/auditoria/preview', [AuditoriaController::class, 'preview'])->name('auditoria.preview'); // Para debug
+
+    // Route::get('metodos-muestreo', [MetodoMuestreoController::class, 'index'])->name('metodos-muestreo.index');
+    // Route::get('metodos-muestreo/create', [MetodoMuestreoController::class, 'create'])->name('metodos-muestreo.create');
+    // Route::post('metodos-muestreo/store', [MetodoMuestreoController::class, 'store'])->name('metodos-muestreo.store');
+    // Route::get('metodos-muestreo/{metodoMuestreo}', [MetodoMuestreoController::class, 'show'])->name('metodos-muestreo.show');
+    // Route::get('metodos-muestreo/{metodoMuestreo}/edit', [MetodoMuestreoController::class, 'edit'])->name('metodos-muestreo.edit');
+    // Route::put('metodos-muestreo/{metodoMuestreo}', [MetodoMuestreoController::class, 'update'])->name('metodos-muestreo.update');
+    // Route::delete('metodos-muestreo/{metodoMuestreo}', [MetodoMuestreoController::class, 'delete'])->name('metodos-muestreo.delete');
+    
+    
+    // // Métodos de Análisis
+    // Route::get('metodos-analisis', [MetodoAnalisisController::class, 'index'])->name('metodos-analisis.index');
+    // Route::get('metodos-analisis/create', [MetodoAnalisisController::class, 'create'])->name('metodos-analisis.create');
+    // Route::post('metodos-analisis/store', [MetodoAnalisisController::class, 'store'])->name('metodos-analisis.store');
+    // Route::get('metodos-analisis/{metodoAnalisis}', [MetodoAnalisisController::class, 'show'])->name('metodos-analisis.show');
+    // Route::get('metodos-analisis/{metodoAnalisis}/edit', [MetodoAnalisisController::class, 'edit'])->name('metodos-analisis.edit');
+    // Route::put('metodos-analisis/{metodoAnalisis}', [MetodoAnalisisController::class, 'update'])->name('metodos-analisis.update');
+    // Route::delete('metodos-analisis/{metodoAnalisis}', [MetodoAnalisisController::class, 'delete'])->name('metodos-analisis.delete');
+
+    //Métodos
+    Route::get('metodos',[MetodosController::class,'index'])->name('metodos.index');
+    Route::get('metodos/create', [MetodosController::class, 'create'])->name('metodos.create');
+    Route::post('metodos/store', [MetodosController::class, 'store'])->name('metodos.store');
+    Route::get('metodos/{metodo}/edit', [MetodosController::class, 'edit'])->name('metodos.edit');
+    Route::put('metodos/{metodo}', [MetodosController::class, 'update'])->name('metodos.update');
+    Route::delete('metodos/{metodo}', [MetodosController::class, 'delete'])->name('metodos.delete');
+
+    //Items
+    Route::get('items', [ItemController::class, 'index'])->name('items.index');
+    Route::get('items/create', [ItemController::class, 'create'])->name('items.create');
+    Route::post('items/store', [ItemController::class, 'store'])->name('items.store');
+    
+    // Importación masiva (debe ir antes de items/{cotio_items})
+    Route::get('items/importar', [ItemController::class, 'showImportar'])->name('items.importar');
+    Route::post('items/importar/procesar', [ItemController::class, 'procesarImportacion'])->name('items.importar-procesar');
+    Route::get('items/importar/plantilla', [ItemController::class, 'descargarPlantilla'])->name('items.descargar-plantilla');
+    
+    // Cambios masivos de precios (debe ir antes de items/{cotio_items})
+    Route::get('items/precios/cambios-masivos', [ItemController::class, 'showCambiosMasivos'])->name('items.cambios-masivos-precios');
+    Route::post('items/precios/aplicar-cambios-masivos', [ItemController::class, 'aplicarCambiosMasivos'])->name('items.aplicar-cambios-masivos');
+    Route::get('items/precios/historial', [ItemController::class, 'historialPrecios'])->name('items.historial-precios');
+    Route::post('items/precios/revertir/{operacionId}', [ItemController::class, 'revertirCambios'])->name('items.revertir-cambios');
+    
+    // Rutas con parámetros (deben ir al final)
+    Route::get('items/{cotio_items}', [ItemController::class, 'show'])->name('items.show');
+    Route::get('items/{cotio_items}/edit', [ItemController::class, 'edit'])->name('items.edit');
+    Route::put('items/{cotio_items}', [ItemController::class, 'update'])->name('items.update');
+    Route::delete('items/{cotio_items}', [ItemController::class, 'delete'])->name('items.delete');
+    
+
+    // Leyes y Normativas
+    Route::get('leyes-normativas', [LeyNormativaController::class, 'index'])->name('leyes-normativas.index');
+    Route::get('leyes-normativas/create', [LeyNormativaController::class, 'create'])->name('leyes-normativas.create');
+    Route::post('leyes-normativas/store', [LeyNormativaController::class, 'store'])->name('leyes-normativas.store');
+    Route::get('leyes-normativas/{leyNormativa}', [LeyNormativaController::class, 'show'])->name('leyes-normativas.show');
+    Route::get('leyes-normativas/{leyNormativa}/edit', [LeyNormativaController::class, 'edit'])->name('leyes-normativas.edit');
+    Route::put('leyes-normativas/{leyNormativa}', [LeyNormativaController::class, 'update'])->name('leyes-normativas.update');
+    Route::delete('leyes-normativas/{leyNormativa}', [LeyNormativaController::class, 'delete'])->name('leyes-normativas.delete');
+    Route::delete('leyes-normativas/{leyNormativa}/remove-variable', [LeyNormativaController::class, 'removeVariable'])->name('leyes-normativas.remove-variable');
+    
+    // Variables
+    Route::get('variables', [VariableController::class, 'index'])->name('variables.index');
+    Route::get('variables/create', [VariableController::class, 'create'])->name('variables.create');
+    Route::post('variables/store', [VariableController::class, 'store'])->name('variables.store');
+    Route::get('variables/{variable}', [VariableController::class, 'show'])->name('variables.show');
+    Route::get('variables/{variable}/edit', [VariableController::class, 'edit'])->name('variables.edit');
+    Route::put('variables/{variable}', [VariableController::class, 'update'])->name('variables.update');
+    Route::delete('variables/{variable}', [VariableController::class, 'delete'])->name('variables.delete');
+    
+    // API Routes para variables
+    Route::get('variables-api', [App\Http\Controllers\VariableController::class, 'apiIndex'])->name('variables.api.index');
+    Route::post('variables-api', [App\Http\Controllers\VariableController::class, 'apiStore'])->name('variables.api.store');
+    
+    // API Route para cotio_items para leyes-normativas
+    Route::get('cotio-items-api', [App\Http\Controllers\ItemController::class, 'apiIndexForLeyesNormativas'])->name('cotio-items.api.index');
 });
 
 
@@ -423,6 +520,7 @@ Route::middleware([CheckAdminOrRole::class])->group(function () {
 });
 
 
+// facturacion
 Route::middleware([CheckAdminOrRole::class])->group(function () {
     Route::get('/facturacion', [App\Http\Controllers\FacturacionController::class, 'index'])->name('facturacion.index');
     Route::get('/facturacion/listado', [App\Http\Controllers\FacturacionController::class, 'listarFacturas'])->name('facturacion.listado');
@@ -438,8 +536,18 @@ Route::middleware([CheckAdminOrRole::class])->group(function () {
     Route::get('/ventas/create', [VentasController::class, 'create'])->name('ventas.create');
     Route::post('/ventas', [VentasController::class, 'store'])->name('ventas.store');
     Route::get('/ventas/{id}/edit', [VentasController::class, 'edit'])->name('ventas.edit');
+    Route::get('/ventas/{id}/print', [VentasController::class, 'imprimir'])->name('ventas.print');
     Route::put('/ventas/{id}', [VentasController::class, 'update'])->name('ventas.update');
     Route::delete('/ventas/{id}', [VentasController::class, 'destroy'])->name('ventas.destroy');
+    
+    // APIs para ventas/cotizaciones
+    Route::get('/api/clientes/buscar', [VentasController::class, 'buscarClientes'])->name('api.clientes.buscar');
+    Route::get('/api/clientes/{codigo}', [VentasController::class, 'obtenerCliente'])->name('api.clientes.obtener');
+    Route::get('/api/ensayos', [VentasController::class, 'obtenerEnsayos'])->name('api.ensayos');
+    Route::get('/api/componentes', [VentasController::class, 'obtenerComponentes'])->name('api.componentes');
+    Route::get('/api/metodos-muestreo', [VentasController::class, 'obtenerMetodosMuestreo'])->name('api.metodos-muestreo');
+    Route::get('/api/metodos-analisis', [VentasController::class, 'obtenerMetodosAnalisis'])->name('api.metodos-analisis');
+    Route::get('/api/leyes-normativas', [VentasController::class, 'obtenerLeyesNormativas'])->name('api.leyes-normativas');
 
     Route::get('/clientes', [ClientesController::class, 'index'])->name('clientes.index');
     Route::get('/clientes/create', [ClientesController::class, 'create'])->name('clientes.create');
@@ -449,4 +557,43 @@ Route::middleware([CheckAdminOrRole::class])->group(function () {
     Route::delete('/clientes/{id}', [ClientesController::class, 'destroy'])->name('clientes.destroy');
 });
 
+// firmador
+Route::middleware([CheckAdminOrRole::class])->group(function () {
+    //informes
+    Route::get('/informes', [InformeController::class, 'index'])->name('informes.index');
+    Route::get('/informes/{cotio_numcoti}/{cotio_item}/{instance_number}', [InformeController::class, 'show'])->name('informes.show');
+    Route::get('/informes/pdf-masivo/{cotizacion}', [InformeController::class, 'generarPdfMasivo'])->name('informes.pdf-masivo');
+    Route::get('/informes/{cotio_numcoti}/{cotio_item}/{instance_number}/pdf', [InformeController::class, 'generarPdf'])->name('informes.pdf');
+    Route::get('/informes/{cotio_numcoti}/{cotio_item}/{instance_number}/firmar', [InformeController::class, 'firmarInforme'])->name('informes.firmar');
+    Route::get('/informes-api/{cotio_numcoti}/{cotio_item}/{instance_number}', [InformeController::class, 'getInformeData'])->name('api.informes.get');
+    Route::put('/informes-api/{cotio_numcoti}/{cotio_item}/{instance_number}', [InformeController::class, 'updateInforme'])->name('api.informes.update');
+    Route::get('/informes/firma-exitosa', [InformeController::class, 'firmaExitosa'])->name('informes.firma-exitosa');
+    Route::get('/informes/firma-error', [InformeController::class, 'firmaError'])->name('informes.firma-error');
+    Route::get('/informes/firma-rechazada', [InformeController::class, 'firmaRechazada'])->name('informes.firma-rechazada');
+});
 
+    // // Métodos de Muestreo
+    // Route::resource('metodos-muestreo', App\Http\Controllers\MetodoMuestreoController::class)->parameters([
+    //     'metodos-muestreo' => 'metodoMuestreo'
+    // ]);
+    // Route::get('metodos-muestreo/{metodoMuestreo}/delete', [App\Http\Controllers\MetodoMuestreoController::class, 'delete'])->name('metodos-muestreo.delete');
+    
+    // // Métodos de Análisis
+    // Route::resource('metodos-analisis', App\Http\Controllers\MetodoAnalisisController::class)->parameters([
+    //     'metodos-analisis' => 'metodoAnalisis'
+    // ]);
+    // Route::get('metodos-analisis/{metodoAnalisis}/delete', [App\Http\Controllers\MetodoAnalisisController::class, 'delete'])->name('metodos-analisis.delete');
+    
+    // // Leyes y Normativas
+    // Route::resource('leyes-normativas', App\Http\Controllers\LeyNormativaController::class)->parameters([
+    //     'leyes-normativas' => 'leyNormativa'
+    // ]);
+    Route::get('leyes-normativas/{leyNormativa}/delete', [App\Http\Controllers\LeyNormativaController::class, 'delete'])->name('leyes-normativas.delete');
+    
+    // Variables
+    Route::resource('variables', App\Http\Controllers\VariableController::class);
+    Route::get('variables/{variable}/delete', [App\Http\Controllers\VariableController::class, 'delete'])->name('variables.delete');
+    
+    // API Routes para variables
+    Route::get('variables-api', [App\Http\Controllers\VariableController::class, 'apiIndex'])->name('variables.api.index');
+    Route::post('variables-api', [App\Http\Controllers\VariableController::class, 'apiStore'])->name('variables.api.store');

@@ -9,6 +9,9 @@ use App\Models\InventarioLab;
 use App\Models\CotioResponsable;
 use Illuminate\Support\Facades\Auth;
 use App\Models\CotioInstancia;
+use App\Models\MetodoMuestreo;
+use App\Models\MetodoAnalisis;
+use App\Models\LeyNormativa;
 
 class Cotio extends Model
 {
@@ -20,18 +23,22 @@ class Cotio extends Model
         'cotio_numcoti',
         'cotio_item',
         'cotio_subitem',
-        'cotio_responsable_codigo',
-        'vehiculo_asignado',
-        'fecha_inicio',
-        'fecha_fin',
-        'enable_ot',
-        'modulo_origen',
-        'enable_muestreo',
-        'cotio_estado',
-        'resultado',
-        'active_ot',
-        'cotio_identificacion'
+        'cotio_descripcion',
+        'cotio_precio',
+        'cotio_codigoum',
+        'cotio_codigometodo',
+        'cotio_codigometodo_analisis',
+        'limite_deteccion',
+        'limite_cuantificacion',
+        'ley_aplicacion'
     ];
+    
+    protected $casts = [
+        'cotio_precio' => 'decimal:2',
+        'limite_deteccion' => 'decimal:6',
+        'limite_cuantificacion' => 'decimal:6'
+    ];
+    
     public $timestamps = false;
     
     
@@ -116,6 +123,30 @@ class Cotio extends Model
     public function responsable()
     {
         return $this->belongsTo(User::class, 'cotio_responsable_codigo', 'usu_codigo');
+    }
+
+    /**
+     * Relación con método de muestreo
+     */
+    public function metodoMuestreo()
+    {
+        return $this->belongsTo(MetodoMuestreo::class, 'cotio_codigometodo', 'codigo');
+    }
+
+    /**
+     * Relación con método de análisis
+     */
+    public function metodoAnalisis()
+    {
+        return $this->belongsTo(MetodoAnalisis::class, 'cotio_codigometodo_analisis', 'codigo');
+    }
+
+    /**
+     * Relación con ley/normativa aplicable
+     */
+    public function leyNormativa()
+    {
+        return $this->belongsTo(LeyNormativa::class, 'ley_aplicacion', 'codigo');
     }
 
 

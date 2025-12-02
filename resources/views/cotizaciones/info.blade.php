@@ -13,6 +13,12 @@
         <x-heroicon-o-chevron-up id="chevron-{{ $cotizacion->coti_num }}" class="text-white" style="width: 20px; height: 20px;" />
     </div>
     <div id="info-{{ $cotizacion->coti_num }}" class="card-body" style="display: none;">
+        @if(!empty($cotizacion->coti_para))
+            <div class="mb-2">
+                <strong>Para:</strong>
+                {{ $cotizacion->coti_para }}
+            </div>
+        @endif
         <div class="mb-2">
             <strong>Cliente:</strong>
                 {{ $cotizacion->coti_empresa }} - {{ $cotizacion->coti_establecimiento }}

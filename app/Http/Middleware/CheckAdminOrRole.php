@@ -22,7 +22,7 @@ class CheckAdminOrRole
         $isAdmin = $user->usu_nivel >= 900;
 
         // Lista de roles autorizados (puedes agregar más si lo deseas)
-        $allowedRoles = ['coordinador_lab', 'coordinador_muestreo', 'facturador', 'ventas'];
+        $allowedRoles = ['coordinador_lab', 'coordinador_muestreo', 'facturador', 'ventas', 'firmador'];
         $userRole = trim($user->rol);
         $hasRequiredRole = in_array($userRole, $allowedRoles);
 

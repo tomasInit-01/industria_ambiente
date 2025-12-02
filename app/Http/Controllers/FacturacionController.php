@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Coti;
+use App\Models\Cotio;
 use App\Models\CotioInstancia;
 use App\Models\CotioInstanciaAnalisis;
 use App\Models\CotioInstanciaMuestra;
@@ -11,6 +12,8 @@ use App\Models\CotioInstanciaMuestraMuestra;
 use App\Models\CotioInstanciaMuestraMuestraAnalisis;
 use App\Models\Matriz;
 use App\Models\Factura;
+use App\Models\Clientes;
+use App\Models\Divis;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
@@ -94,7 +97,7 @@ public function index(Request $request)
 
 public function facturar($coti_num)
 {
-    $cotizacion = Coti::findOrFail($coti_num);
+    $cotizacion = Coti::with(['cliente'])->findOrFail($coti_num);
 
     // Cargar tareas con relaciones necesarias
     $tareas = $cotizacion->tareas()
@@ -102,10 +105,7 @@ public function facturar($coti_num)
                 ->orderBy('cotio_subitem')
                 ->get();
 
-    // Obtener variables requeridas por tipo de muestra
-    $tiposMuestra = $tareas->pluck('cotio_descripcion')->unique()->toArray();
-
-    // Cargar todas las instancias (muestras y análisis)
+    // Obtener todas las instancias (muestras y análisis)
     $todasInstancias = CotioInstancia::where('cotio_numcoti', $coti_num)
                         ->with(['responsablesMuestreo', 'responsablesAnalisis'])
                         ->get()
@@ -120,21 +120,54 @@ public function facturar($coti_num)
                         ->get()
                         ->groupBy(['cotio_item', 'cotio_subitem', 'instance_number']);
 
-    // Obtener usuarios muestreadores
     $usuarios = [];
-
     $agrupadas = [];
 
-    // Solo trabajar con muestras que tienen enable_inform = true
+    $resumenFinanciero = $this->construirResumenFinanciero($cotizacion, $tareas);
+    $muestrasTarifario = $resumenFinanciero['muestras'];
+    $analisisTarifario = $resumenFinanciero['analisis'];
+    $descuentoFactor = $resumenFinanciero['descuento_factor'];
+    $resumenMontos = [
+        'total_bruto' => $resumenFinanciero['totales']['bruto'],
+        'total_neto' => $resumenFinanciero['totales']['neto'],
+        'descuento_porcentaje' => $resumenFinanciero['totales']['descuento_porcentaje'],
+        'descuento_monto' => $resumenFinanciero['totales']['descuento_monto'],
+        'descuento_total_porcentaje' => $resumenFinanciero['totales']['descuento_porcentaje'],
+        'descuento_total_monto' => $resumenFinanciero['totales']['descuento_monto'],
+        'descuento_global_porcentaje' => $resumenFinanciero['totales']['descuento_global_porcentaje'],
+        'descuento_global_monto' => $resumenFinanciero['totales']['descuento_global_monto'],
+        'descuento_sector_porcentaje' => $resumenFinanciero['totales']['descuento_sector_porcentaje'],
+        'descuento_sector_monto' => $resumenFinanciero['totales']['descuento_sector_monto'],
+        'descuento_sector_etiqueta' => $resumenFinanciero['totales']['descuento_sector_etiqueta'],
+    ];
+
     foreach ($muestrasParaFacturar as $item => $subitems) {
         foreach ($subitems as $subitem => $instances) {
-            if ($subitem == 0) { // Solo muestras principales
+            if ($subitem == 0) {
                 foreach ($instances as $instanceNumber => $instanciaCollection) {
                     $instancia = $instanciaCollection->first();
                     $tarea = $tareas->where('cotio_item', $item)->where('cotio_subitem', 0)->first();
                     
                     if ($instancia && $tarea) {
+                        $precioBrutoMuestra = $muestrasTarifario[$item]['precio_unitario'] ?? 0.0;
+                        $precioNetoMuestra = $this->aplicarDescuento($precioBrutoMuestra, $descuentoFactor);
+
+                        $instancia->precio_bruto = $precioBrutoMuestra;
+                        $instancia->precio_neto = $precioNetoMuestra;
+
                         $analisisMuestra = $this->getAnalisisForMuestra($tareas, $item, $instanceNumber, $todasInstancias);
+
+                        foreach ($analisisMuestra as $analisis) {
+                            if (!isset($analisis->instancia) || !$analisis->instancia) {
+                                continue;
+                            }
+
+                            $precioBrutoAnalisis = $analisisTarifario[$analisis->instancia->cotio_item][$analisis->instancia->cotio_subitem]['precio'] ?? 0.0;
+                            $precioNetoAnalisis = $this->aplicarDescuento($precioBrutoAnalisis, $descuentoFactor);
+
+                            $analisis->instancia->precio_bruto = $precioBrutoAnalisis;
+                            $analisis->instancia->precio_neto = $precioNetoAnalisis;
+                        }
 
                         $agrupadas[] = [
                             'categoria' => (object) array_merge($tarea->toArray(), [
@@ -156,7 +189,8 @@ public function facturar($coti_num)
         'cotizacion', 
         'tareas', 
         'usuarios', 
-        'agrupadas', 
+        'agrupadas',
+        'resumenMontos'
     ));
 }
 
@@ -242,7 +276,7 @@ public function generarFacturaArca(Request $request, $coti_num)
             'muestras.*.exists' => 'El ID de la muestra :index no existe en la base de datos.',
         ]);
 
-        $cotizacion = Coti::findOrFail($coti_num);
+        $cotizacion = Coti::with(['cliente'])->findOrFail($coti_num);
         $muestrasSeleccionadas = $request->input('muestras', []);
         $analisisSeleccionados = $request->input('analisis', []);
 
@@ -261,13 +295,94 @@ public function generarFacturaArca(Request $request, $coti_num)
             return redirect()->back()->with('error', 'No se seleccionaron muestras ni análisis válidos.');
         }
 
+        $resumenFinanciero = $this->construirResumenFinanciero($cotizacion);
+        $muestrasTarifario = $resumenFinanciero['muestras'];
+        $analisisTarifario = $resumenFinanciero['analisis'];
+        $descuentoFactor = $resumenFinanciero['descuento_factor'];
+        $totalesFinancieros = $resumenFinanciero['totales'];
+        $descuentoPorcentaje = $totalesFinancieros['descuento_porcentaje'];
+        $descuentoGlobalPorcentaje = $totalesFinancieros['descuento_global_porcentaje'];
+        $descuentoSectorPorcentaje = $totalesFinancieros['descuento_sector_porcentaje'];
+        $descuentoGlobalMontoTotal = $totalesFinancieros['descuento_global_monto'];
+        $descuentoSectorMontoTotal = $totalesFinancieros['descuento_sector_monto'];
+        $descuentoSectorEtiqueta = $totalesFinancieros['descuento_sector_etiqueta'];
+
+        Log::info('Aplicando descuentos durante facturación (prioridad: cotización, luego cliente)', [
+            'cotizacion' => $cotizacion->coti_num,
+            'cliente' => optional($cotizacion->cliente)->cli_descripcion ?? $cotizacion->coti_empresa,
+            'descuento_total_porcentaje' => $descuentoPorcentaje,
+            'descuento_global_porcentaje' => $descuentoGlobalPorcentaje,
+            'descuento_sector_porcentaje' => $descuentoSectorPorcentaje,
+            'sector' => $descuentoSectorEtiqueta,
+            'descuento_global_cotizacion' => $cotizacion->coti_descuentoglobal ?? null,
+            'descuento_global_cliente' => optional($cotizacion->cliente)->cli_descuentoglobal ?? null,
+        ]);
+
         // Generar items para la factura
         $items = [];
         $montoTotal = 0;
+        $montoTotalBruto = 0;
+        $selectedMuestrasIndex = $muestras->keyBy(function ($muestra) {
+            return $muestra->cotio_item . '|' . $muestra->instance_number;
+        });
 
-        // Agregar muestras como items
+        // Crear un índice de análisis seleccionados por muestra para verificar si se factura muestra completa
+        $analisisSeleccionadosPorMuestra = [];
+        foreach ($analisis as $analisis_item) {
+            $key = $analisis_item->cotio_item . '|' . $analisis_item->instance_number;
+            if (!isset($analisisSeleccionadosPorMuestra[$key])) {
+                $analisisSeleccionadosPorMuestra[$key] = [];
+            }
+            $analisisSeleccionadosPorMuestra[$key][] = $analisis_item;
+        }
+
+        // Agregar muestras como items SOLO si están explícitamente seleccionadas
+        // (no si solo se seleccionaron algunos análisis de esa muestra)
         foreach ($muestras as $muestra) {
-            $precio = $this->calcularPrecioMuestra($muestra);
+            $key = $muestra->cotio_item . '|' . $muestra->instance_number;
+            
+            // Si hay análisis seleccionados de esta muestra, verificar si TODOS están seleccionados
+            if (isset($analisisSeleccionadosPorMuestra[$key])) {
+                // Obtener todos los análisis de esta muestra
+                $todosAnalisisMuestra = CotioInstancia::where('cotio_numcoti', $cotizacion->coti_num)
+                    ->where('cotio_item', $muestra->cotio_item)
+                    ->where('instance_number', $muestra->instance_number)
+                    ->where('cotio_subitem', '>', 0)
+                    ->where('enable_inform', true)
+                    ->count();
+                
+                $analisisSeleccionadosCount = count($analisisSeleccionadosPorMuestra[$key]);
+                
+                // Si no todos los análisis están seleccionados, NO facturar la muestra
+                if ($todosAnalisisMuestra > 0 && $analisisSeleccionadosCount < $todosAnalisisMuestra) {
+                    continue; // Saltar esta muestra, solo se facturarán los análisis individuales
+                }
+            }
+            
+            // Obtener el precio UNITARIO de la muestra (no el total de todas las muestras)
+            $precioBase = $muestrasTarifario[$muestra->cotio_item]['precio_unitario'] ?? 0.0;
+            
+            // Verificar que no se esté usando el subtotal en lugar del precio unitario
+            if (isset($muestrasTarifario[$muestra->cotio_item]['subtotal'])) {
+                $subtotal = $muestrasTarifario[$muestra->cotio_item]['subtotal'];
+                $cantidad = $muestrasTarifario[$muestra->cotio_item]['cantidad'] ?? 1;
+                // Si el precio base parece ser el subtotal, calcular el unitario
+                if ($precioBase > 0 && $cantidad > 1 && abs($precioBase - $subtotal) < 0.01) {
+                    $precioBase = $subtotal / $cantidad;
+                }
+            }
+            
+            $precio = $this->aplicarDescuento($precioBase, $descuentoFactor);
+
+            Log::info('Facturando muestra individual', [
+                'cotio_item' => $muestra->cotio_item,
+                'instance_number' => $muestra->instance_number,
+                'precio_base_unitario' => $precioBase,
+                'precio_con_descuento' => $precio,
+                'descuento_factor' => $descuentoFactor,
+                'tarifario_info' => $muestrasTarifario[$muestra->cotio_item] ?? null,
+            ]);
+
             $items[] = [
                 'tipo' => 'muestra',
                 'descripcion' => "Muestra - {$muestra->cotio_descripcion}",
@@ -275,14 +390,43 @@ public function generarFacturaArca(Request $request, $coti_num)
                 'cantidad' => 1,
                 'precio_unitario' => $precio,
                 'subtotal' => $precio,
-                'instancia_id' => $muestra->id
+                'instancia_id' => $muestra->id,
+                'precio_unitario_bruto' => $precioBase,
+                'subtotal_bruto' => $precioBase,
+                'descuento_porcentaje' => $descuentoPorcentaje,
+                'descuento_global_porcentaje' => $descuentoGlobalPorcentaje,
+                'descuento_sector_porcentaje' => $descuentoSectorPorcentaje,
+                'descuento_monto_item' => round($precioBase - $precio, 2),
             ];
+            $montoTotalBruto += $precioBase;
             $montoTotal += $precio;
         }
 
-        // Agregar análisis como items
+        // Agregar análisis como items (solo los que NO están incluidos en una muestra facturada completa)
         foreach ($analisis as $analisis_item) {
-            $precio = $this->calcularPrecioAnalisis($analisis_item);
+            $key = $analisis_item->cotio_item . '|' . $analisis_item->instance_number;
+            
+            // Si la muestra está en el índice de muestras seleccionadas, NO facturar los análisis individuales
+            // porque la muestra completa ya incluye todos sus análisis
+            if ($selectedMuestrasIndex->has($key)) {
+                // Si la muestra está seleccionada, significa que se facturó completa
+                // Por lo tanto, NO facturar los análisis individuales
+                Log::info('Saltando análisis individual - muestra completa ya facturada', [
+                    'analisis_id' => $analisis_item->id,
+                    'muestra_key' => $key,
+                ]);
+                continue;
+            }
+
+            $precioBase = $analisisTarifario[$analisis_item->cotio_item][$analisis_item->cotio_subitem]['precio'] ?? 0.0;
+            $precio = $this->aplicarDescuento($precioBase, $descuentoFactor);
+
+            Log::info('Facturando análisis individual', [
+                'analisis_id' => $analisis_item->id,
+                'precio_base' => $precioBase,
+                'precio_con_descuento' => $precio,
+            ]);
+
             $items[] = [
                 'tipo' => 'analisis',
                 'descripcion' => "Análisis - {$analisis_item->cotio_descripcion}",
@@ -290,10 +434,36 @@ public function generarFacturaArca(Request $request, $coti_num)
                 'cantidad' => 1,
                 'precio_unitario' => $precio,
                 'subtotal' => $precio,
-                'instancia_id' => $analisis_item->id
+                'instancia_id' => $analisis_item->id,
+                'precio_unitario_bruto' => $precioBase,
+                'subtotal_bruto' => $precioBase,
+                'descuento_porcentaje' => $descuentoPorcentaje,
+                'descuento_global_porcentaje' => $descuentoGlobalPorcentaje,
+                'descuento_sector_porcentaje' => $descuentoSectorPorcentaje,
+                'descuento_monto_item' => round($precioBase - $precio, 2),
             ];
+            $montoTotalBruto += $precioBase;
             $montoTotal += $precio;
         }
+
+        // Calcular descuentos basados en el total de lo SELECCIONADO, no de toda la cotización
+        $descuentoMontoTotalSeleccionado = round($montoTotalBruto * ($descuentoPorcentaje / 100), 2);
+        $descuentoGlobalMontoSeleccionado = round($montoTotalBruto * ($descuentoGlobalPorcentaje / 100), 2);
+        $descuentoSectorMontoSeleccionado = round($montoTotalBruto * ($descuentoSectorPorcentaje / 100), 2);
+        
+        $resumenDescuento = [
+            'total_bruto' => round($montoTotalBruto, 2),
+            'total_neto' => round($montoTotal, 2),
+            'descuento_porcentaje' => $descuentoPorcentaje,
+            'descuento_monto' => $descuentoMontoTotalSeleccionado,
+            'descuento_total_porcentaje' => $descuentoPorcentaje,
+            'descuento_total_monto' => $descuentoMontoTotalSeleccionado,
+            'descuento_global_porcentaje' => $descuentoGlobalPorcentaje,
+            'descuento_sector_porcentaje' => $descuentoSectorPorcentaje,
+            'descuento_global_monto' => $descuentoGlobalMontoSeleccionado,
+            'descuento_sector_monto' => $descuentoSectorMontoSeleccionado,
+            'descuento_sector_etiqueta' => $descuentoSectorEtiqueta,
+        ];
 
         // Preparar datos del cliente
         $clienteData = [
@@ -309,7 +479,9 @@ public function generarFacturaArca(Request $request, $coti_num)
         Log::info('Generando factura con precios reales en entorno de prueba', [
             'cotizacion_id' => $coti_num,
             'monto_total' => $montoTotal,
-            'cantidad_items' => count($items)
+            'cantidad_items' => count($items),
+            'total_bruto' => $resumenDescuento['total_bruto'],
+            'descuento_aplicado' => $resumenDescuento['descuento_monto']
         ]);
 
         $resultadoFactura = $this->integrarConArca($clienteData, $items, $montoTotal, $cotizacion);
@@ -327,7 +499,10 @@ public function generarFacturaArca(Request $request, $coti_num)
                     'cae' => $resultadoFactura['cae'],
                     'fecha_vencimiento_cae' => $resultadoFactura['fecha_vencimiento'],
                     'monto_total' => $montoTotal,
-                    'items' => $items,
+                    'items' => [
+                        'items' => $items,
+                        'resumen' => $resumenDescuento,
+                    ],
                     'estado' => 'aprobada',
                     'muestras_ids' => $muestrasSeleccionadas,
                     'analisis_ids' => $analisisSeleccionados
@@ -412,21 +587,84 @@ private function guardarFacturacion($data)
         // Crear la factura en la base de datos
         $factura = Factura::create($facturaData);
 
-        // Marcar muestras y análisis como facturados
-        $instanciaIds = array_merge(
-            $data['muestras_ids'] ?? [],
-            $data['analisis_ids'] ?? []
-        );
-
-        if (!empty($instanciaIds)) {
-            CotioInstancia::whereIn('id', $instanciaIds)
+        // Marcar SOLO los análisis seleccionados como facturados
+        $analisisIds = $data['analisis_ids'] ?? [];
+        if (!empty($analisisIds)) {
+            CotioInstancia::whereIn('id', $analisisIds)
                 ->update(['facturado' => true]);
 
-            Log::info('Instancias marcadas como facturadas:', [
+            Log::info('Análisis marcados como facturados:', [
                 'factura_id' => $factura->id,
-                'instancia_ids' => $instanciaIds
+                'analisis_ids' => $analisisIds
             ]);
-        } else {
+        }
+
+        // Marcar muestras como facturadas SOLO si están explícitamente seleccionadas
+        // (no si solo se seleccionaron algunos análisis)
+        $muestrasIds = $data['muestras_ids'] ?? [];
+        if (!empty($muestrasIds)) {
+            CotioInstancia::whereIn('id', $muestrasIds)
+                ->where('cotio_subitem', 0) // Solo muestras, no análisis
+                ->update(['facturado' => true]);
+
+            Log::info('Muestras marcadas como facturadas:', [
+                'factura_id' => $factura->id,
+                'muestras_ids' => $muestrasIds
+            ]);
+        }
+
+        // Verificar muestras que tienen análisis facturados y marcar muestra como facturada
+        // si TODOS sus análisis están facturados
+        if (!empty($analisisIds)) {
+            $analisisFacturados = CotioInstancia::whereIn('id', $analisisIds)->get();
+            
+            // Agrupar por muestra (cotio_item + instance_number)
+            $muestrasConAnalisis = [];
+            foreach ($analisisFacturados as $analisis) {
+                $key = $analisis->cotio_item . '|' . $analisis->instance_number;
+                if (!isset($muestrasConAnalisis[$key])) {
+                    $muestrasConAnalisis[$key] = [
+                        'cotio_item' => $analisis->cotio_item,
+                        'instance_number' => $analisis->instance_number,
+                        'cotio_numcoti' => $analisis->cotio_numcoti
+                    ];
+                }
+            }
+
+            // Para cada muestra, verificar si todos sus análisis están facturados
+            foreach ($muestrasConAnalisis as $muestraInfo) {
+                $totalAnalisis = CotioInstancia::where('cotio_numcoti', $muestraInfo['cotio_numcoti'])
+                    ->where('cotio_item', $muestraInfo['cotio_item'])
+                    ->where('instance_number', $muestraInfo['instance_number'])
+                    ->where('cotio_subitem', '>', 0)
+                    ->where('enable_inform', true)
+                    ->count();
+
+                $analisisFacturadosCount = CotioInstancia::where('cotio_numcoti', $muestraInfo['cotio_numcoti'])
+                    ->where('cotio_item', $muestraInfo['cotio_item'])
+                    ->where('instance_number', $muestraInfo['instance_number'])
+                    ->where('cotio_subitem', '>', 0)
+                    ->where('enable_inform', true)
+                    ->where('facturado', true)
+                    ->count();
+
+                // Si todos los análisis están facturados, marcar la muestra también
+                if ($totalAnalisis > 0 && $analisisFacturadosCount >= $totalAnalisis) {
+                    CotioInstancia::where('cotio_numcoti', $muestraInfo['cotio_numcoti'])
+                        ->where('cotio_item', $muestraInfo['cotio_item'])
+                        ->where('instance_number', $muestraInfo['instance_number'])
+                        ->where('cotio_subitem', 0)
+                        ->update(['facturado' => true]);
+
+                    Log::info('Muestra marcada como facturada (todos sus análisis están facturados):', [
+                        'cotio_item' => $muestraInfo['cotio_item'],
+                        'instance_number' => $muestraInfo['instance_number']
+                    ]);
+                }
+            }
+        }
+
+        if (empty($analisisIds) && empty($muestrasIds)) {
             Log::warning('No se encontraron IDs de muestras o análisis para marcar como facturados', [
                 'factura_id' => $factura->id
             ]);
@@ -455,52 +693,287 @@ private function guardarFacturacion($data)
     }
 }
 
-private function calcularPrecioMuestra($muestra)
+private function obtenerDatosDescuento(?Coti $cotizacion): array
 {
-    // Usar el precio real de la base de datos (columna monto)
-    $monto = $muestra->monto ?? 0;
-    
-    // Validar que el monto sea válido
-    if ($monto <= 0) {
-        Log::warning('Muestra sin monto válido, usando precio por defecto', [
-            'muestra_id' => $muestra->id,
-            'monto_bd' => $monto,
-            'descripcion' => $muestra->cotio_descripcion
-        ]);
-        return 1000.00; // Precio por defecto si no hay monto en BD
+    $cliente = $cotizacion?->cliente;
+    $sectorCodigoOriginal = $cotizacion?->coti_sector ?? optional($cliente)->cli_codigocrub;
+    $sectorCodigo = $this->normalizarCodigoSector($sectorCodigoOriginal);
+
+    // Prioridad: primero descuentos de la cotización, luego del cliente
+    // Descuento global: usar el de la cotización si existe, sino el del cliente
+    $descuentoGlobal = 0.0;
+    if ($cotizacion && isset($cotizacion->coti_descuentoglobal) && $cotizacion->coti_descuentoglobal > 0) {
+        $descuentoGlobal = (float) $cotizacion->coti_descuentoglobal;
+    } elseif ($cliente) {
+        $descuentoGlobal = (float) ($cliente->cli_descuentoglobal ?? 0.0);
+    }
+
+    // Descuento sector: usar el de la cotización si existe, sino el del cliente
+    $descuentoSector = 0.0;
+    if ($cotizacion && $sectorCodigo) {
+        $descuentoSector = $this->obtenerDescuentoSectorCotizacion($cotizacion, $sectorCodigo);
     }
     
-    Log::info('Usando precio real de muestra desde BD', [
-        'muestra_id' => $muestra->id,
-        'monto' => $monto,
-        'descripcion' => $muestra->cotio_descripcion
-    ]);
-    
-    return (float) $monto;
+    // Si no hay descuento de sector en la cotización, usar el del cliente
+    if ($descuentoSector == 0.0 && $cliente) {
+        $descuentoSector = $this->obtenerDescuentoSector($cliente, $sectorCodigo);
+    }
+
+    $descuentoGlobal = max(0.0, min($descuentoGlobal, 100.0));
+    $descuentoSector = max(0.0, min($descuentoSector, 100.0));
+
+    $descuentoTotal = max(0.0, min($descuentoGlobal + $descuentoSector, 100.0));
+
+    return [
+        'porcentaje_total' => $descuentoTotal,
+        'porcentaje_global' => $descuentoGlobal,
+        'porcentaje_sector' => $descuentoSector,
+        'factor_total' => $descuentoTotal / 100,
+        'factor_global' => $descuentoGlobal / 100,
+        'factor_sector' => $descuentoSector / 100,
+        'sector_codigo' => $sectorCodigo,
+        'sector_etiqueta' => $this->obtenerEtiquetaSector($sectorCodigo),
+    ];
 }
 
-private function calcularPrecioAnalisis($analisis)
+private function aplicarDescuento(float $monto, float $factor): float
 {
-    // Usar el precio real de la base de datos (columna monto)
-    $monto = $analisis->monto ?? 0;
-    
-    // Validar que el monto sea válido
-    if ($monto <= 0) {
-        Log::warning('Análisis sin monto válido, usando precio por defecto', [
-            'analisis_id' => $analisis->id,
-            'monto_bd' => $monto,
-            'descripcion' => $analisis->cotio_descripcion
-        ]);
-        return 100.00; // Precio por defecto si no hay monto en BD
+    $monto = (float) $monto;
+
+    if ($monto <= 0 || $factor <= 0) {
+        return round($monto, 2);
     }
-    
-    Log::info('Usando precio real de análisis desde BD', [
-        'analisis_id' => $analisis->id,
-        'monto' => $monto,
-        'descripcion' => $analisis->cotio_descripcion
-    ]);
-    
-    return (float) $monto;
+
+    $resultado = round($monto * (1 - $factor), 2);
+
+    return $resultado < 0 ? 0.0 : $resultado;
+}
+
+private function normalizarCodigoSector(?string $sector): ?string
+{
+    if (is_null($sector)) {
+        return null;
+    }
+
+    $valor = strtoupper(trim($sector));
+    if ($valor === '') {
+        return null;
+    }
+
+    $map = [
+        'LABORATORIO' => 'LAB',
+        'HIGIENE Y SEGURIDAD' => 'HYS',
+        'MICROBIOLOGIA' => 'MIC',
+        'CROMATOGRAFIA' => 'CRO',
+        'LAB' => 'LAB',
+        'HYS' => 'HYS',
+        'MIC' => 'MIC',
+        'CRO' => 'CRO',
+    ];
+
+    if (isset($map[$valor])) {
+        return $map[$valor];
+    }
+
+    $abreviado = substr($valor, 0, 3);
+    return $map[$abreviado] ?? null;
+}
+
+private function obtenerDescuentosSectorCliente(?Clientes $cliente): array
+{
+    if (!$cliente) {
+        return [
+            'LAB' => 0.0,
+            'HYS' => 0.0,
+            'MIC' => 0.0,
+            'CRO' => 0.0,
+        ];
+    }
+
+    return [
+        'LAB' => (float) ($cliente->cli_sector_laboratorio_pct ?? 0.0),
+        'HYS' => (float) ($cliente->cli_sector_higiene_pct ?? 0.0),
+        'MIC' => (float) ($cliente->cli_sector_microbiologia_pct ?? 0.0),
+        'CRO' => (float) ($cliente->cli_sector_cromatografia_pct ?? 0.0),
+    ];
+}
+
+private function obtenerDescuentoSector(?Clientes $cliente, ?string $sectorCodigo): float
+{
+    if (!$cliente || !$sectorCodigo) {
+        return 0.0;
+    }
+
+    $descuentos = $this->obtenerDescuentosSectorCliente($cliente);
+    return (float) ($descuentos[$sectorCodigo] ?? 0.0);
+}
+
+private function obtenerDescuentosSectorCotizacion(?Coti $cotizacion): array
+{
+    if (!$cotizacion) {
+        return [
+            'LAB' => 0.0,
+            'HYS' => 0.0,
+            'MIC' => 0.0,
+            'CRO' => 0.0,
+        ];
+    }
+
+    return [
+        'LAB' => (float) ($cotizacion->coti_sector_laboratorio_pct ?? 0.0),
+        'HYS' => (float) ($cotizacion->coti_sector_higiene_pct ?? 0.0),
+        'MIC' => (float) ($cotizacion->coti_sector_microbiologia_pct ?? 0.0),
+        'CRO' => (float) ($cotizacion->coti_sector_cromatografia_pct ?? 0.0),
+    ];
+}
+
+private function obtenerDescuentoSectorCotizacion(?Coti $cotizacion, ?string $sectorCodigo): float
+{
+    if (!$cotizacion || !$sectorCodigo) {
+        return 0.0;
+    }
+
+    $descuentos = $this->obtenerDescuentosSectorCotizacion($cotizacion);
+    return (float) ($descuentos[$sectorCodigo] ?? 0.0);
+}
+
+private function obtenerEtiquetaSector(?string $sectorCodigo): ?string
+{
+    if (!$sectorCodigo) {
+        return null;
+    }
+
+    $registro = Divis::whereRaw('TRIM(divis_codigo) = ?', [$sectorCodigo])->first();
+
+    if ($registro) {
+        return trim($registro->divis_descripcion ?? '') ?: trim($registro->divis_codigo ?? '');
+    }
+
+    return $sectorCodigo;
+}
+
+private function normalizarItemsFactura($items): array
+{
+    if (is_string($items)) {
+        $decoded = json_decode($items, true) ?? [];
+    } elseif (is_array($items)) {
+        $decoded = $items;
+    } else {
+        $decoded = [];
+    }
+
+    $lista = $decoded;
+    $resumen = null;
+
+    if (isset($decoded['items']) && is_array($decoded['items'])) {
+        $lista = $decoded['items'];
+        $resumen = $decoded['resumen'] ?? null;
+    }
+
+    $lista = collect($lista)
+        ->filter(fn($item) => is_array($item) && (!empty($item['subtotal']) || !empty($item['precio_unitario'])))
+        ->values()
+        ->all();
+
+    return [
+        'items' => $lista,
+        'resumen' => is_array($resumen) ? $resumen : null,
+    ];
+}
+
+private function calcularImporteDesdeTarea($tarea): float
+{
+    $precio = (float) ($tarea->cotio_precio ?? 0);
+    $cantidad = (float) ($tarea->cotio_cantidad ?? 1);
+
+    if ($cantidad <= 0) {
+        $cantidad = 1;
+    }
+
+    return $precio * $cantidad;
+}
+
+private function construirResumenFinanciero(Coti $cotizacion, $tareas = null): array
+{
+    $tareasCollection = $tareas instanceof \Illuminate\Support\Collection ? $tareas : collect($tareas ?? $cotizacion->tareas);
+
+    $ensayos = $tareasCollection->where('cotio_subitem', 0);
+    $componentes = $tareasCollection->where('cotio_subitem', '>', 0);
+
+    $muestrasInfo = [];
+    $analisisInfo = [];
+
+    foreach ($ensayos as $ensayo) {
+        $cantidad = (float) ($ensayo->cotio_cantidad ?? 1);
+        if ($cantidad <= 0) {
+            $cantidad = 1;
+        }
+
+        $componentesDelEnsayo = $componentes->where('cotio_item', $ensayo->cotio_item);
+
+        $precioUnitario = $componentesDelEnsayo->sum(function ($componente) {
+            return $this->calcularImporteDesdeTarea($componente);
+        });
+
+        $muestrasInfo[$ensayo->cotio_item] = [
+            'descripcion' => $ensayo->cotio_descripcion,
+            'cantidad' => $cantidad,
+            'precio_unitario' => $precioUnitario,
+            'subtotal' => $precioUnitario * $cantidad,
+        ];
+
+        foreach ($componentesDelEnsayo as $componente) {
+            $analisisInfo[$componente->cotio_item][$componente->cotio_subitem] = [
+                'descripcion' => $componente->cotio_descripcion,
+                'precio' => $this->calcularImporteDesdeTarea($componente),
+            ];
+        }
+    }
+
+    $componentesExtras = $componentes->filter(function ($componente) use ($ensayos) {
+        return !$ensayos->contains('cotio_item', $componente->cotio_item);
+    });
+
+    $componentesExtrasDetalle = $componentesExtras->map(function ($componente) {
+        return [
+            'item' => $componente->cotio_item,
+            'descripcion' => $componente->cotio_descripcion,
+            'precio' => $this->calcularImporteDesdeTarea($componente),
+        ];
+    })->values();
+
+    $totalMuestras = array_reduce($muestrasInfo, function ($carry, $item) {
+        return $carry + ($item['subtotal'] ?? 0);
+    }, 0.0);
+
+    $totalComponentesExtras = $componentesExtrasDetalle->sum('precio');
+
+    $totalBruto = $totalMuestras + $totalComponentesExtras;
+
+    $descuentoData = $this->obtenerDatosDescuento($cotizacion);
+    $descuentoMontoTotal = round($totalBruto * $descuentoData['factor_total'], 2);
+    $descuentoMontoGlobal = round($totalBruto * $descuentoData['factor_global'], 2);
+    $descuentoMontoSector = round($totalBruto * $descuentoData['factor_sector'], 2);
+    $totalNeto = round($totalBruto - $descuentoMontoTotal, 2);
+
+    return [
+        'muestras' => $muestrasInfo,
+        'analisis' => $analisisInfo,
+        'componentes_extra' => $componentesExtrasDetalle,
+        'totales' => [
+            'bruto' => round($totalBruto, 2),
+            'descuento_monto' => $descuentoMontoTotal,
+            'descuento_porcentaje' => $descuentoData['porcentaje_total'],
+            'descuento_global_porcentaje' => $descuentoData['porcentaje_global'],
+            'descuento_sector_porcentaje' => $descuentoData['porcentaje_sector'],
+            'descuento_global_monto' => $descuentoMontoGlobal,
+            'descuento_sector_monto' => $descuentoMontoSector,
+            'descuento_sector_etiqueta' => $descuentoData['sector_etiqueta'],
+            'neto' => $totalNeto,
+        ],
+        'descuento_factor' => $descuentoData['factor_total'],
+        'descuento_detalle' => $descuentoData,
+    ];
 }
 
 private function integrarConArca($clienteData, $items, $montoTotal, $cotizacion)
@@ -517,6 +990,7 @@ private function integrarConArca($clienteData, $items, $montoTotal, $cotizacion)
             'CUIT' => 20409378472,
             'production' => false, // Siempre en false para homologación
             'res_folder' => __DIR__ . '/afip_res',
+            'access_token' => env('AFIPSDK_ACCESS_TOKEN'),
             'debug' => true,
         ]);
 
@@ -599,15 +1073,13 @@ public function verFactura($id)
 {
     $factura = Factura::with('cotizacion')->findOrFail($id);
     
-    // Decodificar items para mostrar en la vista
-    $items = [];
-    if (is_string($factura->items)) {
-        $items = json_decode($factura->items, true) ?? [];
-    } elseif (is_array($factura->items)) {
-        $items = $factura->items;
-    }
+    $normalizado = $this->normalizarItemsFactura($factura->items);
 
-    return view('facturacion.detalle', compact('factura', 'items'));
+    return view('facturacion.detalle', [
+        'factura' => $factura,
+        'items' => $normalizado['items'],
+        'resumenItems' => $normalizado['resumen'],
+    ]);
 }
 
 // public function descargar(Factura $factura)
@@ -728,7 +1200,8 @@ public function descargar(Factura $factura)
         $html = file_get_contents($htmlPath);
 
         // Preparar los datos para reemplazar los placeholders
-        $items = is_string($factura->items) ? json_decode($factura->items, true) ?? [] : $factura->items;
+        $normalizado = $this->normalizarItemsFactura($factura->items);
+        $items = $normalizado['items'];
         $total = $factura->monto_total ?? 0;
         $neto = round($total / 1.21, 2);
         $iva = round($total - $neto, 2);
@@ -737,20 +1210,39 @@ public function descargar(Factura $factura)
         $itemsTable = '';
         if ($items && is_array($items)) {
             foreach ($items as $index => $item) {
+                if (!is_array($item)) {
+                    continue;
+                }
+
                 $descripcion = htmlspecialchars($item['descripcion'] ?? 'N/A');
-                $identificacion = isset($item['identificacion']) && $item['identificacion'] ? "<br><small style=\"color: #666;\">ID: " . htmlspecialchars($item['identificacion']) . "</small>" : '';
-                $resultado = isset($item['resultado']) && $item['resultado'] ? "<br><small style=\"color: #666;\">Resultado: " . htmlspecialchars($item['resultado']) . "</small>" : '';
-                $tipo = $item['tipo'] == 'muestra' ? 'Muestra' : ($item['tipo'] == 'analisis' ? 'Análisis' : 'Unidad');
+                $identificacion = !empty($item['identificacion'])
+                    ? "<br><small style=\"color: #666;\">ID: " . htmlspecialchars($item['identificacion']) . "</small>"
+                    : '';
+                $resultado = !empty($item['resultado'])
+                    ? "<br><small style=\"color: #666;\">Resultado: " . htmlspecialchars($item['resultado']) . "</small>"
+                    : '';
+
+                $tipoRaw = $item['tipo'] ?? 'unidad';
+                $tipo = match ($tipoRaw) {
+                    'muestra' => 'Muestra',
+                    'analisis' => 'Análisis',
+                    default => ucfirst($tipoRaw),
+                };
+
+                $cantidad = $item['cantidad'] ?? 1;
+                $precioUnitario = $item['precio_unitario'] ?? 0;
+                $subtotalItem = $item['subtotal'] ?? $precioUnitario;
+
                 $itemsTable .= "
                     <tr>
                         <td>" . ($index + 1) . "</td>
                         <td>$descripcion$identificacion$resultado</td>
-                        <td>" . ($item['cantidad'] ?? 1) . "</td>
+                        <td>" . $cantidad . "</td>
                         <td>$tipo</td>
-                        <td>" . number_format($item['precio_unitario'] ?? 0, 2, ',', '.') . "</td>
+                        <td>" . number_format($precioUnitario, 2, ',', '.') . "</td>
                         <td>0,00</td>
                         <td>0,00</td>
-                        <td>" . number_format($item['subtotal'] ?? 0, 2, ',', '.') . "</td>
+                        <td>" . number_format($subtotalItem, 2, ',', '.') . "</td>
                     </tr>";
             }
         } else {
@@ -797,7 +1289,17 @@ public function descargar(Factura $factura)
         ];
 
         // Crear PDF con Afip SDK
-        $afip = new Afip(['CUIT' => env('AFIP_CUIT'), 'production' => env('AFIP_PRODUCTION', false)]);
+        $accessToken = env('AFIPSDK_ACCESS_TOKEN');
+        if (empty($accessToken)) {
+            throw new \Exception('Variable AFIPSDK_ACCESS_TOKEN no configurada. No es posible generar el PDF.');
+        }
+
+        $afip = new Afip([
+            'CUIT' => env('AFIP_CUIT'),
+            'production' => env('AFIP_PRODUCTION', false),
+            'access_token' => $accessToken,
+            'debug' => true,
+        ]);
         try {
             $res = $afip->ElectronicBilling->CreatePDF([
                 'html' => $html,

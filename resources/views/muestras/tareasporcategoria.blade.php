@@ -311,6 +311,7 @@
                         <strong>Identificador de muestra:</strong> {{ $instanciaActual->cotio_identificacion ?? 'N/A' }}
                     </div>
                 @endif
+                {{-- @dd($instanciaActual) --}}
 
                 @if($instanciaActual->image)
                     <div class="mt-3">

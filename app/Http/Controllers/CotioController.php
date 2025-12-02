@@ -1002,11 +1002,11 @@ public function updateResultado(Request $request, $cotio_numcoti, $cotio_item, $
         'observacion_resultado_3' => 'nullable|string|max:255',
         'observacion_resultado_final' => 'nullable|string|max:255',
         'observaciones_ot' => 'nullable|string|max:1000',
+        'image_resultado_final' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp',
     ]);
 
     DB::beginTransaction();
     try {
-        // Encontrar la instancia
         $instancia = CotioInstancia::where([
             'cotio_numcoti' => $cotio_numcoti,
             'cotio_item' => $cotio_item,
@@ -1014,12 +1014,19 @@ public function updateResultado(Request $request, $cotio_numcoti, $cotio_item, $
             'instance_number' => $instance,
         ])->firstOrFail();
 
-        // Determinar si hay cambios que requieran cambiar el estado
+        // Handle image upload
+        if ($request->hasFile('image_resultado_final')) {
+            $file = $request->file('image_resultado_final');
+            $filename = time() . '_' . $file->getClientOriginalName();
+            $path = $file->storeAs('uploads/analisis', $filename, 'public');
+            $instancia->image_resultado_final = $path; // Store the file path in the `image` column
+        }
+
+        // Determine if there are changes that require state update
         $hasResultado = $request->filled('resultado') || $request->filled('resultado_2') || $request->filled('resultado_3') || $request->filled('resultado_final');
 
-        // Actualizar estado si hay resultados
         if ($hasResultado) {
-            if(Auth::user()->rol == 'muestreador') {
+            if (Auth::user()->rol == 'muestreador') {
                 $instancia->cotio_estado = 'en revision muestreo';
             } else {
                 $instancia->cotio_estado_analisis = 'en revision analisis';
@@ -1034,86 +1041,58 @@ public function updateResultado(Request $request, $cotio_numcoti, $cotio_item, $
             }
         }
 
-        // Actualizar resultados
-        if($request->filled('resultado') && $instancia->resultado !== $request->resultado) {
+        // Update results
+        if ($request->filled('resultado') && $instancia->resultado !== $request->resultado) {
             $instancia->resultado = $request->resultado;
-            if(is_null($instancia->fecha_carga_resultado_1)) {
+            if (is_null($instancia->fecha_carga_resultado_1)) {
                 $instancia->responsable_resultado_1 = Auth::user()->usu_codigo;
                 $instancia->fecha_carga_resultado_1 = now();
             }
         }
-        if($request->filled('resultado_2') && $instancia->resultado_2 !== $request->resultado_2) {
+        if ($request->filled('resultado_2') && $instancia->resultado_2 !== $request->resultado_2) {
             $instancia->resultado_2 = $request->resultado_2;
-            if(is_null($instancia->fecha_carga_resultado_2)) {
+            if (is_null($instancia->fecha_carga_resultado_2)) {
                 $instancia->responsable_resultado_2 = Auth::user()->usu_codigo;
                 $instancia->fecha_carga_resultado_2 = now();
             }
         }
-        if($request->filled('resultado_3') && $instancia->resultado_3 !== $request->resultado_3) {
+        if ($request->filled('resultado_3') && $instancia->resultado_3 !== $request->resultado_3) {
             $instancia->resultado_3 = $request->resultado_3;
-            if(is_null($instancia->fecha_carga_resultado_3)) {
+            if (is_null($instancia->fecha_carga_resultado_3)) {
                 $instancia->responsable_resultado_3 = Auth::user()->usu_codigo;
                 $instancia->fecha_carga_resultado_3 = now();
             }
         }
-        if($request->filled('resultado_final') && $instancia->resultado_final !== $request->resultado_final) {
+        if ($request->filled('resultado_final') && $instancia->resultado_final !== $request->resultado_final) {
             $instancia->resultado_final = $request->resultado_final;
             $instancia->responsable_resultado_final = Auth::user()->usu_codigo;
-            // fecha de carga del resultado final se guarda en fecha_carga_ot
             $instancia->fecha_carga_ot = now();
         }
 
-        // Actualizar observaciones
-        if($request->filled('observacion_resultado')) {
+        // Update observations
+        if ($request->filled('observacion_resultado')) {
             $instancia->observacion_resultado = $request->observacion_resultado;
         }
-        if($request->filled('observacion_resultado_2')) {
+        if ($request->filled('observacion_resultado_2')) {
             $instancia->observacion_resultado_2 = $request->observacion_resultado_2;
         }
-        if($request->filled('observacion_resultado_3')) {
+        if ($request->filled('observacion_resultado_3')) {
             $instancia->observacion_resultado_3 = $request->observacion_resultado_3;
         }
-        if($request->filled('observacion_resultado_final')) {
+        if ($request->filled('observacion_resultado_final')) {
             $instancia->observacion_resultado_final = $request->observacion_resultado_final;
         }
-        if($request->has('observaciones_ot')) {
+        if ($request->has('observaciones_ot')) {
             $instancia->observaciones_ot = $request->observaciones_ot;
         }
 
-        if($instancia->request_review) {
+        if ($instancia->request_review) {
             $instancia->request_review = false;
-
-            // //notificacion al coordinador de analisis:
-            // $coordinador = CotioInstancia::where([
-            //     'cotio_numcoti' => $cotio_numcoti,
-            //     'cotio_item' => $cotio_item,
-            //     'cotio_subitem' => 0,
-            //     'instance_number' => $instance,
-            // ])->firstOrFail();
-
-            // $mensaje = sprintf(
-            //     'Se recalcularon los resultados para "%s" (COTI %s, ítem %s/%s, instancia %s). %s',
-            //     $instancia->cotio_descripcion,
-            //     $instancia->cotio_numcoti,
-            //     $instancia->cotio_item,
-            //     $instancia->cotio_subitem,
-            //     $instancia->instance_number,
-            //     $request->observaciones_ot !== '' ? ('Obs: ' . $request->observaciones_ot) : ''
-            // );
-
-            // SimpleNotification::create([
-            //     'coordinador_codigo' => $coordinador->usu_codigo, 
-            //     'sender_codigo' => Auth::user()->usu_codigo,
-            //     'instancia_id' => $instancia->id,
-            //     'mensaje' => $mensaje,
-            // ]);
-
         }
 
         $instancia->save();
         DB::commit();
 
-        // Verificar si es una petición AJAX
         if ($request->ajax() || $request->wantsJson()) {
             return response()->json([
                 'success' => true,
@@ -1127,22 +1106,20 @@ public function updateResultado(Request $request, $cotio_numcoti, $cotio_item, $
                     'observacion_resultado_2' => $instancia->observacion_resultado_2,
                     'observacion_resultado_3' => $instancia->observacion_resultado_3,
                     'observacion_resultado_final' => $instancia->observacion_resultado_final,
-                ]
+                    'image' => $instancia->image, // Include image path in response
+                ],
             ]);
         }
 
         return redirect()->back()->with('success', 'Resultado del análisis actualizado correctamente');
-
     } catch (\Exception $e) {
         DB::rollBack();
-        
         if ($request->ajax() || $request->wantsJson()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Error al actualizar el análisis: ' . $e->getMessage()
             ], 500);
         }
-        
         return redirect()->back()->with('error', 'Error al actualizar el análisis: ' . $e->getMessage());
     }
 }
@@ -1162,6 +1139,7 @@ public function onlyUpdateResultado(Request $request, $cotio_numcoti, $cotio_ite
         'observacion_resultado_3' => 'nullable|string|max:255',
         'observacion_resultado_final' => 'nullable|string|max:255',
         'observaciones_ot' => 'nullable|string|max:1000',
+        'image_resultado_final' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp',
     ]);
 
     DB::beginTransaction();
@@ -1173,48 +1151,55 @@ public function onlyUpdateResultado(Request $request, $cotio_numcoti, $cotio_ite
             'instance_number' => $instance,
         ])->firstOrFail();
 
-        // No cambiar estados aquí: solo persistir campos
-        if($request->filled('resultado') && $instancia->resultado !== $request->resultado) {
+        // Handle image upload
+        if ($request->hasFile('image_resultado_final')) {
+            $file = $request->file('image_resultado_final');
+            $filename = time() . '_' . $file->getClientOriginalName();
+            $path = $file->storeAs('uploads/analisis', $filename, 'public');
+            $instancia->image_resultado_final = $path; // Store the file path in the `image` column
+        }
+
+        // Update other fields
+        if ($request->filled('resultado') && $instancia->resultado !== $request->resultado) {
             $instancia->resultado = $request->resultado;
-            if(is_null($instancia->fecha_carga_resultado_1)) {
+            if (is_null($instancia->fecha_carga_resultado_1)) {
                 $instancia->responsable_resultado_1 = Auth::user()->usu_codigo;
                 $instancia->fecha_carga_resultado_1 = now();
             }
         }
-        if($request->filled('resultado_2') && $instancia->resultado_2 !== $request->resultado_2) {
+        if ($request->filled('resultado_2') && $instancia->resultado_2 !== $request->resultado_2) {
             $instancia->resultado_2 = $request->resultado_2;
-            if(is_null($instancia->fecha_carga_resultado_2)) {
+            if (is_null($instancia->fecha_carga_resultado_2)) {
                 $instancia->responsable_resultado_2 = Auth::user()->usu_codigo;
                 $instancia->fecha_carga_resultado_2 = now();
             }
         }
-        if($request->filled('resultado_3') && $instancia->resultado_3 !== $request->resultado_3) {
+        if ($request->filled('resultado_3') && $instancia->resultado_3 !== $request->resultado_3) {
             $instancia->resultado_3 = $request->resultado_3;
-            if(is_null($instancia->fecha_carga_resultado_3)) {
+            if (is_null($instancia->fecha_carga_resultado_3)) {
                 $instancia->responsable_resultado_3 = Auth::user()->usu_codigo;
                 $instancia->fecha_carga_resultado_3 = now();
             }
         }
-        if($request->filled('resultado_final') && $instancia->resultado_final !== $request->resultado_final) {
+        if ($request->filled('resultado_final') && $instancia->resultado_final !== $request->resultado_final) {
             $instancia->resultado_final = $request->resultado_final;
             $instancia->responsable_resultado_final = Auth::user()->usu_codigo;
-            // fecha de carga del resultado final se guarda en fecha_carga_ot
             $instancia->fecha_carga_ot = now();
         }
 
-        if($request->filled('observacion_resultado')) {
+        if ($request->filled('observacion_resultado')) {
             $instancia->observacion_resultado = $request->observacion_resultado;
         }
-        if($request->filled('observacion_resultado_2')) {
+        if ($request->filled('observacion_resultado_2')) {
             $instancia->observacion_resultado_2 = $request->observacion_resultado_2;
         }
-        if($request->filled('observacion_resultado_3')) {
+        if ($request->filled('observacion_resultado_3')) {
             $instancia->observacion_resultado_3 = $request->observacion_resultado_3;
         }
-        if($request->filled('observacion_resultado_final')) {
+        if ($request->filled('observacion_resultado_final')) {
             $instancia->observacion_resultado_final = $request->observacion_resultado_final;
         }
-        if($request->has('observaciones_ot')) {
+        if ($request->has('observaciones_ot')) {
             $instancia->observaciones_ot = $request->observaciones_ot;
         }
 
@@ -1225,6 +1210,9 @@ public function onlyUpdateResultado(Request $request, $cotio_numcoti, $cotio_ite
             return response()->json([
                 'success' => true,
                 'message' => 'Resultado guardado correctamente',
+                'data' => [
+                    'image' => $instancia->image, // Include image path in response
+                ],
             ]);
         }
 
@@ -1329,7 +1317,6 @@ public function showTareasAll($cotio_numcoti, $cotio_item, $cotio_subitem = 0, $
         $muestraQuery = CotioInstancia::with([
             'muestra.vehiculo',
             'muestra.cotizacion',
-            'herramientas',
             'valoresVariables' => function($query) {
                 $query->select('id', 'cotio_instancia_id', 'variable', 'valor');
             }
@@ -1347,24 +1334,33 @@ public function showTareasAll($cotio_numcoti, $cotio_item, $cotio_subitem = 0, $
 
         $instanciaMuestra = $muestraQuery->firstOrFail();
 
-        // Obtener análisis (subitems > 0) sin cargar las variables
-        $analisisQuery = CotioInstancia::with([
+        // Cargar herramientas para la instancia de muestra
+        $herramientasMuestra = $instanciaMuestra->getHerramientasMuestreo();
+        
+        // Obtener todas las herramientas disponibles para edición
+        $todasHerramientas = \App\Models\InventarioMuestreo::where('activo', 1)->get();
+
+        // Obtener TODOS los análisis de la muestra (subitems > 0) 
+        $analisis = CotioInstancia::with([
             'tarea.vehiculo',
             'tarea.cotizacion',
-            'herramientas'
+            'responsablesMuestreo' // Cargar responsables para mostrar quién está asignado
         ])
         ->where('cotio_numcoti', $cotio_numcoti)
         ->where('cotio_item', $cotio_item)
         ->where('cotio_subitem', '>', 0)
-        ->where('instance_number', $instance);
+        ->where('instance_number', $instance)
+        ->orderBy('cotio_subitem')
+        ->get();
 
-        if (!$esPrivilegiado) {
-            $analisisQuery->whereHas('responsablesMuestreo', function ($query) use ($usuarioActual) {
-                $query->where('usu.usu_codigo', $usuarioActual);
-            });
-        }
-
-        $analisis = $analisisQuery->orderBy('cotio_subitem')->get();
+        // Cargar herramientas para cada análisis y marcar cuáles puede editar el usuario
+        $analisis->each(function ($item) use ($usuarioActual, $esPrivilegiado) {
+            $item->herramientas = $item->getHerramientasMuestreo();
+            
+            // Determinar si el usuario puede editar este análisis
+            $item->puede_editar = $esPrivilegiado || 
+                $item->responsablesMuestreo->pluck('usu_codigo')->contains($usuarioActual);
+        });
 
         Log::debug('Tasks retrieved for muestreador', [
             'user' => $usuarioActual,
@@ -1381,7 +1377,9 @@ public function showTareasAll($cotio_numcoti, $cotio_item, $cotio_subitem = 0, $
             'instancia' => $instanciaMuestra,
             'analisis' => $analisis,
             'instanceNumber' => $instance,
-            'variables' => $instanciaMuestra->valoresVariables // Pasamos solo las variables de la muestra principal
+            'variables' => $instanciaMuestra->valoresVariables, // Pasamos solo las variables de la muestra principal
+            'herramientasMuestra' => $herramientasMuestra, // Herramientas de la muestra principal
+            'todasHerramientas' => $todasHerramientas // Todas las herramientas disponibles
         ]);
 
     } catch (\Exception $e) {
@@ -1394,6 +1392,87 @@ public function showTareasAll($cotio_numcoti, $cotio_item, $cotio_subitem = 0, $
             'trace' => $e->getTraceAsString()
         ]);
         abort(404, 'Muestra o tareas no encontradas o no asignadas al usuario.');
+    }
+}
+
+public function updateHerramientas(Request $request, $cotio_numcoti, $cotio_item, $cotio_subitem, $instance)
+{
+    try {
+        $request->validate([
+            'herramientas' => 'nullable|array',
+            'herramientas.*' => 'integer|exists:inventario_muestreo,id'
+        ]);
+
+        $usuario = Auth::user();
+        $usuarioActual = trim($usuario->usu_codigo);
+        $esPrivilegiado = ((int) $usuario->usu_nivel >= 900) || ($usuario->rol === 'coordinador_muestreo');
+
+        // Verificar que el usuario tiene acceso a esta instancia
+        $instanciaQuery = CotioInstancia::where([
+            'cotio_numcoti' => $cotio_numcoti,
+            'cotio_item' => $cotio_item,
+            'cotio_subitem' => $cotio_subitem,
+            'instance_number' => $instance
+        ]);
+
+        if (!$esPrivilegiado) {
+            $instanciaQuery->whereHas('responsablesMuestreo', function ($query) use ($usuarioActual) {
+                $query->where('usu.usu_codigo', $usuarioActual);
+            });
+        }
+
+        $instancia = $instanciaQuery->firstOrFail();
+
+        // Eliminar herramientas existentes
+        \App\Models\CotioInventarioMuestreo::where([
+            'cotio_numcoti' => $cotio_numcoti,
+            'cotio_item' => $cotio_item,
+            'cotio_subitem' => $cotio_subitem,
+            'instance_number' => $instance
+        ])->delete();
+
+        // Agregar nuevas herramientas
+        if (!empty($request->herramientas)) {
+            foreach ($request->herramientas as $herramientaId) {
+                \App\Models\CotioInventarioMuestreo::create([
+                    'cotio_numcoti' => $cotio_numcoti,
+                    'cotio_item' => $cotio_item,
+                    'cotio_subitem' => $cotio_subitem,
+                    'instance_number' => $instance,
+                    'inventario_muestreo_id' => $herramientaId,
+                    'cantidad' => 1
+                ]);
+            }
+        }
+
+        Log::info('Herramientas actualizadas por muestreador', [
+            'usuario' => $usuarioActual,
+            'cotio_numcoti' => $cotio_numcoti,
+            'cotio_item' => $cotio_item,
+            'cotio_subitem' => $cotio_subitem,
+            'instance_number' => $instance,
+            'herramientas' => $request->herramientas ?? []
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Herramientas actualizadas correctamente'
+        ]);
+
+    } catch (\Exception $e) {
+        Log::error('Error al actualizar herramientas', [
+            'usuario' => Auth::user()->usu_codigo,
+            'cotio_numcoti' => $cotio_numcoti,
+            'cotio_item' => $cotio_item,
+            'cotio_subitem' => $cotio_subitem,
+            'instance_number' => $instance,
+            'error' => $e->getMessage()
+        ]);
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Error al actualizar herramientas: ' . $e->getMessage()
+        ], 500);
     }
 }
 

@@ -6,22 +6,116 @@ use Illuminate\Database\Eloquent\Model;
 use App\Models\Matriz;
 use App\Models\User;
 use App\Models\Cotio;
+use App\Models\Clientes;
 
 class Coti extends Model
 {
     protected $table = 'coti';
     protected $primaryKey = 'coti_num';
     public $incrementing = false;
-    protected $keyType = 'string'; 
+    protected $keyType = 'integer';
+    public $timestamps = false;
 
+    protected $fillable = [
+        'coti_num',
+        'coti_para',
+        'coti_descripcion',
+        'coti_codigocli',
+        'coti_fechaalta',
+        'coti_fechaaprobado',
+        'coti_aprobo',
+        'coti_estado',
+        'coti_codigomatriz',
+        'coti_responsable',
+        'coti_fechafin',
+        'coti_notas',
+        'coti_fechaencurso',
+        'coti_fechaaltatecnica',
+        'coti_empresa',
+        'coti_establecimiento',
+        'coti_contacto',
+        'coti_direccioncli',
+        'coti_localidad',
+        'coti_partido',
+        'coti_cuit',
+        'coti_codigopostal',
+        'coti_telefono',
+        'coti_codigosuc',
+        'coti_mail1',
+        'coti_sector',
+        'coti_referencia_tipo',
+        'coti_referencia_valor',
+        'coti_oc_referencia',
+        'coti_hes_has_tipo',
+        'coti_hes_has_valor',
+        'coti_gr_contrato_tipo',
+        'coti_gr_contrato',
+        'coti_otro_referencia',
+        'coti_descuentoglobal',
+        'coti_sector_laboratorio_pct',
+        'coti_sector_higiene_pct',
+        'coti_sector_microbiologia_pct',
+        'coti_sector_cromatografia_pct',
+        'coti_sector_laboratorio_contacto',
+        'coti_sector_higiene_contacto',
+        'coti_sector_microbiologia_contacto',
+        'coti_sector_cromatografia_contacto',
+        'coti_sector_laboratorio_observaciones',
+        'coti_sector_higiene_observaciones',
+        'coti_sector_microbiologia_observaciones',
+        'coti_sector_cromatografia_observaciones'
+    ];
+
+    protected $casts = [
+        'coti_fechaalta' => 'date',
+        'coti_fechaaprobado' => 'date',
+        'coti_fechafin' => 'date',
+        'coti_fechaencurso' => 'date',
+        'coti_fechaaltatecnica' => 'date',
+        'coti_descuentoglobal' => 'decimal:2',
+        'coti_sector_laboratorio_pct' => 'decimal:2',
+        'coti_sector_higiene_pct' => 'decimal:2',
+        'coti_sector_microbiologia_pct' => 'decimal:2',
+        'coti_sector_cromatografia_pct' => 'decimal:2'
+    ]; 
+
+    /**
+     * Relación con cliente
+     */
+    public function cliente()
+    {
+        return $this->belongsTo(Clientes::class, 'coti_codigocli', 'cli_codigo');
+    }
+
+    /**
+     * Relación con tareas/items de la cotización
+     */
     public function tareas()
     {
         return $this->hasMany(Cotio::class, 'cotio_numcoti', 'coti_num');
     }
 
+    /**
+     * Relación con muestras (ensayos) - cotio_subitem = 0
+     */
+    public function muestras()
+    {
+        return $this->hasMany(Cotio::class, 'cotio_numcoti', 'coti_num')
+                    ->where('cotio_subitem', 0);
+    }
+
+    /**
+     * Relación con componentes (análisis) - cotio_subitem > 0
+     */
+    public function componentes()
+    {
+        return $this->hasMany(Cotio::class, 'cotio_numcoti', 'coti_num')
+                    ->where('cotio_subitem', '>', 0);
+    }
+
     public function responsable()
     {
-        return $this->belongsTo(User::class, 'coti_responsable');
+        return $this->belongsTo(User::class, 'coti_responsable', 'usu_codigo');
     }
 
     public function matriz()
@@ -30,6 +124,11 @@ class Coti extends Model
     }
 
     public function instancias()
+    {
+        return $this->hasMany(CotioInstancia::class, 'cotio_numcoti', 'coti_num');
+    }
+
+        public function cotioInstancias()
     {
         return $this->hasMany(CotioInstancia::class, 'cotio_numcoti', 'coti_num');
     }

@@ -6,7 +6,7 @@
                 <table class="table table-hover align-middle">
                     <thead class="table-light">
                         <tr>
-                            <th width="120">Orden</th>
+                            <th width="120">Cotización</th>
                             <th>Cliente</th>
                             <th width="140" class="text-center">Progreso</th>
                             <th width="120" class="text-center">Fecha</th>
